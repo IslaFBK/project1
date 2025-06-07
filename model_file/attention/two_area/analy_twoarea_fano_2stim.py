@@ -1,0 +1,397 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Feb 17 12:10:21 2021
+
+@author: shni2598
+"""
+
+import matplotlib as mpl
+mpl.use('Agg')
+import scipy.stats
+#import load_data_dict
+import mydata
+import brian2.numpy_ as np
+from brian2.only import *
+#import post_analysis as psa
+import firing_rate_analysis as fra
+import frequency_analysis as fqa
+import fano_mean_match
+import connection as cn
+import pickle
+import sys
+import os
+import matplotlib.pyplot as plt
+import shutil
+#%%
+data_dir = 'raw_data/'
+analy_type = 'fano'
+datapath = data_dir
+#datapath = '/import/headnode1/shni2598/brian2/NeuroNet_brian/model_file/attention/two_area/data/spon_1area/'
+sys_argv = int(sys.argv[1])
+loop_num = sys_argv #rep_ind*20 + ie_num
+good_dir = 'good/'
+goodsize_dir = 'good_size/'
+
+fftplot = False; getfano = True
+get_TunningCurve = False; get_HzTemp = False
+get_ani = False
+#%%
+clr = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+data = mydata.mydata()
+data.load(datapath+'data%d.file'%loop_num)
+data_anly = mydata.mydata()
+
+title = 'fano_1e2e%.2f_1e2i%.2f_2e1e%.2f_2e1i%.2f'%(data.inter.param.w_e1_e2_mean/5, data.inter.param.w_e1_i2_mean/5, \
+                                                    data.inter.param.w_e2_e1_mean/5, data.inter.param.w_e2_i1_mean/5)
+
+'''spontanous rate'''
+dt = 1/10000;
+end = int(20/dt); start = int(5/dt)
+spon_rate1 = np.sum((data.a1.ge.t < end) & (data.a1.ge.t > start))/15/data.a1.param.Ne
+spon_rate2 = np.sum((data.a2.ge.t < end) & (data.a2.ge.t > start))/15/data.a2.param.Ne
+
+data_anly.spon_rate1 = spon_rate1
+data_anly.spon_rate2 = spon_rate2
+#%%
+def find_peakF(coef, freq, lwin):
+    dF = freq[1] - freq[0]
+    #Fwin = 0.3
+    #lwin = 3#int(Fwin/dF)
+    win = np.ones(lwin)/lwin
+    coef_avg = np.convolve(np.abs(coef[1:]), win, mode='same')
+    peakF = freq[1:][coef_avg.argmax()]
+    return peakF
+
+def plot_fft(freq, coef, freq_max1=20, freq_max2 = 200, fig=None, ax=None, label=''):
+    if fig is None:
+        fig, ax = plt.subplots(2,2,figsize=[9,9])
+    
+    #fs = 1000
+    #data_fft = mua[:]
+    #coef, freq = fqa.myfft(data_fft, fs)
+    # data_anly.coef_spon = coef
+    # data_anly.freq_spon = freq
+    
+    #peakF = find_peakF(coef, freq, 3)
+    
+    #freq_max1 = 20
+    ind_len = freq[freq<freq_max1].shape[0] # int(20/(fs/2)data_fft*(len(data_fft)/2)) + 1
+    ax[0,0].plot(freq[1:ind_len], np.abs(coef[1:ind_len]),label=label+'_linear')
+    ax[0,1].loglog(freq[1:ind_len], np.abs(coef[1:ind_len]),label=label+'_loglog')
+    
+    #freq_max2 = 150
+    ind_len = freq[freq<freq_max2].shape[0] # int(20/(fs/2)*(len(data_fft)/2)) + 1
+    ax[1,0].plot(freq[1:ind_len], np.abs(coef[1:ind_len]),label=label+'_linear')
+    ax[1,1].loglog(freq[1:ind_len], np.abs(coef[1:ind_len]),label=label+'_loglog')
+    
+    for i in range(2):
+        for j in range(2):
+            ax[i,j].legend()
+    
+    return fig, ax, #peakF#, coef, freq
+#%%
+mua_loca = [0, 0]
+mua_range = 5 
+mua_neuron = cn.findnearbyneuron.findnearbyneuron(data.a1.param.e_lattice, mua_loca, mua_range, data.a1.param.width)
+#%%
+
+start_time = 5e3; end_time = 20e3
+window = 5
+data.a1.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a1.param.Ne, window = 5)
+mua = data.a1.ge.spk_rate.spk_rate.reshape(data.a1.param.Ne,-1)[mua_neuron]
+mua = mua.mean(0)/(window/1000)
+
+
+coef, freq = fqa.myfft(mua, Fs=1000)
+peakF_spon = find_peakF(coef, freq, 3)
+data_anly.coef_spon_a1 = coef
+data_anly.freq_spon_a1 = freq
+data_anly.peakF_spon_a1 =  peakF_spon
+if fftplot:
+    fig, ax = plot_fft(freq, coef, freq_max1=20, freq_max2 = 200, fig=None, ax=None, label='spon_a1')
+    
+    title1 = title + '_pf%.2f_a1'%(peakF_spon)
+    savetitle = title1.replace('\n','')
+    fig.suptitle(title1)
+    fftfile = savetitle+'_fft_%d'%(loop_num)+'.png'
+    fig.savefig(fftfile)
+    plt.close()
+
+data.a2.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a2.param.Ne, window = 5)
+mua = data.a2.ge.spk_rate.spk_rate.reshape(data.a2.param.Ne,-1)[mua_neuron]
+mua = mua.mean(0)/(window/1000)
+
+coef, freq = fqa.myfft(mua, Fs=1000)
+peakF_spon = find_peakF(coef, freq, 3)
+data_anly.coef_spon_a2 = coef
+data_anly.freq_spon_a2 = freq
+data_anly.peakF_spon_a2 =  peakF_spon
+
+if fftplot:
+    fig, ax = plot_fft(freq, coef, freq_max1=20, freq_max2 = 200, fig=None, ax=None, label='spon_a2')
+    
+    title1 = title + '_pf%.2f_a2'%(peakF_spon)
+    savetitle = title1.replace('\n','')
+    fig.suptitle(title1)
+    fftfile = savetitle+'_fft_%d'%(loop_num)+'.png'
+    fig.savefig(fftfile)
+    plt.close()
+#%%
+'''fano'''
+if getfano:
+    data_anly.fano = mydata.mydata()
+    
+    stim_loc = np.array([0,0])
+    
+    neuron = np.arange(data.a1.param.Ne)
+    
+    dist = cn.coordination.lattice_dist(data.a1.param.e_lattice,data.a1.param.width,stim_loc)
+    neu_pool = [None]*1
+    neu_pool[0] = neuron[(dist >= 0) & (dist <= 10)]
+    
+    #fr_bin = np.array([200]) 
+        
+    simu_time_tot = data.param.simutime#29000
+    
+    #N_stim = data.a1.param.stim.stim_amp_scale.shape[0]
+    
+    data.a1.ge.get_sparse_spk_matrix([data.a1.param.Ne, simu_time_tot*10])
+    
+    fanomm = fano_mean_match.fano_mean_match()
+    fanomm.bin_count_interval = 0.25
+    fanomm.spk_sparmat = data.a1.ge.spk_matrix[neu_pool[0],:]
+    fanomm.method = 'regression' # 'mean' or 'regression'
+    fanomm.mean_match_across_condition = True # if do mean matching across different condition e.g. attention or no-attention condition
+    fanomm.seed = 100
+
+    
+    N_stim = int(round(data.a1.param.stim1.stim_amp_scale.shape[0]/2))
+    for win in [100]:#[50,100,150]:
+        fanomm.win = win
+        fanomm.stim_onoff = data.a1.param.stim1.stim_on[0:N_stim].copy()
+        fanomm.stim_onoff_2 = data.a1.param.stim1.stim_on[N_stim:N_stim*2].copy() #  on and off time of each stimulus under condition 2; this variable takes effect only when self.mean_match_across_condition =  True
+        fanomm.t_bf = -(win/2)
+        fanomm.t_aft = -(win/2)
+        
+        #fano_mean_noatt, fano_std_noatt, _ = fanomm.get_fano()
+        fano_mean_noatt, fano_sem_noatt, _, fano_mean_att, fano_sem_att, _ = fanomm.get_fano()
+
+        data_anly.fano.fano_mean_noatt = fano_mean_noatt
+        data_anly.fano.fano_mean_att = fano_mean_att
+        data_anly.fano.fano_sem_att = fano_sem_att        
+        data_anly.fano.fano_sem_noatt = fano_sem_noatt
+        
+        # print(np.sum(np.isnan(_)))
+        # print(np.sum(np.isnan(fano_mean_noatt)))
+        # print(np.sum(np.isnan(fano_std_noatt)))
+        # fanomm.stim_onoff = data.a1.param.stim1.stim_on[N_stim:N_stim*2].copy()
+        
+        # fano_mean_att, fano_std_att, _ = fanomm.get_fano()
+        # # print(np.sum(np.isnan(_)))
+        # data_anly.fano.fano_mean_att = fano_mean_att
+        # data_anly.fano.fano_std_att = fano_std_att
+        
+        fig, ax = plt.subplots(1,1, figsize=[8,6])
+        ax.errorbar(np.arange(fano_mean_noatt.shape[0])*10+(win/2),fano_mean_noatt,fano_sem_noatt,label='no attention')
+        ax.errorbar(np.arange(fano_mean_att.shape[0])*10+(win/2),fano_mean_att,fano_sem_att,label='attention')
+        ax.set_xlabel('ms')
+        ax.set_ylabel('fano')
+        plt.legend()
+        title3 = title + '_win%.1f'%fanomm.win#%(data_anly.fano_noatt.mean(), data_anly.fano_att.mean())
+        fig.suptitle(title3)
+        savetitle = title3.replace('\n','')
+        fanofile = savetitle+'_m2_%d'%(loop_num)+'.png'
+        fig.savefig(fanofile)
+        plt.close()
+#%%
+'''firing rate'''
+'''
+firing rate-location ; tunning curve
+'''
+if get_TunningCurve:
+    stim_loc = np.array([0,0])
+    
+    dist = cn.coordination.lattice_dist(data.a1.param.e_lattice,data.a1.param.width,stim_loc)
+    dist_bin = np.arange(0, 31.5*2**0.5, 2.5)
+    n_in_bin = [None]*(dist_bin.shape[0]-1)
+    neuron = np.arange(data.a1.param.Ne)
+    
+    for i in range(len(dist_bin)-1):
+        n_in_bin[i] = neuron[(dist >= dist_bin[i]) & (dist < dist_bin[i+1])]
+    
+    
+    simu_time_tot = data.param.simutime#29000
+    
+    #N_stim = data.a1.param.stim.stim_amp_scale.shape[0]
+    N_stim = int(round(data.a1.param.stim1.stim_amp_scale.shape[0]/2))
+    
+    data.a1.ge.get_sparse_spk_matrix([data.a1.param.Ne, simu_time_tot*10])
+    ## stim
+    hz_loc = fra.tuning_curve(data.a1.ge.spk_matrix, data.a1.param.stim1.stim_on, n_in_bin)
+    ## spon
+    hz_loc_spon = np.zeros([2, len(n_in_bin)])
+    '''no attention'''
+    spon_onff = np.array([[5000,15000]])
+    hz_loc_spon[0,:] = fra.tuning_curve(data.a1.ge.spk_matrix, spon_onff, n_in_bin)
+    
+    '''attention'''
+    spon_adpt_stt = data.a1.param.stim1.stim_on[N_stim,0] - 2000 
+    spon_adpt_end = data.a1.param.stim1.stim_on[N_stim,0]
+    spon_onff = np.array([[spon_adpt_stt,spon_adpt_end]])
+    hz_loc_spon[1,:] = fra.tuning_curve(data.a1.ge.spk_matrix, spon_onff, n_in_bin)
+    
+    data_anly.hz_loc = hz_loc
+    data_anly.hz_loc_spon = hz_loc_spon
+    
+    '''plot'''
+    stim_amp = 400
+    hz_loc_mean_noatt = hz_loc[:N_stim,:].mean(0)
+    hz_loc_mean_att = hz_loc[N_stim:N_stim*2,:].mean(0)
+    
+    plt.figure(figsize=[8,6])
+    dist_bin_plot = (dist_bin+(dist_bin[1]-dist_bin[0])*0.5)[:-1]
+        
+    plt.plot(dist_bin_plot, hz_loc_mean_noatt, ls='--', marker='o', c=clr[0], label = 'stim_amp: %.1f Hz'%(stim_amp))
+    plt.plot(dist_bin_plot, hz_loc_spon[0], ls='--', marker='o', c=clr[1], label = 'spontaneous')
+    
+    plt.plot(dist_bin_plot, hz_loc_mean_att, ls='-', marker='o', c=clr[0], label = 'attention; stim_amp: %.1f Hz'%(stim_amp))
+    plt.plot(dist_bin_plot, hz_loc_spon[1], ls='-', marker='o', c=clr[1], label = 'attention; spontaneous')
+    
+    
+    #title = "2e1e:%.3f_2e1i:%.3f_1hz:%.2f_2hz:%.2f"%(scale_w_21_e[ie_ind//scale_w_21_i.shape[0]], scale_w_21_i[ie_ind%scale_w_21_i.shape[0]], spon_rate1,spon_rate2)
+    #plt.title('average firing rate versus distance to stimulus centre; 2e1e:%.3f 2e1i%.3f\n Spike-count bin: %.1f ms\n'%(scale_w_21_e[ie_ind//scale_w_21_i.shape[0]], scale_w_21_i[ie_ind%scale_w_21_i.shape[0]],fr_bin[b])+title)
+    #plt.title('average firing rate versus distance to stimulus centre; Spike-count bin: %.1f ms\n'%(data.a1.param.stim1.stim_on[0,1]-data.a1.param.stim1.stim_on[0,0]))#+title)
+    plt.title(title + '\nSpike-count bin: %.1f ms\n'%(data.a1.param.stim1.stim_on[0,1]-data.a1.param.stim1.stim_on[0,0]))#+title)
+    
+    plt.xlim([dist_bin[0],dist_bin[-1]])
+    plt.xlabel('distance')
+    plt.ylabel('Hz')
+    plt.legend()
+    plt.savefig(title.replace('\n','')+'_tunecv'+'_%d'%loop_num+'.png')
+    plt.close()
+#%%
+'''firing rate time'''
+if get_HzTemp:
+    mua_loc_ind = -1
+    plt.figure(figsize=[8,6])
+    for mua_loca_1 in [[0,0],[-32,-32]]:
+        mua_loc_ind += 1
+        N_stim = int(round(data.a1.param.stim1.stim_amp_scale.shape[0]/2))
+        stim_amp = 400
+        #mua_loca_1 = [0, 0]
+        mua_range_1 = 5
+        mua_neuron_1 = cn.findnearbyneuron.findnearbyneuron(data.a1.param.e_lattice, mua_loca_1, mua_range_1, data.a1.param.width)
+        window = 5
+        dura_onoff = data.a1.param.stim1.stim_on.copy()
+        dura_onoff[:,0] -= 100
+        dura_onoff[:,1] += 100
+        hz_t = fra.firing_rate_time_multi(data.a1.ge, mua_neuron_1, dura_onoff, window=window)
+        data_anly.hz_t = hz_t
+        
+        hz_t_noatt_mean = hz_t[:N_stim,:].mean(0)
+        #hz_t_noatt_std = hz_t[:N_stim,:].std(0)
+        hz_t_noatt_sem = scipy.stats.sem(hz_t[:N_stim,:], 0, nan_policy='omit')
+        
+        hz_t_att_mean = hz_t[N_stim:N_stim*2,:].mean(0)
+        #hz_t_att_std = hz_t[N_stim:N_stim*2,:].std(0)
+        hz_t_att_sem = scipy.stats.sem(hz_t[N_stim:N_stim*2,:], 0, nan_policy='omit')
+        
+        
+        #hz_t_mean = hz_t[:,:, 0].reshape(n_amp_stim,n_per_amp,-1).mean(1)
+        #plt.figure(figsize=[8,6])
+        #for i in range(n_amp_stim_att):
+        t_plot = np.arange(dura_onoff[0,1] - dura_onoff[0,0]) - 100
+        plt.plot(t_plot, hz_t_noatt_mean, ls='--', c=clr[mua_loc_ind], label = 'stim_amp: %.1f Hz; loc: [%.1f,%.1f]'%(stim_amp,mua_loca_1[0],mua_loca_1[1]))
+        plt.fill_between(t_plot, hz_t_noatt_mean-hz_t_noatt_sem, hz_t_noatt_mean+hz_t_noatt_sem, \
+                         ls='--', facecolor=clr[0], edgecolor=clr[0], alpha=0.2)
+        #for i in range(n_amp_stim_att,n_amp_stim):
+        plt.plot(t_plot, hz_t_att_mean, ls='-', c=clr[mua_loc_ind], label = 'attention; stim_amp: %.1f Hz; loc: [%.1f,%.1f]'%(stim_amp,mua_loca_1[0],mua_loca_1[1])) 
+        plt.fill_between(t_plot, hz_t_att_mean-hz_t_att_sem, hz_t_att_mean+hz_t_att_sem, \
+                         ls='-', facecolor=clr[0], edgecolor=clr[0], alpha=0.2)
+    plt.xlabel('ms')
+    plt.ylabel('Hz')
+    #title = "2e1e:%.3f_2e1i:%.3f_1hz:%.2f_2hz:%.2f"%(scale_w_21_e[ie_ind//scale_w_21_i.shape[0]], scale_w_21_i[ie_ind%scale_w_21_i.shape[0]], spon_rate1,spon_rate2)
+    #title = ''
+    plt.title(title + '; senssory')
+    plt.legend()
+    #plt.savefig(save_dir+title.replace(':','')+'_temp'+'_%d'%ie_ind+'.png')
+    plt.savefig(title.replace('\n','')+'_temp'+'_%d'%loop_num+'.png')
+    plt.close()
+#%%
+'''animation'''
+if get_ani:
+    first_stim = 0; last_stim = 2
+    start_time = data.a1.param.stim1.stim_on[first_stim,0] - 600
+    end_time = data.a1.param.stim1.stim_on[last_stim,0] + 400
+    
+    data.a1.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a1.param.Ne, window = 15)
+    data.a1.ge.get_centre_mass()
+    data.a1.ge.overlap_centreandspike()
+    
+    data.a2.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a2.param.Ne, window = 15)
+    data.a2.ge.get_centre_mass()
+    data.a2.ge.overlap_centreandspike()
+    
+    #data.a1.gi.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a2.param.Ni, window = 10)
+    #frames = int(end_time - start_time)
+    frames = data.a1.ge.spk_rate.spk_rate.shape[2]
+    
+    stim_on_off = data.a1.param.stim1.stim_on-start_time
+    stim_on_off = stim_on_off[stim_on_off[:,0]>=0][:int(last_stim-first_stim)+1]
+    
+    #stim = [[[[31.5,31.5]], [stim_on_off], [[6]*stim_on_off.shape[0]]],None]
+    stim = [[[[31.5,31.5],[63.5,-0.5]], [stim_on_off,stim_on_off], [[6]*stim_on_off.shape[0],[6]*stim_on_off.shape[0]]],None]
+    
+    adpt = None
+    #adpt = [None, [[[31,31]], [[[0, data.a1.ge.spk_rate.spk_rate.shape[-1]]]], [[6]]]]
+    #adpt = [[[[31,31]], [[[0, data.a1.ge.spk_rate.spk_rate.shape[-1]]]], [[6]]]]
+    ani = fra.show_pattern(spkrate1=data.a1.ge.spk_rate.spk_rate, spkrate2=data.a2.ge.spk_rate.spk_rate, \
+                                            frames = frames, start_time = start_time, interval_movie=15, anititle=title,stim=stim, adpt=adpt)
+    savetitle = title.replace('\n','')
+    
+    moviefile = savetitle+'_noatt_%d'%loop_num+'.mp4'
+    
+    # if loop_num%1 == 0:
+    ani.save(moviefile)
+    del ani
+        # pass
+    
+    first_stim = 50; last_stim = 52
+    start_time = data.a1.param.stim1.stim_on[first_stim,0] - 800
+    end_time = data.a1.param.stim1.stim_on[last_stim,0] + 400
+    
+    data.a1.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a1.param.Ne, window = 15)
+    data.a1.ge.get_centre_mass()
+    data.a1.ge.overlap_centreandspike()
+    
+    data.a2.ge.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a2.param.Ne, window = 15)
+    data.a2.ge.get_centre_mass()
+    data.a2.ge.overlap_centreandspike()
+    
+    #data.a1.gi.get_spike_rate(start_time=start_time, end_time=end_time, sample_interval=1, n_neuron = data.a2.param.Ni, window = 10)
+    #frames = int(end_time - start_time)
+    frames = data.a1.ge.spk_rate.spk_rate.shape[2]
+    
+    stim_on_off = data.a1.param.stim1.stim_on-start_time
+    stim_on_off = stim_on_off[stim_on_off[:,0]>=0][:int(last_stim-first_stim)+1]
+    
+    #stim = [[[[31.5,31.5],[-0.5,63.5]], [stim_on_off,stim_on_off], [[6]*stim_on_off.shape[0],[6]*stim_on_off.shape[0]]]]
+    #stim = [[[[31.5,31.5]], [stim_on_off], [[6]*stim_on_off.shape[0]]],None]
+    stim = [[[[31.5,31.5],[63.5,-0.5]], [stim_on_off,stim_on_off], [[6]*stim_on_off.shape[0],[6]*stim_on_off.shape[0]]],None]
+
+    adpt = [None, [[[31,31]], [[[0, data.a1.ge.spk_rate.spk_rate.shape[-1]]]], [[6]]]]
+    #adpt = None
+    ani = fra.show_pattern(spkrate1=data.a1.ge.spk_rate.spk_rate, spkrate2=data.a2.ge.spk_rate.spk_rate, \
+                                            frames = frames, start_time = start_time, interval_movie=15, anititle=title,stim=stim, adpt=adpt)
+    savetitle = title.replace('\n','')
+    
+    moviefile = savetitle+'_att_%d'%loop_num+'.mp4'
+    
+    # if loop_num%1 == 0:
+    ani.save(moviefile)
+    del ani
+    #     pass
+#%%
+data_anly.save(data_anly.class2dict(), datapath+'data_anly%d.file'%loop_num)
