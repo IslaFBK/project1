@@ -81,9 +81,8 @@ params_loop = {
 # generate looping parameter combinations
 loop_combinations = list(itertools.product(*params_loop.values()))
 # get total looping number
-loop_total = 1
-for arr in params_loop.values():
-    loop_total *= len(arr)
+loop_total = len(loop_combinations)
+
 #%% ready to loop
 def compute_and_save(comb, loop_num):
     num_ee, num_ei, num_ie, num_ii = comb
