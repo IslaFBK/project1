@@ -22,3 +22,5 @@ results/
 analysis/load_data_dict.pyc
 .svn/
 .venv/
+test.py
+test.ipynb

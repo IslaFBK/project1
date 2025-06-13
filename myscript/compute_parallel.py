@@ -72,10 +72,10 @@ def fine_w_i(w_e,num_e,num_i,ie_ratio):
 
 # appoint looping parameters
 params_loop = {
-    'num_ee': np.arange(100, 400+1, 50),
-    'num_ei': np.arange(100, 400+1, 50),
-    'num_ie': np.arange(100, 400+1, 50),
-    'num_ii': np.arange(100, 400+1, 50)
+    'num_ee': np.arange(90, 300+1, 5),
+    'num_ei': np.arange(90, 400+1, 5),
+    'num_ie': np.arange(90, 200+1, 5),
+    'num_ii': np.arange(90, 200+1, 5)
 }
 
 # generate looping parameter combinations
@@ -87,6 +87,21 @@ loop_total = len(loop_combinations)
 def compute_and_save(comb, loop_num):
     num_ee, num_ei, num_ie, num_ii = comb
     print(f'looping {loop_num} in {loop_total},\n num_ee={num_ee},num_ei={num_ei},num_ie={num_ie},num_ii={num_ii}')
+
+    #%%
+    # common title & path
+    EE = str('{EE}')
+    EI = str('{EI}')
+    IE = str('{IE}')
+    II = str('{II}')
+    common_title = rf'$K^{EE}$={num_ee}, $K^{EI}$={num_ei}, $K^{IE}$={num_ie}, $K^{II}$={num_ii}'
+    common_path = f'EE{num_ee:03d}_EI{num_ei:03d}_IE{num_ie:03d}_II{num_ii:03d}'
+
+    # check if data file exists
+    # if exists, skip computation
+    if os.path.exists(f'{data_dir}data_{common_path}.file'):
+        print(f"Data file for {common_path} exists, skipping computation.")
+        return None
 
     #%% fixed parameters
     record_LFP = True
@@ -176,6 +191,15 @@ def compute_and_save(comb, loop_num):
     del param_a1['i_ei'], param_a1['j_ei'], param_a1['w_ei'], param_a1['d_ei'], param_a1['dist_ei'] 
     del param_a1['i_ie'], param_a1['j_ie'], param_a1['w_ie'], param_a1['d_ie'], param_a1['dist_ie'] 
     del param_a1['i_ii'], param_a1['j_ii'], param_a1['w_ii'], param_a1['d_ii'], param_a1['dist_ii']
+
+    # decide if analyze (p_peak>1) (not compatible with states_parallel.py)
+    p_peak_ee=param_a1.p_peak_ee
+    p_peak_ei=param_a1.p_peak_ei
+    p_peak_ie=param_a1.p_peak_ie
+    p_peak_ii=param_a1.p_peak_ii
+    p_peak = np.max([p_peak_ee,p_peak_ei,p_peak_ie,p_peak_ii])
+    if p_peak>1:
+        return None
 
     #%%
     start_scope()
@@ -332,15 +356,6 @@ def compute_and_save(comb, loop_num):
                 'gi':{'i':spk_i_1.i[:],'t':spk_tstep_i1}}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
-
-    #%%
-    # common title & path
-    EE = str('{EE}')
-    EI = str('{EI}')
-    IE = str('{IE}')
-    II = str('{II}')
-    common_title = rf'$K^{EE}$={num_ee}, $K^{EI}$={num_ei}, $K^{IE}$={num_ie}, $K^{II}$={num_ii}'
-    common_path = f'EE{num_ee:03d}_EI{num_ei:03d}_IE{num_ie:03d}_II{num_ii:03d}'
 
     ''' save data to disk'''
     with open(f"{data_dir}data_{common_path}.file", 'wb') as file:

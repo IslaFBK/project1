@@ -21,9 +21,14 @@ from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from joblib import Parallel, delayed
 
+'''
+Cause this script scane parameters exactly, it's not flexible enough, now can be fully replaced by state_parallel_auto.py
+'''
+
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
 vedio_dir = 'parallel/vedio/'
+state_dir = 'parallel/state/'
 
 start = time.perf_counter()
 # appoint looping parameters
@@ -195,9 +200,9 @@ data_states = {'datetime':now.strftime("%Y-%m-%d %H:%M:%S"),
                }
 
 ''' save phase data to disk'''
-with open(f"{data_dir}data_{loop_total}_states_{states_path}.file", 'wb') as file:
+with open(f"{state_dir}data_{loop_total}_states_{states_path}.file", 'wb') as file:
     pickle.dump(data_states, file)
-print(f'data states of {loop_total} states saved to {data_dir}')
+print(f'data states of {loop_total} states saved to {state_dir}')
 
 # # load phase data and rebuild Analyzer object
 # ''' load phase data '''

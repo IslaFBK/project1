@@ -6,6 +6,7 @@ from brian2.only import *
 import time
 from analysis import mydata
 import os
+import re
 import datetime
 from connection import poisson_stimuli as psti
 from connection import pre_process_sc
@@ -31,15 +32,28 @@ coactivity_dir = f'./{graph_dir}/coactivity/'
 Path(coactivity_dir).mkdir(parents=True, exist_ok=True)
 
 start = time.perf_counter()
-# appoint looping parameters
-params_loop = {
-    'num_ee': np.arange(100, 400+1, 50),
-    'num_ei': np.arange(100, 400+1, 50),
-    'num_ie': np.arange(100, 400+1, 50),
-    'num_ii': np.arange(100, 400+1, 50)
-}
+# automatically identify looping parameters
+path_list = os.listdir(data_dir)
+# filter out non-data files
+params_list = []
+pattern = r'EE(\d+)_EI(\d+)_IE(\d+)_II(\d+)'
+# extract parameters from file names
+for path in path_list:
+    match = re.search(pattern, path)
+    if match:
+        params = {
+            'num_ee': int(match.group(1)),
+            'num_ei': int(match.group(2)),
+            'num_ie': int(match.group(3)),
+            'num_ii': int(match.group(4))
+        }
+        params_list.append(params)
+
 # generate looping parameter combinations
-loop_combinations = list(itertools.product(*params_loop.values()))
+loop_combinations = [
+    (np.int64(p['num_ee']), np.int64(p['num_ei']), np.int64(p['num_ie']), np.int64(p['num_ii']))
+    for p in params_list
+]
 # get total looping number
 loop_total = len(loop_combinations)
 
@@ -171,22 +185,4 @@ results = Parallel(n_jobs=-1)(
 print(f'pattern graphs of {loop_total} states saved to {graph_dir}')
 print(f'pattern vedios of {loop_total} states saved to {vedio_dir}')
 
-# # load phase data and rebuild Analyzer object
-# ''' load phase data '''
-# with open(f"{data_dir}data_{loop_total}_states_{states_path}.file", 'rb') as file:
-#     data_states = pickle.load(file)
-# Analyzer = mya.CriticalityAnalyzer()
-# Analyzer.params = data_states['params']
-# Analyzer.states = data_states['states']
-
-# # draw phase graph
-# fixed_params = {'num_ie': 400, 'num_ii': 400}
-# fixed_path = "_".join(f"{k}{v}" for k, v in sorted(fixed_params.items()))
-# Analyzer.plot_phase_diagrams(
-#     param_x='num_ee',
-#     param_y='num_ei',
-#     state_vars=['alpha_jump', 'r2_jump', 'alpha_spike', 'r2_spike'],
-#     fixed_params=fixed_params,  # 固定这两个参数
-#     save_path=f'./phasesearch2/states_{loop_total}_{fixed_path}.png'
-# )
-# print(f'Phase graph of {loop_total} states saved to ./parallel/{fixed_path}')
+print(f'total time elapsed: {np.round((time.perf_counter() - start)/60,2)} min')

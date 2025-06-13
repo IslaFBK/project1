@@ -6,6 +6,7 @@ from brian2.only import *
 import time
 from analysis import mydata
 import os
+import re
 import datetime
 from connection import poisson_stimuli as psti
 from connection import pre_process_sc
@@ -20,30 +21,43 @@ import gc
 from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from joblib import Parallel, delayed
-from pathlib import Path
 
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
 vedio_dir = 'parallel/vedio/'
-jump_dir = f'./{graph_dir}/jump/'
-Path(jump_dir).mkdir(parents=True, exist_ok=True)
-coactivity_dir = f'./{graph_dir}/coactivity/'
-Path(coactivity_dir).mkdir(parents=True, exist_ok=True)
+state_dir = 'parallel/state/'
+if not os.path.exists(state_dir):
+    try: os.makedirs(state_dir)
+    except FileExistsError:
+        pass
 
 start = time.perf_counter()
-# appoint looping parameters
-params_loop = {
-    'num_ee': np.arange(100, 400+1, 50),
-    'num_ei': np.arange(100, 400+1, 50),
-    'num_ie': np.arange(100, 400+1, 50),
-    'num_ii': np.arange(100, 400+1, 50)
-}
+# automatically identify looping parameters
+path_list = os.listdir(data_dir)
+# filter out non-data files
+params_list = []
+pattern = r'EE(\d+)_EI(\d+)_IE(\d+)_II(\d+)'
+# extract parameters from file names
+for path in path_list:
+    match = re.search(pattern, path)
+    if match:
+        params = {
+            'num_ee': int(match.group(1)),
+            'num_ei': int(match.group(2)),
+            'num_ie': int(match.group(3)),
+            'num_ii': int(match.group(4))
+        }
+        params_list.append(params)
+
 # generate looping parameter combinations
-loop_combinations = list(itertools.product(*params_loop.values()))
+loop_combinations = [
+    (np.int64(p['num_ee']), np.int64(p['num_ei']), np.int64(p['num_ie']), np.int64(p['num_ii']))
+    for p in params_list
+]
 # get total looping number
 loop_total = len(loop_combinations)
 
-def graphs_and_vedios(comb, loop_num):
+def states_compute(comb, loop_num):
     loop_num += 1
     num_ee, num_ei, num_ie, num_ii = comb
     print(f'Processing {loop_num}/{loop_total},\n num_ee={num_ee},num_ei={num_ei},num_ie={num_ie},num_ii={num_ii}')
@@ -117,76 +131,74 @@ def graphs_and_vedios(comb, loop_num):
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]#[:int(last_stim-first_stim)+1]
 
-    #%% graphs and veideos
     # unwrap periodic trajection
     centre = data_load.a1.ge.centre_mass.centre
     continous_centre = mya.unwrap_periodic_path(centre=centre, width=63)
     continous_jump_size = np.diff(continous_centre)
     continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
 
-    if not os.path.exists(f'./{jump_dir}/jump_{common_path}.png'):
-        # pdf power law distribution check
-        _, _, _ = mya.check_jump_power_law(
-            continous_jump_dist,
-            tail_fraction=0.9,
-            save_path=f'./{jump_dir}/jump_{common_path}.png',
-            title=f'Jump step distribution of \n {common_title}'
-        )
+    # pdf power law distribution check
+    alpha_jump, r2_jump, _ = mya.check_jump_power_law(
+        continous_jump_dist,
+        tail_fraction=0.9,
+        plot=False,
+        save_path=f'./{graph_dir}/jump/jump_{common_path}.png',
+        title=f'Jump step distribution of \n {common_title}'
+    )
 
-    if not os.path.exists(f'./{coactivity_dir}/coactivity_{common_path}.png'):
-        # spike statistic
-        _, _, _ = mya.check_coactive_power_law(
-            data_load.a1.ge.spk_rate,
-            tail_fraction=1,
-            save_path=f'./{coactivity_dir}/coactivity_{common_path}.png',
-            title=f'Coactivity distribution of \n {common_title}',
-            min_active=1  # 忽略少于1个神经元同时放电的情况
-        )
-
-    if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4'):
-        # Animation
-        title = f'Animation \n {common_title}'
-        ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
-                            frames = frames,
-                            start_time = start_time,
-                            interval_movie=15,
-                            anititle=title,
-                            stim=None, 
-                            adpt=None)
-        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+    # spike statistic
+    alpha_spike, r2_spike, _ = mya.check_coactive_power_law(
+        data_load.a1.ge.spk_rate,
+        tail_fraction=1,
+        plot=False,
+        save_path=f'./{graph_dir}/coactivity/coactivity_{common_path}.png',
+        title=f'Coactivity distribution of \n {common_title}',
+        min_active=1  # 忽略少于1个神经元同时放电的情况
+    )
 
     # release RAM
     plt.close('all')
     gc.collect()
 
     # record parameters & states
-    return None
+    return {
+        'params': {
+            'num_ee': num_ee,
+            'num_ei': num_ei,
+            'num_ie': num_ie,
+            'num_ii': num_ii
+        },
+        'states': {
+            'alpha_jump': alpha_jump,
+            'r2_jump': r2_jump,
+            'alpha_spike': alpha_spike,
+            'r2_spike': r2_spike
+        }
+    }
 
 # parallel compute
 results = Parallel(n_jobs=-1)(
-    delayed(graphs_and_vedios)(comb, i+1)
+    delayed(states_compute)(comb, i+1)
     for i, comb in enumerate(loop_combinations)
 )
 
-print(f'pattern graphs of {loop_total} states saved to {graph_dir}')
-print(f'pattern vedios of {loop_total} states saved to {vedio_dir}')
+# establish analyzer to collect result
+Analyzer = mya.CriticalityAnalyzer()
+for result in results: # not sorted
+    if result is not None:
+        Analyzer.states_collector(params=result['params'], states=result['states'])
 
-# # load phase data and rebuild Analyzer object
-# ''' load phase data '''
-# with open(f"{data_dir}data_{loop_total}_states_{states_path}.file", 'rb') as file:
-#     data_states = pickle.load(file)
-# Analyzer = mya.CriticalityAnalyzer()
-# Analyzer.params = data_states['params']
-# Analyzer.states = data_states['states']
+now = datetime.datetime.now()
+data_states = {'datetime':now.strftime("%Y-%m-%d %H:%M:%S"), 
+               'dt':0.1, 
+               'data_dir': os.getcwd(),
+               'params': Analyzer.params,
+               'states': Analyzer.states
+               }
 
-# # draw phase graph
-# fixed_params = {'num_ie': 400, 'num_ii': 400}
-# fixed_path = "_".join(f"{k}{v}" for k, v in sorted(fixed_params.items()))
-# Analyzer.plot_phase_diagrams(
-#     param_x='num_ee',
-#     param_y='num_ei',
-#     state_vars=['alpha_jump', 'r2_jump', 'alpha_spike', 'r2_spike'],
-#     fixed_params=fixed_params,  # 固定这两个参数
-#     save_path=f'./phasesearch2/states_{loop_total}_{fixed_path}.png'
-# )
-# print(f'Phase graph of {loop_total} states saved to ./parallel/{fixed_path}')
+''' save phase data to disk'''
+print('saving states data to disk...')
+with open(f"{state_dir}auto_states.file", 'wb') as file:
+    pickle.dump(data_states, file)
+print(f'data states of {loop_total} states saved to {state_dir}')
+print(f'total time elapsed: {np.round((time.perf_counter() - start)/60,2)} min')

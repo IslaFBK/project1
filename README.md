@@ -1,5 +1,8 @@
 # Statement
 **This repository contain both original and non-original code. Its main purpose is to facilitate my personal learning. So, please ignore this repository and consider it as a private one.**
+# Usage
+Run(.py) compute_parallel > draw_auto $\ge$ state_parallel_auto > interactive_states.
+Means: compute raw data > draw jump step, coactivity distribution, generate pattern vedio $\ge$ statisticize states > build an interactive GUI for check states distribution in 3D phase space.
 # Set steps
 ## Anaconda Prompt:
 ```python
@@ -20,7 +23,8 @@ pip install -r package.txt
    2. (`Windows 10 SDK` and `MSVC v142/v143`).
 3. Restart PC after installed above tools.
    
-### Install `ffmpeg` (see https://blog.csdn.net/qq_45956730/article/details/125272407);
+### Install `ffmpeg` 
+See (https://blog.csdn.net/qq_45956730/article/details/125272407).
 ### interactive phase diagram:
 1. requirements: ipywidgets
 2. Jupyter support:
@@ -29,7 +33,7 @@ pip install -r package.txt
    jupyter nbextension enable --py widgetsnbextension
    ```
 ### LaTeX install:
-See (https://zhuanlan.zhihu.com/p/166523064)
+See (https://zhuanlan.zhihu.com/p/166523064).
 
 # Remote coding
 ## .gitignore:
@@ -58,6 +62,8 @@ results/
 analysis/load_data_dict.pyc
 .svn/
 .venv/
+test.py
+test.ipynb
 ```
 ## prox setting
 The command to use:
