@@ -6,6 +6,7 @@
 *.mp4
 *.avi
 *.zip
+*.rar
 *.tar
 *.mat
 *.file
@@ -24,3 +25,4 @@ analysis/load_data_dict.pyc
 .venv/
 test.py
 test.ipynb
+*.html

@@ -65,7 +65,7 @@ def check_jump_power_law(
     save_path: str = None,
     title: str = None,
     num_bins: int = 50
-) -> Tuple[float, float, np.ndarray]:
+) -> Tuple[float, float, np.ndarray, int]:
     # 数据预处理
     data = data[data > 0]  # 移除0值（对数坐标需要）
     sorted_data = np.sort(data)
@@ -84,12 +84,14 @@ def check_jump_power_law(
         tail_start = int((1 - tail_fraction) * len(bin_centers))
         x_fit = np.log(bin_centers[tail_start:])
         y_fit = np.log(hist[tail_start:])
+        tail_points = len(x_fit)
     else:
         # 幂律拟合（使用尾部数据）(排除0概率)
         tail_start = int((1 - tail_fraction) * len(bin_centers))
         valid_mask = hist[tail_start:] > 0
         x_fit = np.log(bin_centers[tail_start:][valid_mask])
         y_fit = np.log(hist[tail_start:][valid_mask])
+        tail_points = np.count_nonzero(valid_mask)
     
     # 线性回归
     slope, intercept, r_value, _, _ = linregress(x_fit, y_fit)
@@ -135,7 +137,7 @@ def check_jump_power_law(
     
     # 返回拟合结果（对齐原始数据点）
     full_pred = np.concatenate([np.nan*np.ones(tail_start), y_pred])
-    return alpha, r_squared, np.column_stack((bin_centers, hist, full_pred))
+    return alpha, r_squared, np.column_stack((bin_centers, hist, full_pred)), tail_points
 
 def check_coactive_power_law(
     spk_rate_obj,
@@ -144,7 +146,7 @@ def check_coactive_power_law(
     save_path: Optional[str] = None,
     title: str = None,
     min_active: int = 1
-) -> Tuple[float, float, np.ndarray]:
+) -> Tuple[float, float, np.ndarray, int]:
     """
     分析同时放电神经元数量的幂律分布
     
@@ -176,12 +178,14 @@ def check_coactive_power_law(
         tail_start = int((1 - tail_fraction) * len(bin_centers))
         x_fit = np.log(bin_centers[tail_start:])
         y_fit = np.log(hist[tail_start:])
+        tail_points = len(x_fit)
     else:
         # 幂律拟合（使用尾部数据）（排除0概率）
         tail_start = int((1 - tail_fraction) * len(bin_centers))
         valid_mask = hist[tail_start:] > 0
         x_fit = np.log(bin_centers[tail_start:][valid_mask])
         y_fit = np.log(hist[tail_start:][valid_mask])
+        tail_points = np.count_nonzero(valid_mask)
     
     # 线性回归
     slope, intercept, r_value, _, _ = linregress(x_fit, y_fit)
@@ -224,7 +228,7 @@ def check_coactive_power_law(
     
     # 返回拟合结果
     full_pred = np.concatenate([np.nan*np.ones(tail_start), y_pred])
-    return alpha, r_squared, np.column_stack((bin_centers, hist, full_pred))
+    return alpha, r_squared, np.column_stack((bin_centers, hist, full_pred)), tail_points
 
 class CriticalityAnalyzer:
     def __init__(self):
@@ -268,8 +272,8 @@ class CriticalityAnalyzer:
         """
         支持固定其他参数的相图绘制
         Args:
-            fixed_params: 需要固定的参数（如 {'num_ie': 400, 'num_ii': 400}）
-            subplot_kwargs: 每个state_var的绘图参数，格式为:
+            fixed_params: 需要固定的参数(如 {'num_ie': 400, 'num_ii': 400})
+            subplot_kwargs: 每个state_var的绘图参数, 格式为:
                 {
                     'alpha_jump': {'cmap': 'viridis', 'norm': Normalize(1, 3), 'title': 'Alpha Jump'},
                     ...

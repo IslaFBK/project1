@@ -8,10 +8,12 @@ from pathlib import Path
 import pickle
 import itertools
 
-def create_advanced_interactive_plot(data_states, dim_ext, para_range, 
-                                   graph_dir="parallel/graph/",
-                                   video_dir="parallel/video/",
-                                   output_file="parallel/advanced_phase_diagram.html"):
+def create_advanced_interactive_plot(data_states, 
+                                     dim_ext, 
+                                     para_range, 
+                                     graph_dir="parallel/graph/",
+                                     video_dir="parallel/video/",
+                                     output_file="parallel/advanced_phase_diagram.html"):
     """
     创建高级交互式4D相图可视化系统
     
@@ -78,21 +80,48 @@ def create_advanced_interactive_plot(data_states, dim_ext, para_range,
     )
     
     # 为每个状态变量添加初始空轨迹
-    for i, state_key in enumerate(states_list[0].keys()):
-        row = (i // 2) + 1
-        col = (i % 2) + 1
-        
-        fig.add_trace(
-            go.Scatter3d(
-                x=[], y=[], z=[],
-                mode='markers',
-                marker=dict(size=6, opacity=0.8),
-                name=state_key,
-                customdata=np.empty((0, 7))  # 存储额外数据
-            ),
-            row=row, col=col
-        )
+    traces = []
+    for state_key in states_list[0].keys():
+        traces.append(go.Scatter3d(
+            x=[], y=[], z=[],
+            mode='markers',
+            marker=dict(size=6, opacity=0.8),
+            name=state_key
+        ))
     
+    fig.add_traces(traces)
+
+    # 创建滑块步骤
+    slider_steps = []
+    for val in sorted(df[f'num_{dim_ext}'].unique()):
+        # 筛选当前值的数据
+        mask = df[f'num_{dim_ext}'] == val
+        filtered_df = df[mask]
+        
+        # 准备每个trace的更新数据
+        traces_data = []
+        for i, state_key in enumerate(states_list[0].keys()):
+            traces_data.append({
+                'x': [filtered_df[f'num_{fixed_dims[0]}'].values],
+                'y': [filtered_df[f'num_{fixed_dims[1]}'].values],
+                'z': [filtered_df[f'num_{fixed_dims[2]}'].values],
+                'marker.color': [filtered_df[state_key].values],
+                'customdata': filtered_df[['coactivity_path', 'jump_path', 'video_path', 
+                                         'coactivity_exists', 'jump_exists', 'video_exists',
+                                         'common_path']].values
+            })
+        
+        # 创建滑块步骤 (符合Plotly的args限制)
+        slider_steps.append({
+            'method': 'update',
+            'args': [
+                {'visible': [True]*len(traces)},  # 控制可见性
+                {'title': f'当前{dim_ext}={val}'},  # 更新标题
+                traces_data  # 更新轨迹数据
+            ],
+            'label': str(val)
+        })
+
     # 更新布局
     fig.update_layout(
         title=dict(
@@ -105,27 +134,7 @@ def create_advanced_interactive_plot(data_states, dim_ext, para_range,
         sliders=[dict(
             active=0,
             currentvalue={"prefix": f"{dim_ext}="},
-            steps=[
-                dict(
-                    method="update",
-                    args=[
-                        {"visible": [False]*len(fig.data)},  # 先隐藏所有
-                        {"title": f"当前{dim_ext}={val}"},
-                        # 更新每个子图的数据
-                        *[{
-                            f"xaxis{i+1}": [df[df[f'num_{dim_ext}']==val][f'num_{fixed_dims[0]}'].values],
-                            f"yaxis{i+1}": [df[df[f'num_{dim_ext}']==val][f'num_{fixed_dims[1]}'].values],
-                            f"zaxis{i+1}": [df[df[f'num_{dim_ext}']==val][f'num_{fixed_dims[2]}'].values],
-                            "marker.color": [df[df[f'num_{dim_ext}']==val][state_key].values],
-                            "customdata": df[df[f'num_{dim_ext}']==val][
-                                ['coactivity_path', 'jump_path', 'video_path', 
-                                 'coactivity_exists', 'jump_exists', 'video_exists',
-                                 'common_path']].values
-                        } for i, state_key in enumerate(states_list[0].keys())]
-                    ],
-                    label=str(val)
-                ) for val in dim_values[dim_ext]
-            ]
+            steps=slider_steps
         )],
         updatemenus=[dict(
             type="buttons",
@@ -278,39 +287,47 @@ def create_advanced_interactive_plot(data_states, dim_ext, para_range,
 # 使用示例
 # 使用示例
 # load phase data and rebuild Analyzer object
-root_dir = 'parallel'
+root_dir = 'parallel/'
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
 vedio_dir = 'parallel/vedio/'
 state_dir = 'parallel/state/'
 
-# automatically identify looping parameters
-path_list = os.listdir(data_dir)
-# filter out non-data files
-params_list = []
-pattern = r'EE(\d+)_EI(\d+)_IE(\d+)_II(\d+)'
-# extract parameters from file names
-for path in path_list:
-    match = re.search(pattern, path)
-    if match:
-        params = {
-            'num_ee': int(match.group(1)),
-            'num_ei': int(match.group(2)),
-            'num_ie': int(match.group(3)),
-            'num_ii': int(match.group(4))
-        }
-        params_list.append(params)
+# # automatically identify looping parameters
+# path_list = os.listdir(data_dir)
+# # filter out non-data files
+# params_list = []
+# pattern = r'EE(\d+)_EI(\d+)_IE(\d+)_II(\d+)'
+# # extract parameters from file names
+# for path in path_list:
+#     match = re.search(pattern, path)
+#     if match:
+#         params = {
+#             'num_ee': int(match.group(1)),
+#             'num_ei': int(match.group(2)),
+#             'num_ie': int(match.group(3)),
+#             'num_ii': int(match.group(4))
+#         }
+#         params_list.append(params)
 
-# generate looping parameter combinations
-loop_combinations = [
-    (np.int64(p['num_ee']), np.int64(p['num_ei']), np.int64(p['num_ie']), np.int64(p['num_ii']))
-    for p in params_list
-]
-# get total looping number
-loop_total = len(loop_combinations)
+# # generate looping parameter combinations
+# loop_combinations = [
+#     (np.int64(p['num_ee']), np.int64(p['num_ei']), np.int64(p['num_ie']), np.int64(p['num_ii']))
+#     for p in params_list
+# ]
+# # get total looping number
+# loop_total = len(loop_combinations)
 
 ''' load phase data '''
 with open(f"{state_dir}auto_states.file", 'rb') as file:
     data_states = pickle.load(file)
 
-# create_interactive_plot(data_states, 'ii', {'num_ee': [100, 400], ...}, "my_plot.html")
+create_advanced_interactive_plot(data_states=data_states, 
+                                 dim_ext='ii', 
+                                 para_range={'num_ee': [90, 300],
+                                             'num_ei': [90, 400],
+                                             'num_ie': [90, 200],
+                                             'num_ii': [90, 200]},
+                                 graph_dir=graph_dir,
+                                 video_dir=vedio_dir,
+                                 output_file=f"{root_dir}advanced_phase_diagram.html")

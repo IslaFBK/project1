@@ -138,16 +138,19 @@ def states_compute(comb, loop_num):
     continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
 
     # pdf power law distribution check
-    alpha_jump, r2_jump, _ = mya.check_jump_power_law(
+    alpha_jump, r2_jump, _, tail_points_jump = mya.check_jump_power_law(
         continous_jump_dist,
         tail_fraction=0.9,
         plot=False,
         save_path=f'./{graph_dir}/jump/jump_{common_path}.png',
         title=f'Jump step distribution of \n {common_title}'
     )
+    if tail_points_jump < 8:
+        alpha_jump = None
+        r2_jump = None
 
     # spike statistic
-    alpha_spike, r2_spike, _ = mya.check_coactive_power_law(
+    alpha_spike, r2_spike, _, tail_points_spike = mya.check_coactive_power_law(
         data_load.a1.ge.spk_rate,
         tail_fraction=1,
         plot=False,
@@ -155,6 +158,9 @@ def states_compute(comb, loop_num):
         title=f'Coactivity distribution of \n {common_title}',
         min_active=1  # 忽略少于1个神经元同时放电的情况
     )
+    if tail_points_spike < 8:
+        alpha_spike = None
+        r2_spike = None
 
     # release RAM
     plt.close('all')

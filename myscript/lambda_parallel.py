@@ -30,6 +30,7 @@ import gc
 from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from joblib import Parallel, delayed
+from pathlib import Path
 
 plt.rcParams.update({
     "text.usetex": True,  # 启用 LaTeX 渲染
@@ -47,21 +48,37 @@ prefs.codegen.max_cache_dir_size = 120
 #%% OS operation
 # test if data_dir exists, if not, create one.
 # FileExistsError means if menu is create by other progress or thread, ignore it.
-data_dir = 'parallel/raw_data/'
+root_dir = 'lambda/'
+if not os.path.exists(root_dir):
+    try: os.makedirs(root_dir)
+    except FileExistsError:
+        pass
+data_dir = 'lambda/raw_data/'
 if not os.path.exists(data_dir):
     try: os.makedirs(data_dir)
     except FileExistsError:
         pass
-graph_dir = 'parallel/graph/'
+graph_dir = 'lambda/graph/'
 if not os.path.exists(graph_dir):
     try: os.makedirs(graph_dir)
     except FileExistsError:
         pass
-vedio_dir = 'parallel/vedio/'
+vedio_dir = 'lambda/vedio/'
 if not os.path.exists(vedio_dir):
     try: os.makedirs(vedio_dir)
     except FileExistsError:
         pass
+state_dir = 'lambda/state/'
+if not os.path.exists(state_dir):
+    try: os.makedirs(state_dir)
+    except FileExistsError:
+        pass
+trajectory_dir = f'./{graph_dir}/trajectory/'
+Path(trajectory_dir).mkdir(parents=True, exist_ok=True)
+jump_dir = f'./{graph_dir}/jump/'
+Path(jump_dir).mkdir(parents=True, exist_ok=True)
+coactivity_dir = f'./{graph_dir}/coactivity/'
+Path(coactivity_dir).mkdir(parents=True, exist_ok=True)
 
 start = time.perf_counter()
 #%% adjustable parameters
@@ -72,10 +89,8 @@ def fine_w_i(w_e,num_e,num_i,ie_ratio):
 
 # appoint looping parameters
 params_loop = {
-    'num_ee': np.arange(100, 300+1, 10),
-    'num_ei': np.arange(90, 400+1, 10),
-    'num_ie': np.arange(90, 200+1, 10),
-    'num_ii': np.arange(90, 200+1, 10)
+    'N_e_ext': np.arange(1200, 2000+1, 50),
+    'N_i_ext': np.arange(1360, 2160+1, 50)
 }
 
 # generate looping parameter combinations
@@ -84,18 +99,17 @@ loop_combinations = list(itertools.product(*params_loop.values()))
 loop_total = len(loop_combinations)
 
 #%% ready to loop
-def compute_and_save(comb, loop_num):
-    num_ee, num_ei, num_ie, num_ii = comb
-    print(f'looping {loop_num} in {loop_total},\n num_ee={num_ee},num_ei={num_ei},num_ie={num_ie},num_ii={num_ii}')
+def compute_save_draw(comb, loop_num):
+    N_e_ext, N_i_ext = comb
+    print(f'looping {loop_num} in {loop_total},\n N_e_ext={N_e_ext}, N_i_ext={N_i_ext}')
 
     #%%
     # common title & path
-    EE = str('{EE}')
-    EI = str('{EI}')
-    IE = str('{IE}')
-    II = str('{II}')
-    common_title = rf'$K^{EE}$={num_ee}, $K^{EI}$={num_ei}, $K^{IE}$={num_ie}, $K^{II}$={num_ii}'
-    common_path = f'EE{num_ee:03d}_EI{num_ei:03d}_IE{num_ie:03d}_II{num_ii:03d}'
+    E = str('{E}')
+    I = str('{I}')
+    bg = str('{bg}')
+    common_title = rf'$\lambda^{E}_{bg}$={num_ee}, $\lambda^{I}_{bg}$={num_ei}'
+    common_path = f'E{N_e_ext:04d}_I{N_i_ext:04d}'
 
     # check if data file exists
     # if exists, skip computation
@@ -170,6 +184,10 @@ def compute_and_save(comb, loop_num):
     ijwd1.delay = [0.5,2.5] # [min,max]
 
     # K_a'b'ab
+    num_ee = 275
+    num_ei = 200
+    num_ie = 115
+    num_ii = 95
     ijwd1.mean_SynNumIn_ee = num_ee
     ijwd1.mean_SynNumIn_ei = num_ei
     ijwd1.mean_SynNumIn_ie = num_ie
@@ -255,8 +273,6 @@ def compute_and_save(comb, loop_num):
     param_a1 = {**param_a1, 'stim1':data_.class2dict(stim_scale_cls)}
 
     #%%
-    N_e_ext = 1700
-    N_i_ext = 1760
     pois_bkgExt_e1 = PoissonInput(target=group_e_1,
                                 target_var='x_E_extnl',
                                 N=N_e_ext,
@@ -348,7 +364,7 @@ def compute_and_save(comb, loop_num):
 
     data = {'datetime':now.strftime("%Y-%m-%d %H:%M:%S"), 
             'dt':0.1, 
-            'loop_num':0, 
+            'loop_num':loop_num, 
             'data_dir': os.getcwd(),
             'param':param_all,
             'a1':{'param':param_a1,
@@ -360,7 +376,121 @@ def compute_and_save(comb, loop_num):
     ''' save data to disk'''
     with open(f"{data_dir}data_{common_path}.file", 'wb') as file:
         pickle.dump(data, file)
+    
+    '''load data from disk'''
+    data_load = mydata.mydata()
+    data_load.load(f"{data_dir}data_E{N_e_ext:04d}_I{N_i_ext:04d}.file")
 
-Parallel(n_jobs=-1)(delayed(compute_and_save)(comb, i+1)
+    #%% analyze
+    start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
+    window = 15
+    data_load.a1.ge.get_spike_rate(start_time=start_time, 
+                                end_time=end_time, 
+                                sample_interval=1, 
+                                n_neuron = data_load.a1.param.Ne, 
+                                window = window)
+    data_load.a1.ge.get_centre_mass()
+    data_load.a1.ge.overlap_centreandspike()
+
+    frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
+
+    stim_on_off = data_load.a1.param.stim1.stim_on-start_time
+    stim_on_off = stim_on_off[stim_on_off[:,0]>=0]#[:int(last_stim-first_stim)+1]
+    #%% graphs and veideos
+    # unwrap periodic trajection
+    centre = data_load.a1.ge.centre_mass.centre
+    continous_centre = mya.unwrap_periodic_path(centre=centre, width=63)
+    continous_jump_size = np.diff(continous_centre)
+    continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
+
+    if not os.path.exists(f'./{trajectory_dir}/trajectory_{common_path}.png'):
+        # trajectory
+        _ = mya.plot_trajectory(
+            data=continous_centre,
+            title=f'Centre trajectory of \n {common_title}',
+            save_path=f'./{trajectory_dir}/trajectory_{common_path}.png'
+            )
+
+    if not os.path.exists(f'./{jump_dir}/jump_{common_path}.png'):
+        # pdf power law distribution check
+        alpha_jump, r2_jump, _, tail_points_jump = mya.check_jump_power_law(
+            continous_jump_dist,
+            tail_fraction=0.9,
+            save_path=f'./{jump_dir}/jump_{common_path}.png',
+            title=f'Jump step distribution of \n {common_title}'
+        )
+    if tail_points_jump < 8:
+        alpha_jump = None
+        r2_jump = None
+
+    if not os.path.exists(f'./{coactivity_dir}/coactivity_{common_path}.png'):
+        # spike statistic
+        alpha_spike, r2_spike, _, tail_points_spike = mya.check_coactive_power_law(
+            data_load.a1.ge.spk_rate,
+            tail_fraction=1,
+            save_path=f'./{coactivity_dir}/coactivity_{common_path}.png',
+            title=f'Coactivity distribution of \n {common_title}',
+            min_active=1  # 忽略少于1个神经元同时放电的情况
+        )
+    if tail_points_spike < 8:
+        alpha_spike = None
+        r2_spike = None
+
+    if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4'):
+        # Animation
+        title = f'Animation \n {common_title}'
+        ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
+                            frames = frames,
+                            start_time = start_time,
+                            interval_movie=15,
+                            anititle=title,
+                            stim=None, 
+                            adpt=None)
+        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+
+    # release RAM
+    plt.close('all')
+    gc.collect()
+
+    # record parameters & states
+    Analyzer.alpha_r2_collector(
+        N_e_ext=N_e_ext,
+        N_i_ext=N_i_ext,
+        alpha_jump=alpha_jump,
+        r2_jump=r2_jump,
+        alpha_spike=alpha_spike,
+        r2_spike=r2_spike
+        )
+    return None
+
+Analyzer = fra.CriticalityAnalyzer()
+Parallel(n_jobs=-1)(delayed(compute_save_draw)(comb, i+1)
                     for i, comb in enumerate(loop_combinations))
+
+now = datetime.datetime.now()
+data_states = {'datetime':now.strftime("%Y-%m-%d %H:%M:%S"), 
+               'dt':0.1, 
+               'data_dir': os.getcwd(),
+               'params': Analyzer.params,
+               'states': Analyzer.states
+               }
+
+''' save phase data to disk'''
+print('saving states data to disk...')
+with open(f"{state_dir}auto_states.file", 'wb') as file:
+    pickle.dump(data_states, file)
+print(f'data states of {loop_total} states saved to {state_dir}')
+
+Analyzer.plot_phase_diagrams(
+    save_path=f'{state_dir}/Phase_diagrams_of_loops{loop_total}.png'
+    )
+# Analyzer.alpha_r2_collector(
+#     N_e_ext=N_e_ext,
+#     N_i_ext=N_i_ext,
+#     alpha_jump=alpha_jump,
+#     r2_jump=r2_jump,
+#     alpha_spike=alpha_spike,
+#     r2_spike=r2_spike)
+
 print(f'total time elapsed: {np.round((time.perf_counter() - start)/60,2)} min')

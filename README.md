@@ -3,15 +3,19 @@
 # Usage
 Run(.py) compute_parallel > draw_auto $\ge$ state_parallel_auto > interactive_states.
 Means: compute raw data > draw jump step, coactivity distribution, generate pattern vedio $\ge$ statisticize states > build an interactive GUI for check states distribution in 3D phase space.
-# Set steps
+# Setup
 ## Anaconda Prompt:
 ```python
 conda create --prefix "X:\path\.venv" python=3.11.7
 conda activate "X:\path\.venv"
-pip install -r package.txt
+```
+## VsCode:
+In the vary folder:
+```
+python.exe -m pip install -r packages.txt
 ```
 ## Windows:
-### Add the three folder to path:
+### Add the three folders to path:
 1. Open system property > advanced > environment variable;
 2. Find or establish "PYTHONPATH" in system variable;
 3. Add "X:\path\analysis;X:\path\connection;X:\path\connection\model_file" to value, multiple path separated by ";";
@@ -36,6 +40,11 @@ See (https://blog.csdn.net/qq_45956730/article/details/125272407).
 See (https://zhuanlan.zhihu.com/p/166523064).
 
 # Remote coding
+## Update `requirements.txt` and `packages.txt`
+```
+pip freeze > requirements.txt
+pip list --format=freeze > packages.txt
+```
 ## .gitignore:
 ```
 *.pyc
@@ -97,11 +106,18 @@ Here's a successful `.gitconfig`:
 	proxy = https://127.0.0.1:4780
 ```
 
-## SSH and Code app (iPad) setting
-Refer to: [BV1Vj411W7W9](https://www.bilibili.com/video/BV1Vj411W7W9)  
-cpolar host: [cpolar host](http://localhost:9200/)   
-**If something wrong, try to run as an administrator.**
-### sshd_config  
+## SSH from PC and iPad (Code app) setting
+SSH in iPad need no extra setting, following the tutorial of Cpolar will be enough.
+**If something wrong, try to run as administrator while operating OS in the server.**  
+### Between intranet Windows
+[Tutorial](https://zhuanlan.zhihu.com/p/339012691)
+`C:\User\.ssh\config` in PC:
+```
+Host server_user
+    HostName 10.181.252.21(Intranet IP of your server)
+    User server_user
+```
+### sshd_config in server  
 Not clear now, but following sshd_config works:
 ```sshd_config
 Port 22
@@ -157,3 +173,23 @@ icacls "F:\" /grant "Administrators:(OI)(CI)(F)"
 icacls "F:\" /grant "SYSTEM:(OI)(CI)(F)"
 ```
 If something wrong, try rigth-click your path in folder > property > Security, manually add accounts and permissions.
+### Cpolar (Intranet penetration)
+[Tutorial](https://www.bilibili.com/video/BV1Vj411W7W9)  
+[Cpolar official website](https://www.cpolar.com/)  
+[Cpolar local host](http://localhost:9200/)  
+`C:\Users\.cpolar\cpolar.yml` in server:
+```
+authtoken: CpolarAuthtokenExample
+tunnels:
+  code1:
+    id: your-id-example
+    proto: tcp
+    addr: "22"
+    inspect: "false"
+    bind_tls: both
+    region: cn_top
+    disable_keep_alives: "false"
+    redirect_https: "false"
+    start_type: enable
+email: your_email@example.example
+```

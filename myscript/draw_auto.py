@@ -140,7 +140,7 @@ def graphs_and_vedios(comb, loop_num):
 
     if not os.path.exists(f'./{jump_dir}/jump_{common_path}.png'):
         # pdf power law distribution check
-        _, _, _ = mya.check_jump_power_law(
+        _, _, _, _ = mya.check_jump_power_law(
             continous_jump_dist,
             tail_fraction=0.9,
             save_path=f'./{jump_dir}/jump_{common_path}.png',
@@ -149,7 +149,7 @@ def graphs_and_vedios(comb, loop_num):
 
     if not os.path.exists(f'./{coactivity_dir}/coactivity_{common_path}.png'):
         # spike statistic
-        _, _, _ = mya.check_coactive_power_law(
+        _, _, _, _ = mya.check_coactive_power_law(
             data_load.a1.ge.spk_rate,
             tail_fraction=1,
             save_path=f'./{coactivity_dir}/coactivity_{common_path}.png',
