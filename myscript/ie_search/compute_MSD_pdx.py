@@ -9,13 +9,44 @@ import os
 import tempfile
 import datetime
 import time
+import connection as cn
+from connection import poisson_stimuli as psti
 from connection import pre_process_sc
+from connection import preprocess_2area
 from connection import build_one_area
 from connection import get_stim_scale
+from connection import adapt_gaussian
 from analysis import mydata
+from analysis import firing_rate_analysis as fra
+from analysis import my_analysis as mya
+from joblib import Parallel, delayed
+from pathlib import Path
+
+#%% OS operation
+# test if data_dir exists, if not, create one.
+# FileExistsError means if menu is create by other progress or thread, ignore it.
+root_dir = 'ie_ratio_2/'
+Path(root_dir).mkdir(parents=True, exist_ok=True)
+data_dir = f'{root_dir}/raw_data/'
+Path(data_dir).mkdir(parents=True, exist_ok=True)
+graph_dir = f'{root_dir}/graph/'
+Path(graph_dir).mkdir(parents=True, exist_ok=True)
+vedio_dir = f'{root_dir}/vedio/'
+Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+state_dir = f'{root_dir}/state/'
+Path(state_dir).mkdir(parents=True, exist_ok=True)
+MSD_dir = f'./{graph_dir}/MSD/'
+Path(MSD_dir).mkdir(parents=True, exist_ok=True)
+pdx_dir = f'./{graph_dir}/pdx/'
+Path(pdx_dir).mkdir(parents=True, exist_ok=True)
+combined_dir = f'./{graph_dir}/combined'
+Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 def compute_MSD_pdx(comb, seed=10):
     ie_r_e1, ie_r_i1 = comb
+
+    common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
     #%% fixed parameters
     record_LFP = True
@@ -53,6 +84,7 @@ def compute_MSD_pdx(comb, seed=10):
     w_ie_1 = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
 
     #%% build connection set
+    # neuron quantity
     ijwd1 = pre_process_sc.get_ijwd()
     ijwd1.Ne = 64*64
     ijwd1.Ni = 32*32
@@ -118,6 +150,7 @@ def compute_MSD_pdx(comb, seed=10):
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
         syn_LFP.connect(i=i_LFP,j=j_LFP)
         syn_LFP.w[:] = w_LFP[:]
+                                                
     #%%
     '''stim 1; constant amplitude'''
     '''no attention''' # ?background?
@@ -166,47 +199,64 @@ def compute_MSD_pdx(comb, seed=10):
                                 weight=5*nS)
 
     #%%
+
+
+    #%%
     group_e_1.tau_s_de = tau_s_de_*ms; 
     group_e_1.tau_s_di = tau_s_di_*ms
     group_e_1.tau_s_re = group_e_1.tau_s_ri = tau_s_r_*ms
+
     group_e_1.tau_s_de_inter = tau_s_de_*ms #5.0*ms; 
     group_e_1.tau_s_re_inter = 1*ms
     group_e_1.tau_s_de_extnl = 5.0*ms #5.0*ms
     group_e_1.tau_s_re_extnl = 1*ms
+
     group_i_1.tau_s_de = tau_s_de_*ms
     group_i_1.tau_s_di = tau_s_di_*ms
     group_i_1.tau_s_re = group_i_1.tau_s_ri = tau_s_r_*ms
+
     group_i_1.tau_s_de_inter = tau_s_de_*ms #5.0*ms; 
     group_i_1.tau_s_re_inter = 1*ms
     group_i_1.tau_s_de_extnl = 5.0*ms #5.0*ms
     group_i_1.tau_s_re_extnl = 1*ms
+
     group_e_1.v = np.random.random(ijwd1.Ne)*35*mV-85*mV
     group_i_1.v = np.random.random(ijwd1.Ni)*35*mV-85*mV
     group_e_1.delta_gk = delta_gk_1*nS
     group_e_1.tau_k = tau_k_*ms
     group_e_1.g_l = g_l_E
     group_i_1.g_l = g_l_I
+
     group_e_1.I_extnl_crt = 0*nA # 0.25 0.51*nA
     group_i_1.I_extnl_crt = 0*nA # 0.25 0.60*nA
+
     #%%
     spk_e_1 = SpikeMonitor(group_e_1, record = True)
     spk_i_1 = SpikeMonitor(group_i_1, record = True)
+
     if record_LFP:
         lfp_moni = StateMonitor(group_LFP_record, ('lfp'), record = True)
+
     #%%
     net = Network(collect())
     net.store('state1')
+
     #%%
     tic = time.perf_counter()
+
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 500)*ms
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
     simu_time2 = simu_time_tot - simu_time1
+
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
     net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
+
     #%%
     spk_tstep_e1 = np.round(spk_e_1.t/(0.1*ms)).astype(int)
     spk_tstep_i1 = np.round(spk_i_1.t/(0.1*ms)).astype(int)
+
     now = datetime.datetime.now()
+
     param_all = {'delta_gk_1':delta_gk_1,
                 'delta_gk_2':delta_gk_2,
                 'tau_k': tau_k_,
@@ -221,6 +271,7 @@ def compute_MSD_pdx(comb, seed=10):
                 'ie_r_e1': ie_r_e1,
                 'ie_r_i1': ie_r_i1,
                 't_ref': t_ref/ms}
+
     data = {'datetime':now.strftime("%Y-%m-%d %H:%M:%S"), 
             'dt':0.1, 
             'data_dir': os.getcwd(),
@@ -230,12 +281,15 @@ def compute_MSD_pdx(comb, seed=10):
                 'gi':{'i':spk_i_1.i[:],'t':spk_tstep_i1}}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+
     ''' save data to disk'''
-    with open(f"{data_dir}data_temp.file", 'wb') as file:
+    with open(f"{data_dir}data_{seed}.file", 'wb') as file:
         pickle.dump(data, file)
+    
     '''load data from disk'''
     data_load = mydata.mydata()
-    data_load.load(f"{data_dir}data_temp.file")
+    data_load.load(f"{data_dir}data_{seed}.file")
+
     #%% analysis
     start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
@@ -262,5 +316,20 @@ def compute_MSD_pdx(comb, seed=10):
                             fit_stableDist='pylevy')
     msd = data_load.a1.ge.MSD.MSD
     jump_interval = data_load.a1.ge.MSD.jump_interval
-    pdx = data_load.a1.ge.centre_mass.jump_size[:,0]
-    return msd, jump_interval, pdx
+    pdx = data_load.a1.ge.centre_mass.jump_size[:,1]
+    if seed == 1:
+        # Animation
+        title = f'Animation \n {common_title}'
+        ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
+                            frames = frames,
+                            start_time = start_time,
+                            interval_movie=15,
+                            anititle=title,
+                            stim=None, 
+                            adpt=None)
+        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+    return {
+        'msd': msd,
+        'jump_interval': jump_interval,
+        'pdx': pdx
+    }

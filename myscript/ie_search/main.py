@@ -21,10 +21,12 @@ from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from joblib import Parallel, delayed
 from pathlib import Path
-from critical_states_search import compute_MSD_pdx
-from state_evaluator import is_critical_state
-from utils import is_param_near
-from batch_repeat import batch_repeat
+from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
+from myscript.ie_search.state_evaluator import is_critical_state
+from myscript.ie_search.utils import is_param_near
+from myscript.ie_search.batch_repeat import batch_repeat
+from myscript.ie_search.load_repeat import load_repeat
+# from myscript.ie_search.critical_states_search import 
 
 
 plt.rcParams.update({
@@ -60,22 +62,53 @@ Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
-#%%
-# common title & path
-param = (1.8, 2.4)
-ie_r_e1, ie_r_i1 = param
-n_repeat = 128
-common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
-common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+#%% pick parameters and run `n_repeat` times
+def pick_parameters_and_repeat_compute(param):
+    # common title & path
+    # param = (1.8, 2.4)
+    ie_r_e1, ie_r_i1 = param
+    n_repeat = 128
+    common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-save_path_MSD = f'{MSD_dir}/{common_path}_{n_repeat}.png'
-save_path_pdx = f'{pdx_dir}/{common_path}_{n_repeat}.png'
-save_path_combined = f'{combined_dir}/{common_path}_{n_repeat}.png'
+    save_path_MSD = f'{MSD_dir}/{common_path}_{n_repeat}.png'
+    save_path_pdx = f'{pdx_dir}/{common_path}_{n_repeat}.png'
+    save_path_combined = f'{combined_dir}/{common_path}_{n_repeat}.png'
 
-batch_repeat(
-    param=param,
-    n_repeat=n_repeat,
-    save_path_MSD=save_path_MSD,
-    save_path_pdx=save_path_pdx,
-    save_path_combined=save_path_combined
-)
+    batch_repeat(
+        param=param,
+        n_repeat=n_repeat,
+        save_path_MSD=save_path_MSD,
+        save_path_pdx=save_path_pdx,
+        save_path_combined=save_path_combined
+    )
+
+#%% load datas and output graph diract
+def pick_parameters_and_repeat_load(param):
+    # common title & path
+    # param = (1.8, 2.4)
+    ie_r_e1, ie_r_i1 = param
+    n_repeat = 128
+    common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    save_path_MSD = f'{MSD_dir}/{common_path}_{n_repeat}.png'
+    save_path_pdx = f'{pdx_dir}/{common_path}_{n_repeat}.png'
+    save_path_combined = f'{combined_dir}/{common_path}_{n_repeat}.png'
+    load_repeat(
+        param=param,
+        n_repeat=n_repeat,
+        save_path_MSD=save_path_MSD,
+        save_path_pdx=save_path_pdx,
+        save_path_combined=save_path_combined
+    )
+
+#%% auto search critical states and run `n_repeat` times
+params_loop = {
+    'ie_r_e1': np.linspace(1.8, 2.5, 8),
+    'ie_r_i1': np.linspace(1.8, 2.5, 8)
+}
+# generate looping parameter combinations
+loop_combinations = list(itertools.product(*params_loop.values()))
+# get total looping number
+loop_total = len(loop_combinations)
+
