@@ -119,5 +119,5 @@ def batch_repeat(param,
     ax[1].imshow(img_pdx)
     ax[1].axis('off')
     plt.tight_layout()
-    plt.savefig(save_path_combined)
+    plt.savefig(save_path_combined, dpi=300, bbox_inches='tight')
     plt.close()
