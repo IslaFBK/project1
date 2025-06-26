@@ -21,8 +21,11 @@ from connection import preprocess_2area
 from connection import build_one_area
 from connection import get_stim_scale
 from connection import adapt_gaussian
+from sklearn.linear_model import LinearRegression
 import sys
 import pickle
+from pathlib import Path
+from levy import fit_levy, levy
 
 #%%
 prefs.codegen.target = 'cython'
@@ -34,21 +37,32 @@ prefs.codegen.max_cache_dir_size = 120
 #%%
 # test if data_dir exists, if not, create one.
 # FileExistsError means if menu is create by other progress or thread, ignore it.
-data_dir = 'phasesearch/raw_data/'
+root_dir = 'phasesearch/'
+if not os.path.exists(root_dir):
+    try: os.makedirs(root_dir)
+    except FileExistsError:
+        pass
+data_dir = f'{root_dir}/raw_data/'
 if not os.path.exists(data_dir):
     try: os.makedirs(data_dir)
     except FileExistsError:
         pass
-graph_dir = 'phasesearch/graph/'
+graph_dir = f'{root_dir}/graph/'
 if not os.path.exists(graph_dir):
     try: os.makedirs(graph_dir)
     except FileExistsError:
         pass
-vedio_dir = 'phasesearch/vedio/'
+vedio_dir = f'{root_dir}/vedio/'
 if not os.path.exists(vedio_dir):
     try: os.makedirs(vedio_dir)
     except FileExistsError:
         pass
+MSD_dir = f'./{graph_dir}/MSD/'
+Path(MSD_dir).mkdir(parents=True, exist_ok=True)
+pdx_dir = f'./{graph_dir}/pdx/'
+Path(pdx_dir).mkdir(parents=True, exist_ok=True)
+combined_dir = f'./{graph_dir}/combined'
+Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 #%%
 # define which (the index of) parameter you want to use in this simulation
@@ -60,16 +74,16 @@ record_LFP = True
 C = 0.25*nF # capacitance
 v_threshold = -50*mV
 v_reset = -70*mV# -60*mV
-t_ref = 5*ms # refractory period
+t_ref = 4*ms # refractory period
 v_l = -70*mV # leak voltage
 g_l_E = 16.7*nS
-g_l_I = 6.5*nS
+g_l_I = 25*nS
 v_k = -85*mV
 tau_k_ = 60   # ms
 delta_gk_1 = 1.9
 delta_gk_2 = 6.5
-v_rev_I = -80*mV
 v_rev_E = 0*mV
+v_rev_I = -80*mV
 tau_s_de_ = 5
 tau_s_di_ = 4.5
 tau_s_r_ = 1  # ms
@@ -103,19 +117,14 @@ def find_w_e(w_i,num_i,num_e,ie_ratio):
 def fine_w_i(w_e,num_e,num_i,ie_ratio):
     return w_e*(num_e/num_i*ie_ratio)
 
-# mean synaptic weight
-# w_ee_1 = 7.857
-# w_ei_1 = 10.847
-w_ie_1 = 115
-w_ii_1 = 100
-
-# IE-ratio
-ie_r_e1 = 2.3641 #
-ie_r_i1 = 1.9706 # 1.52
-# ie_r_e2 = 1.9313
-# ie_r_i2 = 1.5709 # 1.06
-# ie_r_e = 2.76*6.5/5.8; ie_r_e1 = 1.56
-# ie_r_i = 2.450*6.5/5.8; #ie_r_i1 = 1.40
+# mean synaptic weight 2
+w_ee_1 = 11
+w_ei_1 = 13.805
+w_ie_1 = 41.835
+w_ii_1 = 50
+# IE-ratio 2
+ie_r_e1 = 1.8312
+ie_r_i1 = 1.8627
 
 # neuron quantity
 ijwd1 = pre_process_sc.get_ijwd()
@@ -123,11 +132,11 @@ ijwd1.Ne = 64*64
 ijwd1.Ni = 32*32
 ijwd1.width = 64
 
-# distribution 
-ijwd1.decay_p_ee = 7
-ijwd1.decay_p_ei = 8.5 # 8.5/9
-ijwd1.decay_p_ie = 15  # 15/19
-ijwd1.decay_p_ii = 15  # 15/19
+# decay
+ijwd1.decay_p_ee = 7.5
+ijwd1.decay_p_ei = 9.5 # 8.5/9
+ijwd1.decay_p_ie = 19  # 15/19
+ijwd1.decay_p_ii = 19  # 15/19
 
 ijwd1.delay = [0.5,2.5] # [min,max]
 
@@ -136,10 +145,10 @@ ijwd1.delay = [0.5,2.5] # [min,max]
 # num_ei = 200
 # num_ie = 115
 # num_ii = 95
-num_ee = 200 # 275/240
-num_ei = 200 # 200/400
-num_ie = 400 # 115/150
-num_ii = 200  # 95/230
+num_ee = 270
+num_ei = 350
+num_ie = 130
+num_ii = 180
 
 # K_a'b'ab
 ijwd1.mean_SynNumIn_ee = num_ee
@@ -150,8 +159,8 @@ ijwd1.mean_SynNumIn_ii = num_ii
 # mean synaptic weight
 # ijwd1.w_ee_mean = w_ee_1
 # ijwd1.w_ei_mean = w_ei_1
-ijwd1.w_ee_mean = find_w_e(w_ie_1, num_ie, num_ee, ie_r_e1)
-ijwd1.w_ei_mean = find_w_e(w_ii_1, num_ii, num_ei, ie_r_i1)
+ijwd1.w_ee_mean = w_ee_1
+ijwd1.w_ei_mean = w_ei_1
 ijwd1.w_ie_mean = w_ie_1
 ijwd1.w_ii_mean = w_ii_1
 
@@ -225,26 +234,29 @@ inter_time = 2000 # ms interval between trials without and with attention
 
 stim_scale_cls = get_stim_scale.get_stim_scale()
 stim_scale_cls.seed = 10 # random seed
-n_StimAmp = 1
-n_perStimAmp = 1
-stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp)
+n_StimAmp = 1 # 刺激幅值的种类数，这里只有一种
+n_perStimAmp = 1 # 每种幅值的重复次数，这里每种只出现1次
+stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp) # 创建一个长度为n_SitmAmp*n_perSimAmp的数组，初始值全为1，表示每个刺激的幅值
 for i in range(n_StimAmp):
-    stim_amp_scale[i*n_perStimAmp:i*n_perStimAmp+n_perStimAmp] = 2**(i)
+    stim_amp_scale[i*n_perStimAmp:i*n_perStimAmp+n_perStimAmp] = 2**(i) # 遍历每种刺激幅值类型，将其对应的幅值设置为2**i。这里n_StimAmp=1，所以只会设置为1
 
-stim_scale_cls.stim_amp_scale = stim_amp_scale
-stim_scale_cls.stim_dura = stim_dura
-stim_scale_cls.separate_dura = np.array([300,600])
-stim_scale_cls.get_scale()
+stim_scale_cls.stim_amp_scale = stim_amp_scale # 把刚刚生成的刺激幅值数组赋值给stim_scale_cls实例，用于后续生成刺激序列
+stim_scale_cls.stim_dura = stim_dura # 设置每个刺激的持续时间（毫秒）
+stim_scale_cls.separate_dura = np.array([300,600]) # 设置刺激之间的间隔范围（单位毫秒），后续会在这个区间随机采样每个刺激之间的间隔
+stim_scale_cls.get_scale() # 调用get_scale()方法，生册灰姑娘最终的刺激时间序列scale_stim和每个刺激的起止时间stim_on(对每个刺激，随机生成间隔，将刺激幅值插入到对应的时间段，得到完整的刺激序列)
 stim_scale_cls.n_StimAmp = n_StimAmp
-stim_scale_cls.n_perStimAmp = n_perStimAmp
+stim_scale_cls.n_perStimAmp = n_perStimAmp #记录刺激种类数和每种的重复次数，便于后续分析
 
 # concatenate
-init = np.zeros(transient//stim_scale_cls.dt_stim)
-stim_scale_cls.scale_stim = np.concatenate((init,stim_scale_cls.scale_stim))
-stim_scale_cls.stim_on += transient
+init = np.zeros(transient//stim_scale_cls.dt_stim) # 生成一个长度为transient//dt_stim的全零数组，表示仿真开始的过渡期无刺激
+stim_scale_cls.scale_stim = np.concatenate((init,stim_scale_cls.scale_stim)) # 把这个过渡期与后续的刺激序列拼接起来，形成完整的刺激输入
+stim_scale_cls.stim_on += transient # 把所有刺激的起止时间(stim_on)整体向后平移transient毫秒，保证刺激实际发生在过渡期后
 
 #%%
-scale_1 = TimedArray(stim_scale_cls.scale_stim, dt=10*ms)
+scale_1 = TimedArray(stim_scale_cls.scale_stim, dt=10*ms) # 用Brian2的TimedArray创建一个时间序列对象，scale_stim为刺激强度随时间的数组，时间步长为10ms。这个对象可直接用于神经元模型的输入，随访真是件自动取值。
+'''
+总结： 这段代码的作用是：为神经网络仿真生成一个带有初始过渡期、恒定幅值、随机间隔的刺激序列，并将其封装为 Brian2 可用的 TimedArray，为后续神经元模型提供输入。所有参数都可灵活调整，便于批量仿真和参数空间搜索。
+'''
 data_ = mydata.mydata()
 param_a1 = {**param_a1, 'stim1':data_.class2dict(stim_scale_cls)}
 
@@ -425,7 +437,7 @@ from analysis import my_analysis as mya
 start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
 end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
 
-window = 15
+window = 10
 data_load.a1.ge.get_spike_rate(start_time=start_time, 
                                end_time=end_time, 
                                sample_interval=1, 
@@ -508,33 +520,150 @@ continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
 #     min_active=5  # 忽略少于5个神经元同时放电的情况
 # )
 
-# plot trajectory
-_ = mya.plot_trajectory(
-    data=continous_centre,
-    title=f'Centre trajectory E{N_e_ext} I{N_i_ext}',
-    save_path=f'./phasesearch/centre_trajectory.png',
-)
+# # plot trajectory
+# _ = mya.plot_trajectory(
+#     data=continous_centre,
+#     title=f'Centre trajectory E{N_e_ext} I{N_i_ext}',
+#     save_path=f'./phasesearch/centre_trajectory.png',
+# )
 
-# pdf power law distribution check
-alpha_jump, r2_jump, _ = mya.check_jump_power_law(
-    continous_jump_dist,
-    tail_fraction=0.9,
-    save_path=f'./phasesearch/jump_power_law.png',
-    title=f'Jump step distribution E{N_e_ext} I{N_i_ext}'
-)
+# # pdf power law distribution check
+# alpha_jump, r2_jump, _ = mya.check_jump_power_law(
+#     continous_jump_dist,
+#     tail_fraction=0.9,
+#     save_path=f'./phasesearch/jump_power_law.png',
+#     title=f'Jump step distribution E{N_e_ext} I{N_i_ext}'
+# )
 
-# spike statistic
-alpha_spike, r2_spike, _ = mya.check_coactive_power_law(
-    data_load.a1.ge.spk_rate,
-    tail_fraction=1,
-    save_path=f'./phasesearch/coactivity_power_law.png',
-    title=f'Coactivity distribution E{N_e_ext} I{N_i_ext}',
-    min_active=1  # 忽略少于1个神经元同时放电的情况，正整数
-)
+# # spike statistic
+# alpha_spike, r2_spike, _ = mya.check_coactive_power_law(
+#     data_load.a1.ge.spk_rate,
+#     tail_fraction=1,
+#     save_path=f'./phasesearch/coactivity_power_law.png',
+#     title=f'Coactivity distribution E{N_e_ext} I{N_i_ext}',
+#     min_active=1  # 忽略少于1个神经元同时放电的情况，正整数
+# )
 
+if not os.path.exists(f'{root_dir}/MSD.png') or 0:
+    # linear step
+    jump_interval = np.linspace(1, 1000, 100)
+
+    # # exponential step
+    # jump_interval = np.around(np.logspace(0, 3, num=100, base=10))
+
+    data_load.a1.ge.get_MSD(start_time=start_time,
+                            end_time=end_time,
+                            sample_interval=1,
+                            n_neuron = data_load.a1.param.Ne,
+                            window = window,
+                            dt = 0.1,
+                            slide_interval=1,
+                            jump_interval=jump_interval,
+                            fit_stableDist='pylevy')
+    MSD = data_load.a1.ge.MSD.MSD
+    jump_interval = data_load.a1.ge.MSD.jump_interval
+    def find_best_linear_region(log_time, log_msd, min_points=5):
+        n = len(log_time)
+        best_r2 = -np.inf
+        best_range = min_points
+        for end in range(min_points, n+1):
+            x = log_time[:end].reshape(-1, 1)
+            y = log_msd[:end]
+            model = LinearRegression().fit(x, y)
+            r2 = model.score(x, y)
+            if r2 > best_r2:
+                best_r2 = r2
+                best_end = end
+        return 0, best_end
+    
+    log_jump_interval = np.log10(jump_interval)
+    log_MSD = np.log10(MSD)
+    start, end = find_best_linear_region(log_jump_interval, log_MSD, min_points=5)
+    x_fit = log_jump_interval[start:end]
+    y_fit = log_MSD[start:end]
+    model = LinearRegression().fit(x_fit.reshape(-1, 1), y_fit)
+    y_pred = model.predict(x_fit.reshape(-1, 1))
+    slope = model.coef_[0]
+    slope_str = f'{slope:.2f}'
+    plt.figure(figsize=(6, 6))
+    plt.plot(jump_interval, MSD, color="#000000")
+    plt.plot(10**x_fit, 10**y_pred, 'r--', label='Linear Fit')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel(r'$\tau$ (ms)', fontsize=16)
+    plt.ylabel('MSD (gridpoint$^2$)', fontsize=16)
+    plt.text(
+        0.2, 0.8,
+        rf'$\tau^{{{slope_str}}}$',
+        transform=plt.gca().transAxes,
+        fontsize=14,
+        verticalalignment='top',
+        horizontalalignment='left',
+        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+    )
+    plt.savefig(f'{root_dir}/MSD.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+# unwrap periodic trajection
+centre = data_load.a1.ge.centre_mass.centre
+continous_centre = mya.unwrap_periodic_path(centre=centre, width=63)
+continous_jump_size = np.diff(continous_centre)
+continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
+jump_x = data_load.a1.ge.centre_mass.jump_size[:,0]
+# pdx
+if not os.path.exists(f'{root_dir}/pdx.png') or 1:
+    plt.figure(figsize=(6, 6))
+    bins = np.arange(-41, 41 + 2, 2)
+    plt.hist(jump_x, 
+                bins=bins, 
+                density=True, 
+                alpha=0.5, 
+                label='histogram', 
+                rwidth=0.8, 
+                color="#000000")
+    # kde = gaussian_kde(jump_x)
+    # x = np.linspace(jump_x.min(), jump_x.max(), 200)
+    # plt.plot(x, kde(x), label='KDE')
+    # fit stable distribution
+    params, nll = fit_levy(jump_x)
+    alpha, beta, mu, sigma = params.get()
+    x = np.linspace(jump_x.min(), jump_x.max(), 200)
+    pdf_fit = levy(x, alpha, beta, mu, sigma)
+    plt.plot(x, pdf_fit, 'r-', label='Levy fit')
+    plt.xlabel(r'$\Delta$ x (gridpoint)', fontsize=16)
+    plt.ylabel('Probability density', fontsize=16)
+    plt.text(
+        0.95, 0.95,
+        rf'$\alpha: {alpha:.2f}\\ \beta:{beta:.2f}\\ \mu: {mu:.2f}\\ \sigma: {sigma:.2f}$',
+        transform=plt.gca().transAxes,
+        fontsize=14,
+        verticalalignment='top',
+        horizontalalignment='right',
+        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+    )
+    plt.xlim(-45, 45)
+    plt.legend()
+    plt.savefig(f'{root_dir}/pdx.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+# combined graph
+if not os.path.exists(f'{root_dir}/combined.png') or 1:
+    import matplotlib.image as mpimg
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    # MSD
+    img_msd = mpimg.imread(f'{root_dir}/MSD.png')
+    ax[0].imshow(img_msd)
+    ax[0].axis('off')
+    # pdx
+    img_pdx = mpimg.imread(f'{root_dir}/pdx.png')
+    ax[1].imshow(img_pdx)
+    ax[1].axis('off')
+    plt.tight_layout()
+    plt.savefig(f'{root_dir}/combined.png', dpi=300, bbox_inches='tight')
+    plt.close()
 
 # Animation
-title = f'Animation (E{N_e_ext} I{N_i_ext} Window={window})'
+title = f'Animation'
 ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
                        frames = frames,
                        start_time = start_time,

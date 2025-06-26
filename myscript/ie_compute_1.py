@@ -33,6 +33,12 @@ from analysis import my_analysis as mya
 from joblib import Parallel, delayed
 from pathlib import Path
 
+from scipy.interpolate import interp1d
+from sklearn.linear_model import LinearRegression
+from scipy.stats import gaussian_kde
+from scipy.stats import levy_stable
+from levy import fit_levy, levy
+
 plt.rcParams.update({
     "text.usetex": True,  # 启用 LaTeX 渲染
     "font.family": "serif",  # 使用衬线字体（类似 LaTeX 默认）
@@ -49,120 +55,91 @@ prefs.codegen.max_cache_dir_size = 120
 #%% OS operation
 # test if data_dir exists, if not, create one.
 # FileExistsError means if menu is create by other progress or thread, ignore it.
-root_dir = 'lambda/'
+root_dir = 'ie_ratio/'
 if not os.path.exists(root_dir):
     try: os.makedirs(root_dir)
     except FileExistsError:
         pass
-data_dir = 'lambda/raw_data/'
+data_dir = f'{root_dir}/raw_data/'
 if not os.path.exists(data_dir):
     try: os.makedirs(data_dir)
     except FileExistsError:
         pass
-graph_dir = 'lambda/graph/'
+graph_dir = f'{root_dir}/graph/'
 if not os.path.exists(graph_dir):
     try: os.makedirs(graph_dir)
     except FileExistsError:
         pass
-vedio_dir = 'lambda/vedio/'
+vedio_dir = f'{root_dir}/vedio/'
 if not os.path.exists(vedio_dir):
     try: os.makedirs(vedio_dir)
     except FileExistsError:
         pass
-state_dir = 'lambda/state/'
+state_dir = f'{root_dir}/state/'
 if not os.path.exists(state_dir):
     try: os.makedirs(state_dir)
     except FileExistsError:
         pass
-trajectory_dir = f'./{graph_dir}/trajectory/'
-Path(trajectory_dir).mkdir(parents=True, exist_ok=True)
-jump_dir = f'./{graph_dir}/jump/'
-Path(jump_dir).mkdir(parents=True, exist_ok=True)
-coactivity_dir = f'./{graph_dir}/coactivity/'
-Path(coactivity_dir).mkdir(parents=True, exist_ok=True)
+MSD_dir = f'./{graph_dir}/MSD/'
+Path(MSD_dir).mkdir(parents=True, exist_ok=True)
+pdx_dir = f'./{graph_dir}/pdx/'
+Path(pdx_dir).mkdir(parents=True, exist_ok=True)
+combined_dir = f'./{graph_dir}/combined'
+Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 start = time.perf_counter()
 #%% adjustable parameters
 def find_w_e(w_i,num_i,num_e,ie_ratio):
     return w_i/(num_e/num_i*ie_ratio)
-def fine_w_i(w_e,num_e,num_i,ie_ratio):
+def find_w_i(w_e,num_e,num_i,ie_ratio):
     return w_e*(num_e/num_i*ie_ratio)
-
-# appoint looping parameters
-params_loop = {
-    'N_e_ext': np.arange(1200, 2000+1, 50),
-    'N_i_ext': np.arange(1360, 2160+1, 50)
-}
-
-# generate looping parameter combinations
-loop_combinations = list(itertools.product(*params_loop.values()))
-# get total looping number
-loop_total = len(loop_combinations)
 
 #%% ready to loop
 def compute_save_draw(comb, loop_num):
     # 为每个进程设置独立的matplotlib缓存目录
     os.environ["MPLCONFIGDIR"] = tempfile.mkdtemp()
-    N_e_ext, N_i_ext = comb
-    print(f'looping {loop_num} in {loop_total},\n N_e_ext={N_e_ext}, N_i_ext={N_i_ext}')
+    ie_r_e1, ie_r_i1 = comb
+    print(f'looping {loop_num} in {loop_total}')
 
     #%%
     # common title & path
-    common_title = rf'$\lambda^E_{{bg}}$={N_e_ext}, $\lambda^I_{{bg}}$={N_i_ext}'
-    common_path = f'E{N_e_ext:04d}_I{N_i_ext:04d}'
+    common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
     # check if data file exists
-    if not os.path.exists(f"{data_dir}data_{common_path}.file"):
+    # if 1:
+    if not os.path.exists(f"{data_dir}data_{common_path}.file") or 0:
+        print(f'computing {loop_num} in {loop_total}')
         #%% fixed parameters
         record_LFP = True
         # global(1st and 2nd area) physical parameters
         C = 0.25*nF # capacitance
         v_threshold = -50*mV
         v_reset = -70*mV# -60*mV
-        t_ref = 5*ms # refractory period
+        t_ref = 4*ms # refractory period
         v_l = -70*mV # leak voltage
         g_l_E = 16.7*nS
-        g_l_I = 6.5*nS
+        g_l_I = 25*nS
         v_k = -85*mV
         tau_k_ = 60   # ms
         delta_gk_1 = 1.9
         delta_gk_2 = 6.5
-        v_rev_I = -80*mV
         v_rev_E = 0*mV
+        v_rev_I = -80*mV
         tau_s_de_ = 5
         tau_s_di_ = 4.5
         tau_s_r_ = 1  # ms
 
-        # parameters of adaptation(2nd area)
-        new_delta_gk_2 = 0.5
-        chg_adapt_range = 7
-        w_extnl_ = 5 # nS
-
-        # inter mean weight
-        scale_w_12_e = 2.6
-        scale_w_12_i = scale_w_12_e
-        scale_w_21_e = 0.3
-        scale_w_21_i = scale_w_21_e
-
-        # inter decay
-        tau_p_d_e1_e2 = 5
-        tau_p_d_e1_i2 = tau_p_d_e1_e2
-        tau_p_d_e2_e1 = 15
-        tau_p_d_e2_i1 = tau_p_d_e2_e1
-
-        #inter probability peak
-        peak_p_e1_e2 = 0.3
-        peak_p_e1_i2 = 0.3
-        peak_p_e2_e1 = 0.2
-        peak_p_e2_i1 = 0.5
-
+        # in-degree
+        num_ee = 270
+        num_ei = 350
+        num_ie = 130
+        num_ii = 180
         # mean synaptic weight
-        w_ie_1 = 115
-        w_ii_1 = 100
-
-        # IE-ratio
-        ie_r_e1 = 2.3641 #
-        ie_r_i1 = 1.9706 # 1.52
+        w_ee_1 = 11
+        w_ii_1 = 50
+        w_ei_1 = find_w_e(w_ii_1, num_ii, num_ei, ie_r_e1)
+        w_ie_1 = find_w_i(w_ee_1, num_ee, num_ie, ie_r_i1)
 
         #%% build connection set
         # neuron quantity
@@ -171,27 +148,23 @@ def compute_save_draw(comb, loop_num):
         ijwd1.Ni = 32*32
         ijwd1.width = 64
 
-        # distribution 
-        ijwd1.decay_p_ee = 7
-        ijwd1.decay_p_ei = 8.5 # 8.5/9
-        ijwd1.decay_p_ie = 15  # 15/19
-        ijwd1.decay_p_ii = 15  # 15/19
+        # decay
+        ijwd1.decay_p_ee = 7.5
+        ijwd1.decay_p_ei = 9.5 # 8.5/9
+        ijwd1.decay_p_ie = 19  # 15/19
+        ijwd1.decay_p_ii = 19  # 15/19
 
         ijwd1.delay = [0.5,2.5] # [min,max]
 
-        # K_a'b'ab
-        num_ee = 275
-        num_ei = 200
-        num_ie = 115
-        num_ii = 95
+        # K_a'b'ab in-degree
         ijwd1.mean_SynNumIn_ee = num_ee
         ijwd1.mean_SynNumIn_ei = num_ei
         ijwd1.mean_SynNumIn_ie = num_ie
         ijwd1.mean_SynNumIn_ii = num_ii
 
         # mean synaptic weight
-        ijwd1.w_ee_mean = find_w_e(w_ie_1, num_ie, num_ee, ie_r_e1)
-        ijwd1.w_ei_mean = find_w_e(w_ii_1, num_ii, num_ei, ie_r_i1)
+        ijwd1.w_ee_mean = w_ee_1
+        ijwd1.w_ei_mean = w_ei_1
         ijwd1.w_ie_mean = w_ie_1
         ijwd1.w_ii_mean = w_ii_1
 
@@ -201,9 +174,9 @@ def compute_save_draw(comb, loop_num):
         # load parameters in area 1
         param_a1 = {**ijwd1.__dict__}
         # delete trivial parameters
-        del param_a1['i_ee'], param_a1['j_ee'], param_a1['w_ee'], param_a1['d_ee'], param_a1['dist_ee']  
-        del param_a1['i_ei'], param_a1['j_ei'], param_a1['w_ei'], param_a1['d_ei'], param_a1['dist_ei'] 
-        del param_a1['i_ie'], param_a1['j_ie'], param_a1['w_ie'], param_a1['d_ie'], param_a1['dist_ie'] 
+        del param_a1['i_ee'], param_a1['j_ee'], param_a1['w_ee'], param_a1['d_ee'], param_a1['dist_ee']
+        del param_a1['i_ei'], param_a1['j_ei'], param_a1['w_ei'], param_a1['d_ei'], param_a1['dist_ei']
+        del param_a1['i_ie'], param_a1['j_ie'], param_a1['w_ie'], param_a1['d_ie'], param_a1['dist_ie']
         del param_a1['i_ii'], param_a1['j_ii'], param_a1['w_ii'], param_a1['d_ii'], param_a1['dist_ii']
 
         # decide if analyze (p_peak>1) (not compatible with states_parallel.py)
@@ -244,7 +217,7 @@ def compute_save_draw(comb, loop_num):
         inter_time = 2000 # ms interval between trials without and with attention
 
         stim_scale_cls = get_stim_scale.get_stim_scale()
-        stim_scale_cls.seed = 10 # random seed
+        stim_scale_cls.seed = (loop_num-1) % (2**32) # random seed
         n_StimAmp = 1
         n_perStimAmp = 1
         stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp)
@@ -269,6 +242,8 @@ def compute_save_draw(comb, loop_num):
         param_a1 = {**param_a1, 'stim1':data_.class2dict(stim_scale_cls)}
 
         #%%
+        N_e_ext = 1600
+        N_i_ext = 1600
         pois_bkgExt_e1 = PoissonInput(target=group_e_1,
                                     target_var='x_E_extnl',
                                     N=N_e_ext,
@@ -344,7 +319,6 @@ def compute_save_draw(comb, loop_num):
 
         param_all = {'delta_gk_1':delta_gk_1,
                     'delta_gk_2':delta_gk_2,
-                    'new_delta_gk_2':new_delta_gk_2,
                     'tau_k': tau_k_,
                     'tau_s_di':tau_s_di_,
                     'tau_s_de':tau_s_de_,
@@ -354,7 +328,7 @@ def compute_save_draw(comb, loop_num):
                     'num_ii':num_ii,
                     'num_ie':num_ie,
                     'simutime':int(round(simu_time_tot/ms)),
-                    'chg_adapt_range': chg_adapt_range,
+                    'ie_r_e1': ie_r_e1,
                     'ie_r_i1': ie_r_i1,
                     't_ref': t_ref/ms}
 
@@ -373,9 +347,10 @@ def compute_save_draw(comb, loop_num):
         with open(f"{data_dir}data_{common_path}.file", 'wb') as file:
             pickle.dump(data, file)
     
+    print(f'loading {loop_num} in {loop_total}')
     '''load data from disk'''
     data_load = mydata.mydata()
-    data_load.load(f"{data_dir}data_E{N_e_ext:04d}_I{N_i_ext:04d}.file")
+    data_load.load(f"{data_dir}data_{common_path}.file")
 
     # reclaim time parameters
     '''stim 1; constant amplitude'''
@@ -385,7 +360,7 @@ def compute_save_draw(comb, loop_num):
     inter_time = 2000 # ms interval between trials without and with attention
 
     stim_scale_cls = get_stim_scale.get_stim_scale()
-    stim_scale_cls.seed = 10 # random seed
+    stim_scale_cls.seed = (loop_num-1) % (2**32) # random seed
     n_StimAmp = 1
     n_perStimAmp = 1
     stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp)
@@ -409,14 +384,15 @@ def compute_save_draw(comb, loop_num):
     simu_time2 = simu_time_tot - simu_time1
     
     #%% analyze
+    print(f'analyzing {loop_num} in {loop_total}')
     start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = 15
-    data_load.a1.ge.get_spike_rate(start_time=start_time, 
-                                end_time=end_time, 
-                                sample_interval=1, 
-                                n_neuron = data_load.a1.param.Ne, 
-                                window = window)
+    data_load.a1.ge.get_spike_rate(start_time=start_time,
+                                   end_time=end_time,
+                                   sample_interval=1,
+                                   n_neuron = data_load.a1.param.Ne,
+                                   window = window)
     data_load.a1.ge.get_centre_mass()
     data_load.a1.ge.overlap_centreandspike()
 
@@ -425,11 +401,125 @@ def compute_save_draw(comb, loop_num):
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]#[:int(last_stim-first_stim)+1]
     #%% graphs and veideos
+
+
+    if not os.path.exists(f'{MSD_dir}/MSD_{common_path}.png') or 0:
+        # linear step
+        jump_interval = np.linspace(1, 1000, 100)
+
+        # # exponential step
+        # jump_interval = np.around(np.logspace(0, 3, num=100, base=10))
+
+        data_load.a1.ge.get_MSD(start_time=start_time,
+                                end_time=end_time,
+                                sample_interval=1,
+                                n_neuron = data_load.a1.param.Ne,
+                                window = window,
+                                dt = 0.1,
+                                slide_interval=1,
+                                jump_interval=jump_interval,
+                                fit_stableDist='pylevy')
+        MSD = data_load.a1.ge.MSD.MSD
+        jump_interval = data_load.a1.ge.MSD.jump_interval
+        def find_best_linear_region(log_time, log_msd, min_points=5):
+            n = len(log_time)
+            best_r2 = -np.inf
+            best_range = min_points
+            for end in range(min_points, n+1):
+                x = log_time[:end].reshape(-1, 1)
+                y = log_msd[:end]
+                model = LinearRegression().fit(x, y)
+                r2 = model.score(x, y)
+                if r2 > best_r2:
+                    best_r2 = r2
+                    best_end = end
+            return 0, best_end
+        
+        log_jump_interval = np.log10(jump_interval)
+        log_MSD = np.log10(MSD)
+        start, end = find_best_linear_region(log_jump_interval, log_MSD, min_points=5)
+        x_fit = log_jump_interval[start:end]
+        y_fit = log_MSD[start:end]
+        model = LinearRegression().fit(x_fit.reshape(-1, 1), y_fit)
+        y_pred = model.predict(x_fit.reshape(-1, 1))
+        slope = model.coef_[0]
+        slope_str = f'{slope:.2f}'
+        plt.figure(figsize=(6, 6))
+        plt.plot(jump_interval, MSD, color="#000000")
+        plt.plot(10**x_fit, 10**y_pred, 'r--', label='Linear Fit')
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel(r'$\tau$ (ms)', fontsize=16)
+        plt.ylabel('MSD (gridpoint$^2$)', fontsize=16)
+        plt.text(
+            0.2, 0.8,
+            rf'$\tau^{{{slope_str}}}$',
+            transform=plt.gca().transAxes,
+            fontsize=14,
+            verticalalignment='top',
+            horizontalalignment='left',
+            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        )
+        plt.savefig(f'{MSD_dir}/MSD_{common_path}.png', dpi=300, bbox_inches='tight')
+        plt.close()
+
     # unwrap periodic trajection
     centre = data_load.a1.ge.centre_mass.centre
     continous_centre = mya.unwrap_periodic_path(centre=centre, width=63)
     continous_jump_size = np.diff(continous_centre)
     continous_jump_dist = np.sqrt(np.sum(continous_jump_size**2,1))
+    jump_x = data_load.a1.ge.centre_mass.jump_size[:,0]
+    # pdx
+    if not os.path.exists(f'{pdx_dir}/pdx_{common_path}.png') or 1:
+        plt.figure(figsize=(6, 6))
+        bins = np.arange(-41, 41 + 2, 2)
+        plt.hist(jump_x, 
+                 bins=bins, 
+                 density=True, 
+                 alpha=0.5, 
+                 label='histogram', 
+                 rwidth=0.8, 
+                 color="#000000")
+        # kde = gaussian_kde(jump_x)
+        # x = np.linspace(jump_x.min(), jump_x.max(), 200)
+        # plt.plot(x, kde(x), label='KDE')
+        # fit stable distribution
+        params, nll = fit_levy(jump_x)
+        alpha, beta, mu, sigma = params.get()
+        x = np.linspace(jump_x.min(), jump_x.max(), 200)
+        pdf_fit = levy(x, alpha, beta, mu, sigma)
+        plt.plot(x, pdf_fit, 'r-', label='Levy fit')
+        plt.xlabel(r'$\Delta$ x (gridpoint)', fontsize=16)
+        plt.ylabel('Probability density', fontsize=16)
+        plt.text(
+            0.95, 0.95,
+            rf'$\alpha: {alpha:.2f}\\ \beta:{beta:.2f}\\ \mu: {mu:.2f}\\ \sigma: {sigma:.2f}$',
+            transform=plt.gca().transAxes,
+            fontsize=14,
+            verticalalignment='top',
+            horizontalalignment='right',
+            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        )
+        plt.xlim(-45, 45)
+        plt.legend()
+        plt.savefig(f'{pdx_dir}/pdx_{common_path}.png', dpi=300, bbox_inches='tight')
+        plt.close()
+    
+    # combined graph
+    if not os.path.exists(f'{combined_dir}/{common_path}.png') or 1:
+        import matplotlib.image as mpimg
+        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+        # MSD
+        img_msd = mpimg.imread(f'{MSD_dir}/MSD_{common_path}.png')
+        ax[0].imshow(img_msd)
+        ax[0].axis('off')
+        # pdx
+        img_pdx = mpimg.imread(f'{pdx_dir}/pdx_{common_path}.png')
+        ax[1].imshow(img_pdx)
+        ax[1].axis('off')
+        plt.tight_layout()
+        plt.savefig(f'{combined_dir}/{common_path}.png', dpi=300, bbox_inches='tight')
+        plt.close()
 
     # if not os.path.exists(f'./{trajectory_dir}/trajectory_{common_path}.png'):
     #     # trajectory
@@ -439,83 +529,55 @@ def compute_save_draw(comb, loop_num):
     #         save_path=f'./{trajectory_dir}/trajectory_{common_path}.png'
     #         )
 
-    if not os.path.exists(f'./{jump_dir}/jump_{common_path}.png'):
-        # pdf power law distribution check
-        alpha_jump, r2_jump, _, tail_points_jump = mya.check_jump_power_law(
-            continous_jump_dist,
-            tail_fraction=0.9,
-            # plot=False,
-            save_path=f'./{jump_dir}/jump_{common_path}.png',
-            title=f'Jump step distribution of \n {common_title}'
-        )
-    if tail_points_jump < 8:
-        alpha_jump = None
-        r2_jump = None
-
-    if not os.path.exists(f'./{coactivity_dir}/coactivity_{common_path}.png'):
-        # spike statistic
-        alpha_spike, r2_spike, _, tail_points_spike = mya.check_coactive_power_law(
-            data_load.a1.ge.spk_rate,
-            tail_fraction=1,
-            # plot=False,
-            save_path=f'./{coactivity_dir}/coactivity_{common_path}.png',
-            title=f'Coactivity distribution of \n {common_title}',
-            min_active=1  # 忽略少于1个神经元同时放电的情况
-        )
-    if tail_points_spike < 8:
-        alpha_spike = None
-        r2_spike = None
-
-    # if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4'):
-    #     # Animation
-    #     title = f'Animation \n {common_title}'
-    #     ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
-    #                         frames = frames,
-    #                         start_time = start_time,
-    #                         interval_movie=15,
-    #                         anititle=title,
-    #                         stim=None, 
-    #                         adpt=None)
-    #     ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+    if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4') or 0:
+        # Animation
+        title = f'Animation \n {common_title}'
+        ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
+                            frames = frames,
+                            start_time = start_time,
+                            interval_movie=15,
+                            anititle=title,
+                            stim=None, 
+                            adpt=None)
+        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
 
     # release RAM
     plt.close('all')
     gc.collect()
 
     # record parameters & states
-    return {
-        'N_e_ext': N_e_ext,
-        'N_i_ext': N_i_ext,
-        'alpha_jump': alpha_jump,
-        'r2_jump': r2_jump,
-        'alpha_spike': alpha_spike,
-        'r2_spike': r2_spike
-    }
+    return None
 
-Analyzer = fra.CriticalityAnalyzer()
-results = Parallel(n_jobs=-1)(delayed(compute_save_draw)(comb, i+1)
+# mean synaptic weight 1
+w_ee_1 = 7.857
+w_ei_1 = 10.847
+w_ie_1 = 35.534
+w_ii_1 = 45
+# mean synaptic weight 2
+w_ee_2 = 11
+w_ei_2 = 13.805
+w_ie_2 = 41.835
+w_ii_2 = 50
+# IE-ratio 1
+ie_r_e1 = 2.1775 #
+ie_r_i1 = 2.1336 # 1.52
+# IE-ratio 2
+ie_r_e2 = 1.8312
+ie_r_i2 = 1.8627
+
+# appoint looping parameters
+params_loop = {
+    'ie_r_e1': np.linspace(1.8, 1.8, 1),
+    'ie_r_i1': np.linspace(2.4, 2.4, 1)
+}
+
+# generate looping parameter combinations
+loop_combinations = list(itertools.product(*params_loop.values()))
+# get total looping number
+loop_total = len(loop_combinations)
+
+Parallel(n_jobs=-1)(delayed(compute_save_draw)(comb, i+1)
                     for i, comb in enumerate(loop_combinations))
 
-for res in results:
-    if res is not None:
-        Analyzer.alpha_r2_collector(**res)
-            
-
-''' save phase data to disk'''
-print('saving states data to disk...')
-with open(f"{state_dir}auto_states.file", 'wb') as file:
-    pickle.dump(Analyzer, file)
-print(f'data states of {loop_total} states saved to {state_dir}')
-
-Analyzer.plot_phase_diagrams(
-    save_path=f'{state_dir}/Phase_diagrams_of_loops{loop_total}.png'
-    )
-# Analyzer.alpha_r2_collector(
-#     N_e_ext=N_e_ext,
-#     N_i_ext=N_i_ext,
-#     alpha_jump=alpha_jump,
-#     r2_jump=r2_jump,
-#     alpha_spike=alpha_spike,
-#     r2_spike=r2_spike)
 
 print(f'total time elapsed: {np.round((time.perf_counter() - start)/60,2)} min')

@@ -132,7 +132,7 @@ class get_ijwd:
         w_cnt = np.zeros(j_cnt.shape)
         for j in range(N_trg):
             J_mean = J_weight/np.sqrt(num_indegree[j])
-            J_std = J_mean/10 # not 5%? why divided by 10? Not 20?
+            J_std = J_mean/20 # not 5%? why divided by 10? Not 20?
             w_tmp = np.random.randn(num_indegree[j])*J_std + J_mean
             negative_w = np.any(w_tmp <= 0)
             while negative_w:
