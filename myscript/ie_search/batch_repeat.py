@@ -5,6 +5,10 @@ from sklearn.linear_model import LinearRegression
 from levy import fit_levy, levy
 import matplotlib.image as mpimg
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
+
+import logging
+logging.getLogger('brian2').setLevel(logging.WARNING)
+
 '''
 rerun 60 times, draw MSD and pdx
 '''
@@ -15,8 +19,8 @@ def batch_repeat(param,
                  save_path_combined:str=None):
     # compute
     results = Parallel(n_jobs=-1)(
-        delayed(compute_MSD_pdx)(param, seed)
-        for seed in range(n_repeat)
+        delayed(compute_MSD_pdx)(param, seed=i, index=i)
+        for i in range(n_repeat)
     )
     ie_r_e1, ie_r_i1 = param
     # common title & path
@@ -148,3 +152,4 @@ def batch_repeat(param,
     plt.tight_layout()
     plt.savefig(save_path_combined, dpi=300, bbox_inches='tight')
     plt.close()
+

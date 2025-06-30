@@ -9,6 +9,10 @@ from pathlib import Path
 import mydata
 from connection import get_stim_scale
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
+
+import logging
+logging.getLogger('brian2').setLevel(logging.WARNING)
+
 '''
 rerun 60 times, draw MSD and pdx
 '''
@@ -19,6 +23,74 @@ root_dir = 'ie_ratio_2/'
 Path(root_dir).mkdir(parents=True, exist_ok=True)
 data_dir = f'{root_dir}/raw_data/'
 Path(data_dir).mkdir(parents=True, exist_ok=True)
+
+def load_MSD_pdx(param=None, index=1):
+    '''load data from disk'''
+    data_load = mydata.mydata()
+    data_load.load(f"{data_dir}data_{index}.file")
+    # reclaim time parameters
+    '''stim 1; constant amplitude'''
+    '''no attention''' # ?background?
+    stim_dura = 1000 # ms duration of each stimulus presentation
+    transient = 3000 # ms initial transient period; when add stimulus
+    inter_time = 2000 # ms interval between trials without and with attention
+    stim_scale_cls = get_stim_scale.get_stim_scale()
+    stim_scale_cls.seed = 10 # random seed
+    n_StimAmp = 1
+    n_perStimAmp = 1
+    stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp)
+    for i in range(n_StimAmp):
+        stim_amp_scale[i*n_perStimAmp:i*n_perStimAmp+n_perStimAmp] = 2**(i)
+    stim_scale_cls.stim_amp_scale = stim_amp_scale
+    stim_scale_cls.stim_dura = stim_dura
+    stim_scale_cls.separate_dura = np.array([300,600])
+    stim_scale_cls.get_scale()
+    stim_scale_cls.n_StimAmp = n_StimAmp
+    stim_scale_cls.n_perStimAmp = n_perStimAmp
+    # concatenate
+    init = np.zeros(transient//stim_scale_cls.dt_stim)
+    stim_scale_cls.scale_stim = np.concatenate((init,stim_scale_cls.scale_stim))
+    stim_scale_cls.stim_on += transient
+    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 500)*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
+    simu_time2 = simu_time_tot - simu_time1
+    #%% analysis
+    start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
+    window = 15
+    data_load.a1.ge.get_spike_rate(start_time=start_time,
+                                end_time=end_time,
+                                sample_interval=1,
+                                n_neuron = data_load.a1.param.Ne,
+                                window = window)
+    spk_rate = data_load.a1.ge.spk_rate.spk_rate
+    data_load.a1.ge.get_centre_mass()
+    centre = data_load.a1.ge.centre_mass.centre
+    data_load.a1.ge.overlap_centreandspike()
+    frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
+    stim_on_off = data_load.a1.param.stim1.stim_on-start_time
+    stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
+    jump_interval = np.linspace(1, 1000, 100)
+    data_load.a1.ge.get_MSD(start_time=start_time,
+                            end_time=end_time,
+                            sample_interval=1,
+                            n_neuron = data_load.a1.param.Ne,
+                            window = window,
+                            dt = 0.1,
+                            slide_interval=1,
+                            jump_interval=jump_interval,
+                            fit_stableDist='pylevy')
+    msd = data_load.a1.ge.MSD.MSD
+    jump_interval = data_load.a1.ge.MSD.jump_interval
+    pdx = data_load.a1.ge.centre_mass.jump_size[:,1]
+    return {
+        'msd': msd,
+        'jump_interval': jump_interval,
+        'pdx': pdx,
+        'spk_rate': spk_rate,
+        'centre': centre
+    }
+
 def load_repeat(param, 
                  n_repeat=60, 
                  save_path_MSD:str=None, 
@@ -28,74 +100,12 @@ def load_repeat(param,
     # common title & path
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-    def load_MSD_pdx(param, seed):
-        '''load data from disk'''
-        data_load = mydata.mydata()
-        data_load.load(f"{data_dir}data_{seed}.file")
-        # reclaim time parameters
-        '''stim 1; constant amplitude'''
-        '''no attention''' # ?background?
-        stim_dura = 1000 # ms duration of each stimulus presentation
-        transient = 3000 # ms initial transient period; when add stimulus
-        inter_time = 2000 # ms interval between trials without and with attention
-        stim_scale_cls = get_stim_scale.get_stim_scale()
-        stim_scale_cls.seed = seed # random seed
-        n_StimAmp = 1
-        n_perStimAmp = 1
-        stim_amp_scale = np.ones(n_StimAmp*n_perStimAmp)
-        for i in range(n_StimAmp):
-            stim_amp_scale[i*n_perStimAmp:i*n_perStimAmp+n_perStimAmp] = 2**(i)
-        stim_scale_cls.stim_amp_scale = stim_amp_scale
-        stim_scale_cls.stim_dura = stim_dura
-        stim_scale_cls.separate_dura = np.array([300,600])
-        stim_scale_cls.get_scale()
-        stim_scale_cls.n_StimAmp = n_StimAmp
-        stim_scale_cls.n_perStimAmp = n_perStimAmp
-        # concatenate
-        init = np.zeros(transient//stim_scale_cls.dt_stim)
-        stim_scale_cls.scale_stim = np.concatenate((init,stim_scale_cls.scale_stim))
-        stim_scale_cls.stim_on += transient
-        simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 500)*ms
-        simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-        simu_time2 = simu_time_tot - simu_time1
-        #%% analysis
-        start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
-        end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
-        window = 15
-        data_load.a1.ge.get_spike_rate(start_time=start_time,
-                                    end_time=end_time,
-                                    sample_interval=1,
-                                    n_neuron = data_load.a1.param.Ne,
-                                    window = window)
-        data_load.a1.ge.get_centre_mass()
-        data_load.a1.ge.overlap_centreandspike()
-        frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
-        stim_on_off = data_load.a1.param.stim1.stim_on-start_time
-        stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
-        jump_interval = np.linspace(1, 1000, 100)
-        data_load.a1.ge.get_MSD(start_time=start_time,
-                                end_time=end_time,
-                                sample_interval=1,
-                                n_neuron = data_load.a1.param.Ne,
-                                window = window,
-                                dt = 0.1,
-                                slide_interval=1,
-                                jump_interval=jump_interval,
-                                fit_stableDist='pylevy')
-        msd = data_load.a1.ge.MSD.MSD
-        jump_interval = data_load.a1.ge.MSD.jump_interval
-        pdx = data_load.a1.ge.centre_mass.jump_size[:,1]
-        return {
-            'msd': msd,
-            'jump_interval': jump_interval,
-            'pdx': pdx
-        }
     
     print('loading')
     # load
     results = Parallel(n_jobs=-1)(
-        delayed(load_MSD_pdx)(param, seed)
-        for seed in range(n_repeat)
+        delayed(load_MSD_pdx)(param, index=i)
+        for i in range(n_repeat)
     )
     print('loaded')
     # 假设results里每个元素有msd，jump_interval，pdx

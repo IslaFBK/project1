@@ -1,26 +1,20 @@
 import brian2.numpy_ as np
 from brian2.only import *
-import matplotlib.pyplot as plt
-import sys
 import pickle
-import itertools
-import gc
 import os
-import tempfile
 import datetime
 import time
-import connection as cn
-from connection import poisson_stimuli as psti
 from connection import pre_process_sc
-from connection import preprocess_2area
 from connection import build_one_area
 from connection import get_stim_scale
-from connection import adapt_gaussian
 from analysis import mydata
 from analysis import firing_rate_analysis as fra
-from analysis import my_analysis as mya
-from joblib import Parallel, delayed
 from pathlib import Path
+from joblib import Parallel, delayed
+import myscript.ie_search.utils as utils
+
+import logging
+logging.getLogger('brian2').setLevel(logging.WARNING)
 
 #%% OS operation
 # test if data_dir exists, if not, create one.
@@ -42,7 +36,7 @@ Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
-def compute_MSD_pdx(comb, seed=10):
+def compute_MSD_pdx(comb, seed=10, index=1, video=False, save_load=False):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -282,13 +276,17 @@ def compute_MSD_pdx(comb, seed=10):
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
 
-    ''' save data to disk'''
-    with open(f"{data_dir}data_{seed}.file", 'wb') as file:
-        pickle.dump(data, file)
-    
-    '''load data from disk'''
-    data_load = mydata.mydata()
-    data_load.load(f"{data_dir}data_{seed}.file")
+    if save_load:
+        # save and load
+        ''' save data to disk'''
+        with open(f"{data_dir}data_{index}.file", 'wb') as file:
+            pickle.dump(data, file)
+        '''load data from disk'''
+        data_load = mydata.mydata()
+        data_load.load(f"{data_dir}data_{index}.file")
+    else:
+        # directly use mydata module
+        data_load = mydata.mydata(data)
 
     #%% analysis
     start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
@@ -299,11 +297,17 @@ def compute_MSD_pdx(comb, seed=10):
                                    sample_interval=1,
                                    n_neuron = data_load.a1.param.Ne,
                                    window = window)
-    data_load.a1.ge.get_centre_mass()
-    data_load.a1.ge.overlap_centreandspike()
+    spk_rate = data_load.a1.ge.spk_rate.spk_rate
     frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
+
+    data_load.a1.ge.get_centre_mass()
+    centre = data_load.a1.ge.centre_mass.centre
+
+    data_load.a1.ge.overlap_centreandspike()
+    
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
+
     jump_interval = np.linspace(1, 1000, 100)
     data_load.a1.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
@@ -316,20 +320,59 @@ def compute_MSD_pdx(comb, seed=10):
                             fit_stableDist='pylevy')
     msd = data_load.a1.ge.MSD.MSD
     jump_interval = data_load.a1.ge.MSD.jump_interval
+
     pdx = data_load.a1.ge.centre_mass.jump_size[:,1]
-    if seed == 1:
+
+    if video:
         # Animation
         title = f'Animation \n {common_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
-                            frames = frames,
-                            start_time = start_time,
-                            interval_movie=15,
-                            anititle=title,
-                            stim=None, 
-                            adpt=None)
-        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+                               frames = frames,
+                               start_time = start_time,
+                               interval_movie=15,
+                               anititle=title,
+                               stim=None,
+                               adpt=None)
+        ani.save(f'./{vedio_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
     return {
         'msd': msd,
         'jump_interval': jump_interval,
-        'pdx': pdx
+        'pdx': pdx,
+        'spk_rate': spk_rate,
+        'centre': centre
+    }
+
+def compute_MSD_pdx_repeat_and_packet_exist(param, 
+                           n_repeat=64):
+    # compute
+    results = Parallel(n_jobs=-1)(
+        delayed(compute_MSD_pdx)(param, seed=i, index=i)
+        for i in range(n_repeat)
+    )
+    ie_r_e1, ie_r_i1 = param
+    # common title & path
+    common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    # 假设results里每个元素有msd，jump_interval，pdx
+    msds = np.stack([r['msd'] for r in results])
+    jump_interval = results[0]['jump_interval']
+    msd_mean = np.mean(msds, axis=0)
+    msd_std = np.std(msds, axis=0)
+    # pdx合并
+    all_pdx = np.concatenate([r['pdx'] for r in results])
+    # 统计wave_packet_exist为True的数量
+    wave_packet_flags = [
+        utils.wave_packet_exist(r['spk_rate'], r['centre'])
+        for r in results
+    ]
+    n_true = sum(wave_packet_flags)
+    packet_exist = n_true > (len(wave_packet_flags) / 2)
+
+    return {
+        'msd_mean': msd_mean,
+        'msd_std': msd_std,
+        'jump_interval': jump_interval,
+        'pdx': all_pdx,
+        'packet_exist': packet_exist,
+        'packet_true_count': n_true
     }
