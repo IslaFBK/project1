@@ -90,16 +90,26 @@ Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 start = time.perf_counter()
 #%% adjustable parameters
-def find_w_e(w_i,num_i,num_e,ie_ratio):
-    return w_i/(num_e/num_i*ie_ratio)
-def find_w_i(w_e,num_e,num_i,ie_ratio):
-    return w_e*(num_e/num_i*ie_ratio)
+def find_w_e_(w_i_,num_e_,num_i_,ie_ratio_e):
+    return w_i_/(num_e_/num_i_*ie_ratio_e)
+def find_w_i_(w_e_,num_e_,num_i_,ie_ratio_i):
+    return w_e_*(num_e_/num_i_*ie_ratio_i)
 
+# # load
+# print('loading')
+# with open(f'./ie_ratio_2/state/evolution.file', 'rb') as file:
+#     history = pickle.load(file)
 
+# IE-ratio 1
+ie_r_e1 = 1.824478865468595 #
+ie_r_i1 = 2.4061741957998843 # 1.52
+# IE-ratio 2
+ie_r_e2 = 1.9905682989732332
+ie_r_i2 = 2.558780313870593
 #%%
 # common title & path
-common_title = rf''
-common_path = f''
+common_title = rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, $\zeta^{{I1}}$: {ie_r_i1:.4f},$\zeta^{{E2}}$: {ie_r_e2:.4f}, $\zeta^{{I2}}$: {ie_r_i2:.4f}'
+common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
 # check if data file exists
 # if 1:
@@ -130,21 +140,11 @@ if not os.path.exists(f"{data_dir}data_{common_path}.file") or 1:
     num_ie = 130
     num_ii = 180
     # mean synaptic weight 1
-    w_ee_1 = 7.857
-    w_ei_1 = 10.847
-    w_ie_1 = 35.534
-    w_ii_1 = 45
+    w_ee_1 = 11
+    w_ii_1 = 50
     # mean synaptic weight 2
     w_ee_2 = 11
-    w_ei_2 = 13.805
-    w_ie_2 = 41.835
     w_ii_2 = 50
-    # IE-ratio 1
-    ie_r_e1 = 2.1775 #
-    ie_r_i1 = 2.1336 # 1.52
-    # IE-ratio 2
-    ie_r_e2 = 1.8312
-    ie_r_i2 = 1.8627
 
     # inter mean weight
     scale_w_12_e = 3.656
@@ -187,8 +187,8 @@ if not os.path.exists(f"{data_dir}data_{common_path}.file") or 1:
 
     # mean synaptic weight
     ijwd1.w_ee_mean = w_ee_1
-    ijwd1.w_ei_mean = w_ei_1
-    ijwd1.w_ie_mean = w_ie_1
+    ijwd1.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_e1)
+    ijwd1.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
     ijwd1.w_ii_mean = w_ii_1
 
     ijwd1.generate_ijw()    # generate synaptics and weight
@@ -225,8 +225,8 @@ if not os.path.exists(f"{data_dir}data_{common_path}.file") or 1:
 
     # mean synaptic weight
     ijwd2.w_ee_mean = w_ee_2
-    ijwd2.w_ei_mean = w_ei_2
-    ijwd2.w_ie_mean = w_ie_2
+    ijwd2.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_e1)
+    ijwd2.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
     ijwd2.w_ii_mean = w_ii_2
 
     ijwd2.generate_ijw()
@@ -753,6 +753,7 @@ if not os.path.exists(f'{combined_dir}/2{common_path}.png') or 1:
 #         title=f'Centre trajectory of \n {common_title}',
 #         save_path=f'./{trajectory_dir}/trajectory_{common_path}.png'
 #         )
+
 # animation
 # 2 areas
 if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4') or 0:

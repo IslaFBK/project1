@@ -9,6 +9,7 @@ import os
 import tempfile
 import datetime
 import time
+import traceback
 import connection as cn
 from connection import poisson_stimuli as psti
 from connection import pre_process_sc
@@ -24,8 +25,10 @@ from pathlib import Path
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
 import myscript.ie_search.utils as utils
 from myscript.ie_search.batch_repeat import batch_repeat
+from myscript.ie_search.batch_repeat import batch_repeat2
 import myscript.ie_search.load_repeat as load_repeat
 import myscript.ie_search.critical_states_search as search
+import myscript.send_email as send_email
 
 import logging
 logging.getLogger('brian2').setLevel(logging.WARNING)
@@ -72,24 +75,44 @@ combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 #%% pick parameters and run `n_repeat` times
-def pick_parameters_and_repeat_compute(param=None, n_repeat=128):
+def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
     # common title & path
     # param = (1.8, 2.4)
     ie_r_e1, ie_r_i1 = param
-    n_repeat = 128
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path_MSD = f'{MSD_dir}/{common_path}_{n_repeat}.png'
-    save_path_pdx = f'{pdx_dir}/{common_path}_{n_repeat}.png'
-    save_path_combined = f'{combined_dir}/{common_path}_{n_repeat}.png'
+    save_path_MSD = f'{MSD_dir}/1area_{common_path}_{n_repeat}.png'
+    save_path_pdx = f'{pdx_dir}/1area_{common_path}_{n_repeat}.png'
+    save_path_combined = f'{combined_dir}/1area_{common_path}_{n_repeat}.png'
 
     batch_repeat(
         param=param,
         n_repeat=n_repeat,
         save_path_MSD=save_path_MSD,
         save_path_pdx=save_path_pdx,
-        save_path_combined=save_path_combined
+        save_path_combined=save_path_combined,
+        video=video
+    )
+
+def pick_parameters_and_repeat_compute2(param=None, n_repeat=128, video=False):
+    # common title & path
+    # param = (1.8, 2.4)
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_title = rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, $\zeta^{{I1}}$: {ie_r_i1:.4f},$\zeta^{{E2}}$: {ie_r_e2:.4f}, $\zeta^{{I2}}$: {ie_r_i2:.4f}'
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+    save_path_MSD = f'{MSD_dir}/2area_{common_path}_{n_repeat}'
+    save_path_pdx = f'{pdx_dir}/2area_{common_path}_{n_repeat}'
+    save_path_combined = f'{combined_dir}/2area_{common_path}_{n_repeat}'
+
+    batch_repeat2(
+        param=param,
+        n_repeat=n_repeat,
+        save_path_MSD=save_path_MSD,
+        save_path_pdx=save_path_pdx,
+        save_path_combined=save_path_combined,
+        video=video
     )
 
 #%% load datas and output graph diract
@@ -170,26 +193,62 @@ def packets_exist_graph():
 # loop_total = len(loop_combinations)
 
 #%% 进化算法找态
-def evalution_search():
-    # 初始参数栅格
-    initial_param = {
-        'ie_r_e1': np.linspace(1.8, 2.5, 8),
-        'ie_r_i1': np.linspace(1.8, 2.5, 8)
-    }
-    initial_params = list(itertools.product(*initial_param.values()))
-    # 运行进化搜索
-    history = search.evolve_search(
-        initial_params,
-        search.eval_func,
-        r0=0.1,
-        k=0.2,
-        max_gen=10,
-        n_child=5
-    )
-    # save
-    print('saving')
-    with open(f'{state_dir}/evolution.file', 'wb') as file:
-        pickle.dump(history, file)
+def get_min_alpha_critical(history):
+    all_points = [h for gen in history for h in gen]
+    critical_points = [h for h in all_points if h.get('critical', False)]
+    if not critical_points:
+        return None
+    return min(critical_points, key=lambda h: h['alpha'])
+
+def get_top_n_alpha_critical(history, n=10):
+    all_points = [h for gen in history for h in gen]
+    critical_points = [h for h in all_points if h.get('critical', False)]
+    if not critical_points:
+        return []
+    # 按alpha升序排序，取前n个
+    top_n = sorted(critical_points, key=lambda h: h['alpha'])[:n]
+    return top_n
+
+def pick_farthest_critical_point(history):
+    # 展开所有critical点
+    all_points = [h for gen in history for h in gen]
+    critical_points = [h for h in all_points if h.get('critical', False)]
+    if not critical_points:
+        return None, None
+
+    # 找到alpha最小的点
+    min_alpha_point = min(critical_points, key=lambda h: h['alpha'])
+    min_param = np.array(min_alpha_point['param'])
+
+    # 计算欧氏距离，选距离最大的
+    def euclidean_dist(p):
+        return np.linalg.norm(np.array(p['param']) - min_param)
+
+    farthest_point = max(critical_points, key=euclidean_dist)
+    return min_alpha_point, farthest_point
+
+def evalution_search(compute=False, repeat_MSD=False):
+    if compute:
+        # 初始参数栅格
+        initial_param = {
+
+            'ie_r_e1': np.linspace(1.8, 2.5, 8),
+            'ie_r_i1': np.linspace(1.8, 2.5, 8)
+        }
+        initial_params = list(itertools.product(*initial_param.values()))
+        # 运行进化搜索
+        history = search.evolve_search(
+            initial_params,
+            search.eval_func,
+            r0=0.1,
+            k=0.2,
+            max_gen=10,
+            n_child=5
+        )
+        # save
+        print('saving')
+        with open(f'{state_dir}/evolution.file', 'wb') as file:
+            pickle.dump(history, file)
 
     # load
     print('loading')
@@ -202,30 +261,51 @@ def evalution_search():
     print('drawing')
     save_path = f'{graph_dir}/evaluation.png'
     search.plot_evolution_history(history=history,save_path=save_path)
-    def get_min_alpha_critical(history):
-        all_points = [h for gen in history for h in gen]
-        critical_points = [h for h in all_points if h.get('critical', False)]
-        if not critical_points:
-            return None
-        return min(critical_points, key=lambda h: h['alpha'])
 
-    def get_top_n_alpha_critical(history, n=10):
-        all_points = [h for gen in history for h in gen]
-        critical_points = [h for h in all_points if h.get('critical', False)]
-        if not critical_points:
-            return []
-        # 按alpha升序排序，取前n个
-        top_n = sorted(critical_points, key=lambda h: h['alpha'])[:n]
-        return top_n
-
+    # pick points
     min_alpha = get_min_alpha_critical(history=history)
     top10 = get_top_n_alpha_critical(history, n=10)
     print('alpha min critical point:', min_alpha)
     for i, point in enumerate(top10):
         print(f"Top {i+1}: param={point['param']}, alpha={point['alpha']}")
+    min_alpha_point, farthest_point = pick_farthest_critical_point(history)
+    print("alpha最小点:", min_alpha_point)
+    print("距离最远的critical点:", farthest_point)
 
-    # recompute n_repeat times and draw statictical MSD and pdx
-    if min_alpha is not None:
-        pick_parameters_and_repeat_compute(min_alpha['param'])
-    else:
-        print('critical point not found')
+    if repeat_MSD:
+        # recompute n_repeat times and draw statictical MSD and pdx
+        if min_alpha is not None:
+            pick_parameters_and_repeat_compute(min_alpha['param'])
+        else:
+            print('critical point not found')
+
+#%% Execution area
+try:
+    send_email.send_email('begin running', 'ie_search.main running')
+    # # evalutionary search
+    # evalution_search()
+
+    # # repeat 1 area computation
+    # param1 = (1.824478865468595, 2.4061741957998843)
+    # param2 = (1.9905682989732332, 2.558780313870593)
+    # pick_parameters_and_repeat_compute(param=param2, video=True)
+
+    # repeat 2 area computation
+    param = (1.824478865468595, 2.4061741957998843, 1.9905682989732332, 2.558780313870593)
+    pick_parameters_and_repeat_compute2(param=param,
+                                        n_repeat=128,
+                                        video=True)
+
+    # # test
+    # param = (1.824478865468595, 2.4061741957998843)
+    # pick_parameters_and_repeat_compute(param=param, n_repeat=1, video=True)
+    
+    send_email.send_email('code executed', 'ie_search.main accomplished')
+except Exception:
+    # 捕获异常并发送邮件
+    error_info = traceback.format_exc()  # 获取完整错误堆栈
+    send_email.send_error_email(
+        subject="script execution error",
+        body=f"info: \n\n{error_info}"
+    )
+    sys.exit(1)  # 退出程序并返回错误码

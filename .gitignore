@@ -27,3 +27,4 @@ test.py
 **/test.ipynb
 *.html
 ai.md
+send_email.py
