@@ -59,7 +59,7 @@ def draw_statistical_MSD_pdx(jump_interval,
     r2_str = f'{r2:.2f}'
     plt.figure(figsize=(6, 6))
     plt.plot(jump_interval, msd_mean, color="#000000")
-    n = int(len(x_fit) * 0.8)
+    n = int(len(x_fit) * 0.7)
     plt.plot(10**x_fit[:n], 2*10**y_pred[:n], 'r--', label='Linear Fit')
     plt.fill_between(jump_interval, msd_mean-msd_std, msd_mean+msd_std, color='gray', alpha=0.3)
     plt.xscale('log')
