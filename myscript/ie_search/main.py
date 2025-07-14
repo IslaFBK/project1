@@ -282,21 +282,21 @@ def evalution_search(compute=False, repeat_MSD=False):
 #%% Execution area
 try:
     send_email.send_email('begin running', 'ie_search.main running')
-    # # evalutionary search
+    #%% evalutionary search
     # evalution_search()
 
-    # # repeat 1 area computation
+    #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
     # param2 = (1.9905682989732332, 2.558780313870593)
     # pick_parameters_and_repeat_compute(param=param2, video=True)
 
-    # repeat 2 area computation
+    #%% repeat 2 area computation
     param = (1.824478865468595, 2.4061741957998843, 1.9905682989732332, 2.558780313870593)
     pick_parameters_and_repeat_compute2(param=param,
                                         n_repeat=128,
                                         video=True)
 
-    # # test
+    #%% test
     # param = (1.824478865468595, 2.4061741957998843)
     # pick_parameters_and_repeat_compute(param=param, n_repeat=1, video=True)
     
