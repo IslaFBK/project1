@@ -3,6 +3,9 @@
 # Usage
 Run(.py) compute_parallel > draw_auto $\ge$ state_parallel_auto > interactive_states.
 Means: compute raw data > draw jump step, coactivity distribution, generate pattern vedio $\ge$ statisticize states > build an interactive GUI for check states distribution in 3D phase space.
+
+The folder `analysis`, `connection`, and `model_file` is from the beta version of [Distributed_and_dynamical_communication from Shencong-Ni](https://github.com/BrainDynamicsUSYD/Distributed_and_dynamical_communication)
+
 # Setup
 ## Anaconda Prompt:
 ```python
@@ -18,7 +21,7 @@ python.exe -m pip install -r packages.txt
 ### Add the three folders to path:
 1. Open system property > advanced > environment variable;
 2. Find or establish "PYTHONPATH" in system variable;
-3. Add "X:\path\analysis;X:\path\connection;X:\path\connection\model_file" to value, multiple path separated by ";";
+3. Add "X:\path\analysis;X:\path\connection;X:\path\model_file" to value, multiple path separated by ";";
 
 ### Install Microsoft C++ Build Tools:
 1. Open Microsoft C++ Build Tools page([Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/))
@@ -44,35 +47,6 @@ See (https://zhuanlan.zhihu.com/p/166523064).
 ```
 pip freeze > requirements.txt
 pip list --format=freeze > packages.txt
-```
-## .gitignore:
-```
-*.pyc
-*.png
-*.jpg
-*.svg
-*.pdf
-*.mp4
-*.avi
-*.zip
-*.tar
-*.mat
-*.file
-spkdata*
-*.m~
-*.py~
-data*
-data/
-ijwd*
-cache/
-cache*/
-__pycache__/
-results/
-analysis/load_data_dict.pyc
-.svn/
-.venv/
-test.py
-test.ipynb
 ```
 ## prox setting
 The command to use:
