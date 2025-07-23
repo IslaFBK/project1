@@ -101,6 +101,24 @@ def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
 def pick_parameters_and_repeat_compute2(param=None, n_repeat=128, video=False):
     # common title & path
     # param = (1.8, 2.4)
+    root_dir = '2area/'
+    Path(root_dir).mkdir(parents=True, exist_ok=True)
+    data_dir = f'{root_dir}/raw_data/'
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    graph_dir = f'{root_dir}/graph/'
+    Path(graph_dir).mkdir(parents=True, exist_ok=True)
+    vedio_dir = f'{root_dir}/vedio/'
+    Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+    state_dir = f'{root_dir}/state/'
+    Path(state_dir).mkdir(parents=True, exist_ok=True)
+    MSD_dir = f'./{graph_dir}/MSD/'
+    Path(MSD_dir).mkdir(parents=True, exist_ok=True)
+    pdx_dir = f'./{graph_dir}/pdx/'
+    Path(pdx_dir).mkdir(parents=True, exist_ok=True)
+    combined_dir = f'./{graph_dir}/combined'
+    Path(combined_dir).mkdir(parents=True, exist_ok=True)
+    recfield_dir = f'./{graph_dir}/recfield'
+    Path(recfield_dir).mkdir(parents=True, exist_ok=True)
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
                     rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
@@ -454,11 +472,13 @@ try:
     # receptive_field_repeat(param=param, n_repeat=64)
 
     #%% search receptive field
-    result = find_max_min_receptive_field(n_repeat=64)
-    # max_pm = result['max_pm']
-    # max_rf = result['max_rf']
-    # min_pm = result['min_pm']
-    # min_rf = result['min_rf']
+    # result = find_max_min_receptive_field(n_repeat=64)
+
+    #%% repeat 2 area coputation recetive field
+    param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    pick_parameters_and_repeat_compute2(param=param,
+                                        n_repeat=128,
+                                        video=True)
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
