@@ -53,8 +53,8 @@ def eval_func(comb, index=1):
     critical = exist and motion_critical
     return critical, alpha
 
-def eval_func_repeat(comb, n_repeat):
-    result = compute_MSD_pdx_repeat_and_packet_exist(param=comb, n_repeat=64)
+def eval_func_repeat(comb, n_repeat=64):
+    result = compute_MSD_pdx_repeat_and_packet_exist(param=comb, n_repeat=n_repeat)
     msd = result['msd_mean']
     jump_interval = result['jump_interval']
     pdx = result['pdx']

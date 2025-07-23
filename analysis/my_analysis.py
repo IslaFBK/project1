@@ -5,9 +5,11 @@ Created on Sun June  1 00:45:55 2025
 @author: jianing liu
 """
 import numpy as np
+import pickle
 from scipy.sparse import csc_matrix
 from scipy.stats import sem
-import matplotlib as mpl
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import connection as cn
@@ -333,4 +335,152 @@ class CriticalityAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
     
+def receptive_field(spk_rate0, spk_rate1, 
+                    save_path1='temp1.png', 
+                    save_path2='temp2.png', 
+                    data_path=None,
+                    plot=False):
+    tmean_fr0 = np.mean(spk_rate0, axis=2)
+    mean_fr0 = np.mean(tmean_fr0)
+    uniform_fr0 = np.full_like(tmean_fr0, mean_fr0)
+
+    tmean_fr = np.mean(spk_rate1, axis=2)
+    fr_ext = tmean_fr - uniform_fr0
+
+    # save external firing rate distribution data
+    with open(data_path, 'wb') as file:
+        pickle.dump(fr_ext, file)
+
+    Nx, Ny = fr_ext.shape
+    width = Nx
+    hw = width/2
+    step = width/Nx
+    x = np.linspace(-hw + step/2, hw - step/2, Nx)
+    y = np.linspace(hw - step/2, -hw + step/2, Ny)
+
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+
+    # if plot:
+    #     fig = plt.figure(figsize=(8,5))
+    #     ax = fig.add_subplot(111, projection='3d')
+    #     surf = ax.plot_surface(xx, yy, fr_ext, cmap='viridis')
+    #     fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='Mean firing rate')
+    #     ax.set_title('Firing Rate Landscape (3D)')
+    #     ax.set_xlabel('X')
+    #     ax.set_ylabel('Y')
+    #     ax.set_zlabel('Time-Mean firing rate')
+    #     plt.savefig(save_path1, dpi=300, bbox_inches='tight')
+    #     plt.close()
+
+    # 计算每个点到中心点(0,0)的距离
+    dist = np.sqrt(xx**2 + yy**2)
+    # 展开为一维数组
+    dist_flat = dist.flatten()
+    fr_ext_flat = fr_ext.flatten()
+    # 按距离分组，计算均值
+    bins = np.arange(0, np.max(dist_flat)+1, 1)
+    bin_idx = np.digitize(dist_flat, bins)
+    fr_ext_mean = [fr_ext_flat[bin_idx == i].mean() for i in range(1, len(bins))]
+    # 绘制均值曲线
+    if plot:
+        plt.figure(figsize=(5,5))
+        plt.plot(bins[1:], fr_ext_mean, 'o-', label='Mean $fr_{ext}$')
+        plt.xlabel('Distance to Center (0,0)')
+        plt.ylabel('fr_ext')
+        plt.title('fr_ext vs Distance')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(save_path2, dpi=300, bbox_inches='tight')
+        plt.close()
+
+    min_zero = None
+    x = bins[1:]  # 距离点 (bins[1], bins[2], ...)
+    y = fr_ext_mean  # 对应距离的平均 fr_ext
+
+    # 检查是否有零点
+    for i in range(len(y) - 1):
+        if y[i] == 0:
+            min_zero = x[i]
+            break
+        elif y[i] * y[i+1] < 0:  # 异号，零点在区间内
+            # 线性插值: d_zero = x0 + (0 - y0) * (x1 - x0) / (y1 - y0)
+            min_zero = x[i] + (0 - y[i]) * (x[i+1] - x[i]) / (y[i+1] - y[i])
+            break
     
+    return {
+        'r_rf': min_zero
+    }
+
+def load_receptive_field(fr_ext,
+                         save_path1='temp1.png', 
+                         save_path2='temp2.png', 
+                         data_path=None,
+                         plot=False):
+    Nx, Ny = fr_ext.shape
+    width = Nx
+    hw = width/2
+    step = width/Nx
+    x = np.linspace(-hw + step/2, hw - step/2, Nx)
+    y = np.linspace(hw - step/2, -hw + step/2, Ny)
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+    # 计算每个点到中心点(0,0)的距离
+    dist = np.sqrt(xx**2 + yy**2)
+    # 展开为一维数组
+    dist_flat = dist.flatten()
+    fr_ext_flat = fr_ext.flatten()
+    # 按距离分组，计算均值
+    bins = np.arange(0, np.max(dist_flat)+1, 1)
+    bin_idx = np.digitize(dist_flat, bins)
+    fr_ext_mean = [fr_ext_flat[bin_idx == i].mean() for i in range(1, len(bins))]
+    if plot:
+        plt.figure(figsize=(5,5))
+        plt.plot(bins[1:], fr_ext_mean, 'o-', label='Mean $fr_{ext}$')
+        plt.xlabel('Distance to Center (0,0)')
+        plt.ylabel('fr_ext')
+        plt.title('fr_ext vs Distance')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(save_path2, dpi=300, bbox_inches='tight')
+        plt.close()
+    min_zero = None
+    x = bins[1:]  # 距离点 (bins[1], bins[2], ...)
+    y = fr_ext_mean  # 对应距离的平均 fr_ext
+    # 检查是否有零点
+    for i in range(len(y) - 1):
+        if y[i] == 0:
+            min_zero = x[i]
+            break
+        elif y[i] * y[i+1] < 0:  # 异号，零点在区间内
+            # 线性插值: d_zero = x0 + (0 - y0) * (x1 - x0) / (y1 - y0)
+            min_zero = x[i] + (0 - y[i]) * (x[i+1] - x[i]) / (y[i+1] - y[i])
+            break
+    return {
+        'r_rf': min_zero
+    }
+
+def draw_fr_ext_dist(fr_ext, save_path2):
+    Nx, Ny = fr_ext.shape
+    width = Nx
+    hw = width/2
+    step = width/Nx
+    x = np.linspace(-hw + step/2, hw - step/2, Nx)
+    y = np.linspace(hw - step/2, -hw + step/2, Ny)
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+    # 计算每个点到中心点(0,0)的距离
+    dist = np.sqrt(xx**2 + yy**2)
+    # 展开为一维数组
+    dist_flat = dist.flatten()
+    fr_ext_flat = fr_ext.flatten()
+    # 按距离分组，计算均值
+    bins = np.arange(0, np.max(dist_flat)+1, 1)
+    bin_idx = np.digitize(dist_flat, bins)
+    fr_ext_mean = [fr_ext_flat[bin_idx == i].mean() for i in range(1, len(bins))]
+    plt.figure(figsize=(5,5))
+    plt.plot(bins[1:], fr_ext_mean, 'o-', label='Mean $fr_{ext}$')
+    plt.xlabel('Distance to Center (0,0)')
+    plt.ylabel('fr_ext')
+    plt.title('fr_ext vs Distance')
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(save_path2, dpi=300, bbox_inches='tight')
+    plt.close()

@@ -348,7 +348,10 @@ def compute_MSD_pdx2(comb, seed=10, index=1, video=False, save_load=False):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
-    common_title = rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, $\zeta^{{I1}}$: {ie_r_i1:.4f},$\zeta^{{E2}}$: {ie_r_e2:.4f}, $\zeta^{{I2}}$: {ie_r_i2:.4f}'
+    common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
+                    rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
+                    rf'$\zeta^{{E2}}$: {ie_r_e2:.4f}, '
+                    rf'$\zeta^{{I2}}$: {ie_r_i2:.4f}')
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
     #%% fixed parameters
@@ -841,6 +844,7 @@ def compute_MSD_pdx_repeat_and_packet_exist(param,
         for r in results
     ]
     n_true = sum(wave_packet_flags)
+    # 过半算例存在波包就算存在
     packet_exist = n_true > (len(wave_packet_flags) / 2)
 
     return {

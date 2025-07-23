@@ -29,6 +29,7 @@ from myscript.ie_search.batch_repeat import batch_repeat2
 import myscript.ie_search.load_repeat as load_repeat
 import myscript.ie_search.critical_states_search as search
 import myscript.send_email as send_email
+import myscript.ie_search.compute_general as compute
 
 import logging
 logging.getLogger('brian2').setLevel(logging.WARNING)
@@ -73,6 +74,8 @@ pdx_dir = f'./{graph_dir}/pdx/'
 Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
+recfield_dir = f'./{graph_dir}/recfield'
+Path(recfield_dir).mkdir(parents=True, exist_ok=True)
 
 #%% pick parameters and run `n_repeat` times
 def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
@@ -99,7 +102,10 @@ def pick_parameters_and_repeat_compute2(param=None, n_repeat=128, video=False):
     # common title & path
     # param = (1.8, 2.4)
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
-    common_title = rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, $\zeta^{{I1}}$: {ie_r_i1:.4f},$\zeta^{{E2}}$: {ie_r_e2:.4f}, $\zeta^{{I2}}$: {ie_r_i2:.4f}'
+    common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
+                    rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
+                    rf'$\zeta^{{E2}}$: {ie_r_e2:.4f}, '
+                    rf'$\zeta^{{I2}}$: {ie_r_i2:.4f}')
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
     save_path_MSD = f'{MSD_dir}/2area_{common_path}_{n_repeat}'
@@ -231,7 +237,6 @@ def evalution_search(compute=False, repeat_MSD=False):
     if compute:
         # 初始参数栅格
         initial_param = {
-
             'ie_r_e1': np.linspace(1.8, 2.5, 8),
             'ie_r_i1': np.linspace(1.8, 2.5, 8)
         }
@@ -279,9 +284,151 @@ def evalution_search(compute=False, repeat_MSD=False):
         else:
             print('critical point not found')
 
+# Receptive_field
+def last_generation(history):
+    last_gen = history[-1]
+    last_gen = [h for h in last_gen if h.get('critical', False)]
+    return last_gen
+
+def receptive_field(param):
+    result0 = compute.compute_1(comb=param, sti=False, save_load=False)
+    result1 = compute.compute_1(comb=param, sti=True,  save_load=False)
+    spk_rate0 = result0['spk_rate']
+    spk_rate1 = result1['spk_rate']
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    save_path1 = f'{graph_dir}/fr_ext{common_path}.png'
+    save_path2 = f'{graph_dir}/fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/fr_ext{common_path}.file'
+    r_rf = mya.receptive_field(spk_rate0=spk_rate0, 
+                               spk_rate1=spk_rate1, 
+                               save_path1 = save_path1,
+                               save_path2 = save_path2,
+                               data_path=data_path,
+                               plot=True)
+    return r_rf
+
+def receptive_field_repeat(param, n_repeat):
+        
+    result0 = Parallel(n_jobs=-1)(
+        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, video=False, save_load=False)
+        for i in range(n_repeat)
+    )
+    result1 = Parallel(n_jobs=-1)(
+        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  video=False, save_load=False)
+        for i in range(n_repeat)
+    )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
+
+    # 在第一个维度取平均
+    spk_rate0_mean = np.mean(spk_rate0_all, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean = np.mean(spk_rate1_all, axis=0)
+
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+    save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
+    save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+    r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
+                               spk_rate1=spk_rate1_mean,
+                               save_path1=save_path1,
+                               save_path2=save_path2,
+                               data_path=data_path,
+                               plot=False)
+    return r_rf
+
+def find_max_min_receptive_field(n_repeat):
+    # load
+    print('loading')
+    with open(f'{state_dir}/evolution.file', 'rb') as file:
+        history = pickle.load(file)
+    last_gen = last_generation(history=history)
+
+    max_val = -np.inf
+    min_val = np.inf
+    max_param = None
+    min_param = None
+    loop_total = len(last_gen)
+    loop_num = 0
+    r_rf_history = []
+    for entry in last_gen:
+        loop_num = loop_num + 1
+        param = entry['param']
+        ie_r_e1, ie_r_i1 = param
+        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+        save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
+        save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+        data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+        if os.path.exists(data_path):
+            with open(data_path, 'rb') as file:
+                fr_ext = pickle.load(file)
+            field = mya.load_receptive_field(fr_ext,
+                                             save_path1=save_path1,
+                                             save_path2=save_path2,
+                                             data_path=data_path,
+                                             plot=True)
+        else:
+            field = receptive_field_repeat(param=param, n_repeat=n_repeat)
+        
+        if field is None:
+            print(f"警告：对于参数 {param}, receptive_field_repeat 返回 None, 跳过")
+            send_email.send_email('Progress', f"警告：对于参数 {param}, receptive_field_repeat 返回 None, 跳过")
+            continue
+            
+        if 'r_rf' not in field:
+            print(f"警告：对于参数 {param}, 返回的字段中缺少 'r_rf' 键, 跳过")
+            send_email.send_email('Progress', f"警告：对于参数 {param}, 返回的字段中缺少 'r_rf' 键, 跳过")
+            continue
+
+        r_rf = field['r_rf']
+
+        if r_rf > max_val:
+            max_val = r_rf
+            max_param = param
+        if r_rf < min_val:
+            min_val = r_rf
+            min_param = param
+        r_rf_result = [{'r_rf': r_rf, 'max_r_rf': max_val, 'min_r_rf': min_val, 'max_param': max_param, 'min_param': min_param}]
+        info = [{'param': param, 'r_rf_result': r_rf_result}]
+        r_rf_history.append(info)
+        # save
+        with open(f'{state_dir}/r_rf_history.file', 'wb') as file:
+            pickle.dump(r_rf_history, file)
+        # report progress
+        send_email.send_email('Progress', f'complete {loop_num} in {loop_total}, parameter: {param}, r_rf: {r_rf}. Now max r_rf: {max_val}, max parameter: {max_param}, min r_rf: {min_val}, min parameter: {min_param}')
+
+    print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
+    print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
+    # draw
+    for entry in last_gen:
+        loop_num = loop_num + 1
+        param = entry['param']
+        ie_r_e1, ie_r_i1 = param
+        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+        save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
+        save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+        data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+        if not os.path.exists(save_path2):
+            with open(data_path, 'rb') as file:
+                fr_ext = pickle.load(file)
+            mya.draw_fr_ext_dist(fr_ext=fr_ext, save_path2=save_path2)
+    # return {
+    #     'max_pm': max_param,
+    #     'max_rf': max_val,
+    #     'min_pm': min_param,
+    #     'min_rf': min_val
+    # }
+
 #%% Execution area
 try:
     send_email.send_email('begin running', 'ie_search.main running')
+    #%% test
+    # param = (1.824478865468595, 2.4061741957998843)
+    # pick_parameters_and_repeat_compute(param=param, n_repeat=1, video=True)
+
     #%% evalutionary search
     # evalution_search()
 
@@ -291,19 +438,31 @@ try:
     # pick_parameters_and_repeat_compute(param=param2, video=True)
 
     #%% repeat 2 area computation
-    param = (1.824478865468595, 2.4061741957998843, 1.9905682989732332, 2.558780313870593)
-    pick_parameters_and_repeat_compute2(param=param,
-                                        n_repeat=128,
-                                        video=True)
+    # param = (1.824478865468595, 2.4061741957998843, 1.9905682989732332, 2.558780313870593)
+    # pick_parameters_and_repeat_compute2(param=param,
+    #                                     n_repeat=128,
+    #                                     video=True)
 
-    #%% test
+    #%% receptive field
     # param = (1.824478865468595, 2.4061741957998843)
-    # pick_parameters_and_repeat_compute(param=param, n_repeat=1, video=True)
-    
+    # receptive_field(param=param)
+
+    #%% repeat receptive field
+    # param = (1.824478865468595, 2.4061741957998843)
+    # receptive_field_repeat(param=param, n_repeat=64)
+
+    #%% search receptive field
+    result = find_max_min_receptive_field(n_repeat=64)
+    # max_pm = result['max_pm']
+    # max_rf = result['max_rf']
+    # min_pm = result['min_pm']
+    # min_rf = result['min_rf']
+
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈
+    print(error_info)
     send_email.send_error_email(
         subject="script execution error",
         body=f"info: \n\n{error_info}"
