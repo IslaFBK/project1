@@ -16,6 +16,7 @@ conda activate "X:\path\.venv"
 In the vary folder:
 ```
 python.exe -m pip install -r packages.txt
+python.exe -m pip install -r requirements.txt
 ```
 ## Windows:
 ### Add the three folders to path:
