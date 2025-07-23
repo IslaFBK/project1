@@ -4,7 +4,7 @@
 Run(.py) compute_parallel > draw_auto $\ge$ state_parallel_auto > interactive_states.
 Means: compute raw data > draw jump step, coactivity distribution, generate pattern vedio $\ge$ statisticize states > build an interactive GUI for check states distribution in 3D phase space.
 
-The folder `analysis`, `connection`, and `model_file` are from the beta version of [Distributed_and_dynamical_communication from Shencong-Ni](https://github.com/BrainDynamicsUSYD/Distributed_and_dynamical_communication)
+The folder `analysis`, `connection`, and `model_file` are edited from the beta version of [Distributed_and_dynamical_communication from Shencong-Ni](https://github.com/BrainDynamicsUSYD/Distributed_and_dynamical_communication)
 
 # Setup
 ## Anaconda Prompt:

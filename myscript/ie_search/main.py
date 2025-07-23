@@ -326,14 +326,17 @@ def receptive_field(param):
                                plot=True)
     return r_rf
 
-def receptive_field_repeat(param, n_repeat, plot=False):
+def receptive_field_repeat(param, n_repeat, plot=False, 
+                           video0=False, video1=False, save_load0=False, save_load1=False):
         
     result0 = Parallel(n_jobs=-1)(
-        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, video=False, save_load=False)
+        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                   video=video0, save_load=save_load0)
         for i in range(n_repeat)
     )
     result1 = Parallel(n_jobs=-1)(
-        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  video=False, save_load=False)
+        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
+                                   video=video1, save_load=save_load1)
         for i in range(n_repeat)
     )
     # 提取所有 spk_rate 并堆叠
@@ -450,8 +453,8 @@ def load_and_draw_receptive_field(param, n_repeat=64):
 try:
     send_email.send_email('begin running', 'ie_search.main running')
     #%% test
-    # param = (1.824478865468595, 2.4061741957998843)
-    # pick_parameters_and_repeat_compute(param=param, n_repeat=1, video=True)
+    param = (1.8512390285440765, 2.399131446733395)
+    compute.compute_1(comb=param, seed=10, index=0, sti=True, video=True, save_load=False)
 
     #%% evalutionary search
     # evalution_search()
@@ -489,12 +492,14 @@ try:
     #                                     video=True)
 
     #%% load and draw receptive field
-    # first layer
-    param = (1.795670364314891, 2.449990451446889)
-    load_and_draw_receptive_field(param, n_repeat=64)
-    # second layer
-    param = (1.8512390285440765, 2.399131446733395)
-    load_and_draw_receptive_field(param, n_repeat=64)
+    # # first layer
+    # param = (1.795670364314891, 2.449990451446889)
+    # load_and_draw_receptive_field(param, n_repeat=64)
+    # # second layer
+    # param = (1.8512390285440765, 2.399131446733395)
+    # load_and_draw_receptive_field(param, n_repeat=64)
+
+    
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:

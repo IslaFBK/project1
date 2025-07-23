@@ -304,7 +304,7 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = transient - 500  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = 15
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -322,7 +322,13 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
     
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
-
+    stim = [[[[31.5,31.5],
+              [63.5,-0.5]], 
+             [stim_on_off,
+              stim_on_off], 
+             [[6]*stim_on_off.shape[0],
+              [6]*stim_on_off.shape[0]]],
+            None]
     jump_interval = np.linspace(1, 1000, 100)
     data_load.a1.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
@@ -346,7 +352,7 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
                                start_time = start_time,
                                interval_movie=15,
                                anititle=title,
-                               stim=None,
+                               stim=stim,
                                adpt=None)
         ani.save(f'./{vedio_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
     return {
