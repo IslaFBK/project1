@@ -326,7 +326,7 @@ def receptive_field(param):
                                plot=True)
     return r_rf
 
-def receptive_field_repeat(param, n_repeat):
+def receptive_field_repeat(param, n_repeat, plot=False):
         
     result0 = Parallel(n_jobs=-1)(
         delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, video=False, save_load=False)
@@ -355,7 +355,7 @@ def receptive_field_repeat(param, n_repeat):
                                save_path1=save_path1,
                                save_path2=save_path2,
                                data_path=data_path,
-                               plot=False)
+                               plot=plot)
     return r_rf
 
 def find_max_min_receptive_field(n_repeat):
@@ -468,8 +468,8 @@ try:
     # receptive_field(param=param)
 
     #%% repeat receptive field
-    # param = (1.824478865468595, 2.4061741957998843)
-    # receptive_field_repeat(param=param, n_repeat=64)
+    # param = (1.8512390285440765, 2.399131446733395)
+    # receptive_field_repeat(param=param, n_repeat=64, plot=True)
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64)
