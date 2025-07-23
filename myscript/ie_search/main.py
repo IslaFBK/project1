@@ -398,7 +398,9 @@ def find_max_min_receptive_field(n_repeat):
         with open(f'{state_dir}/r_rf_history.file', 'wb') as file:
             pickle.dump(r_rf_history, file)
         # report progress
-        send_email.send_email('Progress', f'complete {loop_num} in {loop_total}, parameter: {param}, r_rf: {r_rf}. Now max r_rf: {max_val}, max parameter: {max_param}, min r_rf: {min_val}, min parameter: {min_param}')
+        print(f'Complete {loop_num} in {loop_total}, \n parameter: {param}, r_rf: {r_rf}. Now, \n max r_rf: {max_val}, max parameter: {max_param}, \n min r_rf: {min_val}, min parameter: {min_param}')
+
+        send_email.send_email('Progress', f'Complete {loop_num} in {loop_total}, \n parameter: {param}, r_rf: {r_rf}. Now, \n max r_rf: {max_val}, max parameter: {max_param}, \n min r_rf: {min_val}, min parameter: {min_param}')
 
     print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
     print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
