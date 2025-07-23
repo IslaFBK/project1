@@ -347,13 +347,11 @@ def receptive_field_repeat(param, n_repeat, plot=False):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
-    save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+    save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
     data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
-                               save_path1=save_path1,
-                               save_path2=save_path2,
+                               save_path=save_path,
                                data_path=data_path,
                                plot=plot)
     return r_rf
@@ -377,16 +375,13 @@ def find_max_min_receptive_field(n_repeat):
         param = entry['param']
         ie_r_e1, ie_r_i1 = param
         common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-        save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
-        save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+        save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
         data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
         if os.path.exists(data_path):
             with open(data_path, 'rb') as file:
                 fr_ext = pickle.load(file)
             field = mya.load_receptive_field(fr_ext,
-                                             save_path1=save_path1,
-                                             save_path2=save_path2,
-                                             data_path=data_path,
+                                             save_path=save_path,
                                              plot=True)
         else:
             field = receptive_field_repeat(param=param, n_repeat=n_repeat)
@@ -428,19 +423,28 @@ def find_max_min_receptive_field(n_repeat):
         param = entry['param']
         ie_r_e1, ie_r_i1 = param
         common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-        save_path1 = f'{recfield_dir}/{n_repeat}fr_ext{common_path}.png'
-        save_path2 = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+        save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
         data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
-        if not os.path.exists(save_path2):
+        if not os.path.exists(save_path) or 1:
             with open(data_path, 'rb') as file:
                 fr_ext = pickle.load(file)
-            mya.draw_fr_ext_dist(fr_ext=fr_ext, save_path2=save_path2)
+            _ = mya.load_receptive_field(fr_ext=fr_ext, save_path=save_path, plot=True)
     # return {
     #     'max_pm': max_param,
     #     'max_rf': max_val,
     #     'min_pm': min_param,
     #     'min_rf': min_val
     # }
+
+def load_and_draw_receptive_field(param, n_repeat=64):
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+    if not os.path.exists(save_path) or 1:
+        with open(data_path, 'rb') as file:
+            fr_ext = pickle.load(file)
+        _ = mya.load_receptive_field(fr_ext=fr_ext, save_path=save_path, plot=True)
 
 #%% Execution area
 try:
@@ -468,6 +472,10 @@ try:
     # receptive_field(param=param)
 
     #%% repeat receptive field
+    # # first layer
+    # param = (1.795670364314891, 2.449990451446889)
+    # receptive_field_repeat(param=param, n_repeat=64, plot=True)
+    # # second layer
     # param = (1.8512390285440765, 2.399131446733395)
     # receptive_field_repeat(param=param, n_repeat=64, plot=True)
 
@@ -475,10 +483,18 @@ try:
     # result = find_max_min_receptive_field(n_repeat=64)
 
     #%% repeat 2 area coputation recetive field
-    param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-    pick_parameters_and_repeat_compute2(param=param,
-                                        n_repeat=128,
-                                        video=True)
+    # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    # pick_parameters_and_repeat_compute2(param=param,
+    #                                     n_repeat=128,
+    #                                     video=True)
+
+    #%% load and draw receptive field
+    # first layer
+    param = (1.795670364314891, 2.449990451446889)
+    load_and_draw_receptive_field(param, n_repeat=64)
+    # second layer
+    param = (1.8512390285440765, 2.399131446733395)
+    load_and_draw_receptive_field(param, n_repeat=64)
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
