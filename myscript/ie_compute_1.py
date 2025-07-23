@@ -70,9 +70,9 @@ if not os.path.exists(graph_dir):
     try: os.makedirs(graph_dir)
     except FileExistsError:
         pass
-vedio_dir = f'{root_dir}/vedio/'
-if not os.path.exists(vedio_dir):
-    try: os.makedirs(vedio_dir)
+video_dir = f'{root_dir}/vedio/'
+if not os.path.exists(video_dir):
+    try: os.makedirs(video_dir)
     except FileExistsError:
         pass
 state_dir = f'{root_dir}/state/'
@@ -529,7 +529,7 @@ def compute_save_draw(comb, loop_num):
     #         save_path=f'./{trajectory_dir}/trajectory_{common_path}.png'
     #         )
 
-    if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4') or 0:
+    if not os.path.exists(f'./{video_dir}/{common_path}_pattern.mp4') or 0:
         # Animation
         title = f'Animation \n {common_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
@@ -539,7 +539,7 @@ def compute_save_draw(comb, loop_num):
                             anititle=title,
                             stim=None, 
                             adpt=None)
-        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        ani.save(f'./{video_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
 
     # release RAM
     plt.close('all')

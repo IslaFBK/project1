@@ -27,8 +27,8 @@ data_dir = f'{root_dir}/raw_data/'
 Path(data_dir).mkdir(parents=True, exist_ok=True)
 graph_dir = f'{root_dir}/graph/'
 Path(graph_dir).mkdir(parents=True, exist_ok=True)
-vedio_dir = f'{root_dir}/vedio/'
-Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+video_dir = f'{root_dir}/vedio/'
+Path(video_dir).mkdir(parents=True, exist_ok=True)
 state_dir = f'{root_dir}/state/'
 Path(state_dir).mkdir(parents=True, exist_ok=True)
 MSD_dir = f'./{graph_dir}/MSD/'
@@ -335,7 +335,7 @@ def compute_MSD_pdx(comb, seed=10, index=1, video=False, save_load=False):
                                anititle=title,
                                stim=None,
                                adpt=None)
-        ani.save(f'./{vedio_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        ani.save(f'./{video_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
     return {
         'msd': msd,
         'jump_interval': jump_interval,
@@ -806,7 +806,7 @@ def compute_MSD_pdx2(comb, seed=10, index=1, video=False, save_load=False):
                                anititle=title,
                                stim=None,
                                adpt=None)
-        ani.save(f'./{vedio_dir}/2area_{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        ani.save(f'./{video_dir}/2area_{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
     return {
         'msd1': msd1,
         'msd2': msd2,

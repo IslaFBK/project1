@@ -64,8 +64,8 @@ data_dir = f'{root_dir}/raw_data/'
 Path(data_dir).mkdir(parents=True, exist_ok=True)
 graph_dir = f'{root_dir}/graph/'
 Path(graph_dir).mkdir(parents=True, exist_ok=True)
-vedio_dir = f'{root_dir}/vedio/'
-Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+video_dir = f'{root_dir}/vedio/'
+Path(video_dir).mkdir(parents=True, exist_ok=True)
 state_dir = f'{root_dir}/state/'
 Path(state_dir).mkdir(parents=True, exist_ok=True)
 MSD_dir = f'./{graph_dir}/MSD/'
@@ -107,8 +107,8 @@ def pick_parameters_and_repeat_compute2(param=None, n_repeat=128, video=False):
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     graph_dir = f'{root_dir}/graph/'
     Path(graph_dir).mkdir(parents=True, exist_ok=True)
-    vedio_dir = f'{root_dir}/vedio/'
-    Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+    video_dir = f'{root_dir}/vedio/'
+    Path(video_dir).mkdir(parents=True, exist_ok=True)
     state_dir = f'{root_dir}/state/'
     Path(state_dir).mkdir(parents=True, exist_ok=True)
     MSD_dir = f'./{graph_dir}/MSD/'
@@ -327,18 +327,33 @@ def receptive_field(param):
     return r_rf
 
 def receptive_field_repeat(param, n_repeat, plot=False, 
-                           video0=False, video1=False, save_load0=False, save_load1=False):
-        
-    result0 = Parallel(n_jobs=-1)(
-        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                   video=video0, save_load=save_load0)
-        for i in range(n_repeat)
-    )
-    result1 = Parallel(n_jobs=-1)(
-        delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
-                                   video=video1, save_load=save_load1)
-        for i in range(n_repeat)
-    )
+                           video0=False, video1=False, 
+                           save_load0=False, save_load1=False):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=(i==0), save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=False, save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
+                                    video=(i==0), save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
+                                    video=False, save_load=save_load1)
+            for i in range(n_repeat)
+        )
     # 提取所有 spk_rate 并堆叠
     spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
     spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
@@ -453,8 +468,8 @@ def load_and_draw_receptive_field(param, n_repeat=64):
 try:
     send_email.send_email('begin running', 'ie_search.main running')
     #%% test
-    param = (1.8512390285440765, 2.399131446733395)
-    compute.compute_1(comb=param, seed=10, index=0, sti=True, video=True, save_load=False)
+    # param = (1.8512390285440765, 2.399131446733395)
+    # compute.compute_1(comb=param, seed=10, index=0, sti=True, video=True, save_load=False)
 
     #%% evalutionary search
     # evalution_search()
@@ -478,9 +493,9 @@ try:
     # # first layer
     # param = (1.795670364314891, 2.449990451446889)
     # receptive_field_repeat(param=param, n_repeat=64, plot=True)
-    # # second layer
+    # second layer
     # param = (1.8512390285440765, 2.399131446733395)
-    # receptive_field_repeat(param=param, n_repeat=64, plot=True)
+    # receptive_field_repeat(param=param, n_repeat=128, plot=True, video1=True)
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64)

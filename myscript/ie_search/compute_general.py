@@ -25,8 +25,8 @@ data_dir = f'{root_dir}/raw_data/'
 Path(data_dir).mkdir(parents=True, exist_ok=True)
 graph_dir = f'{root_dir}/graph/'
 Path(graph_dir).mkdir(parents=True, exist_ok=True)
-vedio_dir = f'{root_dir}/vedio/'
-Path(vedio_dir).mkdir(parents=True, exist_ok=True)
+video_dir = f'{root_dir}/vedio/'
+Path(video_dir).mkdir(parents=True, exist_ok=True)
 state_dir = f'{root_dir}/state/'
 Path(state_dir).mkdir(parents=True, exist_ok=True)
 MSD_dir = f'./{graph_dir}/MSD/'
@@ -199,9 +199,11 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
                                 bkg_rates : Hz
                                 stim_1 : Hz
                                 ''', threshold='rand()<rates*dt')
-
+        
+        maxrate = 200
+        sig = 2
         posi_stim_e1.bkg_rates = 0*Hz
-        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [5000], sig=[2], position=[[0, 0]])*Hz
+        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]])*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-32, -32]])*Hz
 
         synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD
@@ -253,7 +255,7 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
     #%%
     tic = time.perf_counter()
 
-    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 500)*ms
+    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
     simu_time2 = simu_time_tot - simu_time1
 
@@ -322,13 +324,13 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
     
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
-    stim = [[[[31.5,31.5],
-              [63.5,-0.5]], 
-             [stim_on_off,
-              stim_on_off], 
-             [[6]*stim_on_off.shape[0],
-              [6]*stim_on_off.shape[0]]],
-            None]
+
+    stim = None
+    if sti:
+        stim = [[[[31.5,31.5]], 
+                [stim_on_off], 
+                [[sig]*stim_on_off.shape[0]]]]
+        
     jump_interval = np.linspace(1, 1000, 100)
     data_load.a1.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
@@ -354,7 +356,7 @@ def compute_1(comb, seed=10, index=1, sti=False, video=False, save_load=False):
                                anititle=title,
                                stim=stim,
                                adpt=None)
-        ani.save(f'./{vedio_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        ani.save(f'./{video_dir}/{index}_{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
     return {
         'data': data_load,
         'msd': msd,

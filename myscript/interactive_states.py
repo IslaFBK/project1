@@ -290,7 +290,7 @@ def create_advanced_interactive_plot(data_states,
 root_dir = 'parallel/'
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
-vedio_dir = 'parallel/vedio/'
+video_dir = 'parallel/vedio/'
 state_dir = 'parallel/state/'
 
 # # automatically identify looping parameters
@@ -329,5 +329,5 @@ create_advanced_interactive_plot(data_states=data_states,
                                              'num_ie': [90, 200],
                                              'num_ii': [90, 200]},
                                  graph_dir=graph_dir,
-                                 video_dir=vedio_dir,
+                                 video_dir=video_dir,
                                  output_file=f"{root_dir}advanced_phase_diagram.html")

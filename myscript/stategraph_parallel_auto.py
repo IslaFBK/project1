@@ -99,7 +99,7 @@ def state_graph(data_states, dim_ext, arrange, output_dir="output_plots"):
 root_dir = 'parallel'
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
-vedio_dir = 'parallel/vedio/'
+video_dir = 'parallel/vedio/'
 state_dir = 'parallel/state/'
 # automatically identify looping parameters
 path_list = os.listdir(data_dir)

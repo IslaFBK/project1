@@ -22,7 +22,7 @@ from analysis import my_analysis as mya
 
 data_dir = 'phasesearch2/raw_data/'
 graph_dir = 'phasesearch2/graph/'
-vedio_dir = 'phasesearch2/vedio/'
+video_dir = 'phasesearch2/vedio/'
 # appoint looping parameters
 params_loop = {
     'num_ee': np.arange(200, 400+1, 200),
@@ -119,7 +119,7 @@ states_path = ''.join(
 #     #                     anititle=title,
 #     #                     stim=None, 
 #     #                     adpt=None)
-#     # ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+#     # ani.save(f'./{video_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
 
 #     # unwrap periodic trajection
 #     centre = data_load.a1.ge.centre_mass.centre

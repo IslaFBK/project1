@@ -27,7 +27,7 @@ Cause this script scane parameters exactly, it's not flexible enough, now can be
 
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
-vedio_dir = 'parallel/vedio/'
+video_dir = 'parallel/vedio/'
 state_dir = 'parallel/state/'
 
 start = time.perf_counter()
@@ -126,7 +126,7 @@ def states_compute(comb, loop_num):
     #                     anititle=title,
     #                     stim=None, 
     #                     adpt=None)
-    # ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+    # ani.save(f'./{video_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
 
     # unwrap periodic trajection
     centre = data_load.a1.ge.centre_mass.centre

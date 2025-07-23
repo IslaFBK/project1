@@ -24,7 +24,7 @@ from joblib import Parallel, delayed
 
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
-vedio_dir = 'parallel/vedio/'
+video_dir = 'parallel/vedio/'
 state_dir = 'parallel/state/'
 if not os.path.exists(state_dir):
     try: os.makedirs(state_dir)

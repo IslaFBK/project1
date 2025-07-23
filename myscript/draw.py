@@ -24,7 +24,7 @@ from pathlib import Path
 
 data_dir = 'parallel/raw_data/'
 graph_dir = 'parallel/graph/'
-vedio_dir = 'parallel/vedio/'
+video_dir = 'parallel/vedio/'
 jump_dir = f'./{graph_dir}/jump/'
 Path(jump_dir).mkdir(parents=True, exist_ok=True)
 coactivity_dir = f'./{graph_dir}/coactivity/'
@@ -143,7 +143,7 @@ def graphs_and_vedios(comb, loop_num):
             min_active=1  # 忽略少于1个神经元同时放电的情况
         )
 
-    if not os.path.exists(f'./{vedio_dir}/{common_path}_pattern.mp4'):
+    if not os.path.exists(f'./{video_dir}/{common_path}_pattern.mp4'):
         # Animation
         title = f'Animation \n {common_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
@@ -153,7 +153,7 @@ def graphs_and_vedios(comb, loop_num):
                             anititle=title,
                             stim=None, 
                             adpt=None)
-        ani.save(f'./{vedio_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        ani.save(f'./{video_dir}/{common_path}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
 
     # release RAM
     plt.close('all')
@@ -169,7 +169,7 @@ results = Parallel(n_jobs=-1)(
 )
 
 print(f'pattern graphs of {loop_total} states saved to {graph_dir}')
-print(f'pattern vedios of {loop_total} states saved to {vedio_dir}')
+print(f'pattern vedios of {loop_total} states saved to {video_dir}')
 
 # # load phase data and rebuild Analyzer object
 # ''' load phase data '''

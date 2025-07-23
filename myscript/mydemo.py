@@ -52,9 +52,9 @@ if not os.path.exists(graph_dir):
     try: os.makedirs(graph_dir)
     except FileExistsError:
         pass
-vedio_dir = f'{root_dir}/vedio/'
-if not os.path.exists(vedio_dir):
-    try: os.makedirs(vedio_dir)
+video_dir = f'{root_dir}/vedio/'
+if not os.path.exists(video_dir):
+    try: os.makedirs(video_dir)
     except FileExistsError:
         pass
 MSD_dir = f'./{graph_dir}/MSD/'
