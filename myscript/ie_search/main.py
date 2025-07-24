@@ -327,7 +327,7 @@ def receptive_field(param):
     return r_rf
 
 def receptive_field_repeat(param, n_repeat, plot=False, 
-                           video0=False, video1=False, 
+                           video0=False, video1=False, maxrate=5000,
                            save_load0=False, save_load1=False):
     
     if video0:
@@ -344,13 +344,13 @@ def receptive_field_repeat(param, n_repeat, plot=False,
         )
     if video1:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
                                     video=(i==0), save_load=save_load1)
             for i in range(n_repeat)
         )
     else:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True,  
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
                                     video=False, save_load=save_load1)
             for i in range(n_repeat)
         )
@@ -365,8 +365,8 @@ def receptive_field_repeat(param, n_repeat, plot=False,
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
-    data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
                                save_path=save_path,
@@ -374,7 +374,7 @@ def receptive_field_repeat(param, n_repeat, plot=False,
                                plot=plot)
     return r_rf
 
-def find_max_min_receptive_field(n_repeat):
+def find_max_min_receptive_field(n_repeat, maxrate=5000):
     # load
     print('loading')
     with open(f'{state_dir}/evolution.file', 'rb') as file:
@@ -441,8 +441,8 @@ def find_max_min_receptive_field(n_repeat):
         param = entry['param']
         ie_r_e1, ie_r_i1 = param
         common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-        save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
-        data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+        save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
+        data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
         if not os.path.exists(save_path) or 1:
             with open(data_path, 'rb') as file:
                 fr_ext = pickle.load(file)
@@ -454,11 +454,11 @@ def find_max_min_receptive_field(n_repeat):
     #     'min_rf': min_val
     # }
 
-def load_and_draw_receptive_field(param, n_repeat=64):
+def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-    save_path = f'{recfield_dir}/{n_repeat}fr_ext-dist{common_path}.png'
-    data_path = f'{state_dir}/{n_repeat}fr_ext{common_path}.file'
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
     if not os.path.exists(save_path) or 1:
         with open(data_path, 'rb') as file:
             fr_ext = pickle.load(file)
@@ -487,18 +487,18 @@ try:
 
     #%% receptive field
     # param = (1.824478865468595, 2.4061741957998843)
-    # receptive_field(param=param)
+    # receptive_field(param=param, maxrate=5000)
 
     #%% repeat receptive field
     # # first layer
     # param = (1.795670364314891, 2.449990451446889)
-    # receptive_field_repeat(param=param, n_repeat=64, plot=True)
+    # receptive_field_repeat(param=param, n_repeat=64, maxrate=5000, plot=True)
     # second layer
     # param = (1.8512390285440765, 2.399131446733395)
-    # receptive_field_repeat(param=param, n_repeat=128, plot=True, video1=True)
+    # receptive_field_repeat(param=param, n_repeat=128, maxrate=5000, plot=True, video1=True)
 
     #%% search receptive field
-    # result = find_max_min_receptive_field(n_repeat=64)
+    result = find_max_min_receptive_field(n_repeat=64, maxrate=5000)
 
     #%% repeat 2 area coputation recetive field
     # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
@@ -509,10 +509,10 @@ try:
     #%% load and draw receptive field
     # # first layer
     # param = (1.795670364314891, 2.449990451446889)
-    # load_and_draw_receptive_field(param, n_repeat=64)
+    # load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64)
     # # second layer
     # param = (1.8512390285440765, 2.399131446733395)
-    # load_and_draw_receptive_field(param, n_repeat=64)
+    # load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64)
 
     
 
