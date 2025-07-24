@@ -501,10 +501,10 @@ try:
     result = find_max_min_receptive_field(n_repeat=64, maxrate=5000)
 
     #%% repeat 2 area coputation recetive field
-    # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-    # pick_parameters_and_repeat_compute2(param=param,
-    #                                     n_repeat=128,
-    #                                     video=True)
+    param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    pick_parameters_and_repeat_compute2(param=param,
+                                        n_repeat=128,
+                                        video=True)
 
     #%% load and draw receptive field
     # # first layer
