@@ -464,6 +464,44 @@ def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
             fr_ext = pickle.load(file)
         _ = mya.load_receptive_field(fr_ext=fr_ext, save_path=save_path, plot=True)
 
+def check_r_rf_maxrate(param=None, 
+                        seq_maxrate=None,
+                        n_repeat=128):
+    # if param is None:
+    #     param = (1.8512390285440765, 2.399131446733395)
+    # if seq_maxrate is None:
+    #     seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000]
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    seq_r_rf = []
+    loop_num = 0
+    loop_total = len(seq_maxrate)
+    for maxrate in seq_maxrate:
+        loop_num+=1
+        r_rf = receptive_field_repeat(param=param, n_repeat=n_repeat, maxrate=maxrate, plot=True, video1=True)
+        seq_r_rf.append(r_rf['r_rf'])
+        print(f'completed {loop_num} in {loop_total} \n max rate: {maxrate}, r_rf: {r_rf}')
+        contents = (
+            f"Completed {loop_num} in {loop_total}\n"
+            f"max rate: {maxrate}\n"
+            f"r_rf: {r_rf}"
+        )
+        send_email.send_email('Check r_rf (mr)', contents=contents)
+
+    plt.figure(figsize=(5,5))
+    plt.plot(seq_maxrate, seq_r_rf, 'o-', label='Mean $r_{rf}$')
+    plt.xlabel('Max rate (Hz)')
+    plt.ylabel('$r_{rf}$')
+    plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
+    plt.savefig(f'{recfield_dir}/r_rf-mr_lin{common_path}_{n_repeat}.png')
+
+    plt.figure(figsize=(5,5))
+    plt.plot(seq_maxrate, seq_r_rf, 'o-', label='Mean $r_{rf}$')
+    plt.xlabel('Max rate (Hz)')
+    plt.ylabel('$r_{rf}$')
+    plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
+    plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
+
 #%% Execution area
 try:
     send_email.send_email('begin running', 'ie_search.main running')
@@ -490,17 +528,17 @@ try:
     # receptive_field(param=param, maxrate=5000)
 
     #%% repeat receptive field
-    # # first layer
-    # param = (1.795670364314891, 2.449990451446889)
-    # receptive_field_repeat(param=param, n_repeat=64, maxrate=5000, plot=True)
+    # first layer
+    param = (1.795670364314891, 2.449990451446889)
+    receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
     # second layer
-    # param = (1.8512390285440765, 2.399131446733395)
-    # receptive_field_repeat(param=param, n_repeat=128, maxrate=5000, plot=True, video1=True)
+    param = (1.8870084212830673, 2.3990240481749168)
+    receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=5000)
 
-    #%% repeat 2 area coputation recetive field
+    #%% repeat 2 area computation recetive field (MSD, pdx) -> 2area/
     # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
     # pick_parameters_and_repeat_compute2(param=param,
     #                                     n_repeat=128,
@@ -515,45 +553,8 @@ try:
     # load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64)
 
     #%% check r_rf(maxrate)
-    def check_r_rf_maxrate(param=None, 
-                           seq_maxrate=None,
-                           n_repeat=128):
-        # if param is None:
-        #     param = (1.8512390285440765, 2.399131446733395)
-        # if seq_maxrate is None:
-        #     seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000]
-        ie_r_e1, ie_r_i1 = param
-        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-        seq_r_rf = []
-        loop_num = 0
-        loop_total = len(seq_maxrate)
-        for maxrate in seq_maxrate:
-            loop_num+=1
-            r_rf = receptive_field_repeat(param=param, n_repeat=n_repeat, maxrate=maxrate, plot=True, video1=True)
-            seq_r_rf.append(r_rf['r_rf'])
-            print(f'completed {loop_num} in {loop_total} \n max rate: {maxrate}, r_rf: {r_rf}')
-            contents = (
-                f"Completed {loop_num} in {loop_total}\n"
-                f"max rate: {maxrate}\n"
-                f"r_rf: {r_rf}"
-            )
-            send_email.send_email('Check r_rf (mr)', contents=contents)
-
-        plt.figure(figsize=(5,5))
-        plt.plot(seq_maxrate, seq_r_rf, 'o-', label='Mean $r_{rf}$')
-        plt.xlabel('Max rate (Hz)')
-        plt.ylabel('$r_{rf}$')
-        plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
-        plt.savefig(f'{recfield_dir}/r_rf-mr_lin{common_path}_{n_repeat}.png')
-
-        plt.figure(figsize=(5,5))
-        plt.plot(seq_maxrate, seq_r_rf, 'o-', label='Mean $r_{rf}$')
-        plt.xlabel('Max rate (Hz)')
-        plt.ylabel('$r_{rf}$')
-        plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
-        plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
-    check_r_rf_maxrate(param = (1.8512390285440765, 2.399131446733395),
-                       seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
+    # check_r_rf_maxrate(param = (1.8512390285440765, 2.399131446733395),
+    #                    seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
