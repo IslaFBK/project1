@@ -32,37 +32,37 @@ For canonical analysis, due to the fitness, apply the following fitting:
 1. If $\nu_{ext}$ with a Gaussian form:
 
     $$
-    \nu_{ext} = A_+ e^{-r^2/2\sigma_+^2} - A_- e^{-r^2/2\sigma_-^2}
+    \nu_{ext} = 4A_+ e^{-r^2/2\sigma_+^2} - A_- e^{-r^2/2\sigma_-^2}
     $$
 
     Receptive field ratius:
-<!-- 
+
     $$
-    A_+ e^{-r^2/2\sigma_+^2} = A_- e^{-r^2/2\sigma_-^2}
+    4A_+ e^{-r^2/2\sigma_+^2} = A_- e^{-r^2/2\sigma_-^2}
     $$
 
     $$
-    A_+/A_- = e^{r^2/2\sigma_+^2-r^2/2\sigma_-^2}
+    4A_+/A_- = e^{r^2/2\sigma_+^2-r^2/2\sigma_-^2}
     $$
 
     $$
-    2\ln(A_+)-2\ln(A_-)=r^2(1/\sigma_+^2-1/\sigma_-^2)
-    $$ -->
+    2\ln(4A_+)-2\ln(A_-)=r^2(1/\sigma_+^2-1/\sigma_-^2)
+    $$
 
     $$
-    r = \sqrt{2\frac{\ln(A_+)-2\ln(A_-)}{(1/\sigma_+^2-1/\sigma_-^2)}}
+    r = \sqrt{\frac{2\ln(4A_+)-2\ln(A_-)}{(1/\sigma_+^2-1/\sigma_-^2)}}
     $$
 
 2. If $\nu_{ext}$ with a exponential form:
 
     $$
-    \nu_{ext} = A_+ e^{-r/\sigma_+} - A_- e^{-r/\sigma_-}
+    \nu_{ext} = 4A_+ e^{-r/\sigma_+} - A_- e^{-r/\sigma_-}
     $$
 
     Receptive field ratius:
     
     $$
-    r = \frac{\ln(A_+)-2\ln(A_-)}{(1/\sigma_+-1/\sigma_-)}
+    r = \frac{\ln(4A_+)-\ln(A_-)}{(1/\sigma_+-1/\sigma_-)}
     $$
 
 

@@ -36,7 +36,7 @@ Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
-def compute_1(comb, seed=10, index=1, sti=False, maxrate=5000, video=False, save_load=False):
+def compute_1(comb, seed=10, index=1, sti=False, maxrate=5000, sig=2, sti_type='Gaussian', video=False, save_load=False):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -200,9 +200,8 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=5000, video=False, save
                                 stim_1 : Hz
                                 ''', threshold='rand()<rates*dt')
 
-        sig = 2
         posi_stim_e1.bkg_rates = 0*Hz
-        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]])*Hz
+        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], sti_type=sti_type)*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-32, -32]])*Hz
 
         synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD

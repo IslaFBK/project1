@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from connection import coordination
 #%%
-def input_spkrate(maxrate = [800,800], sig=[6,6], position=[[-32, -32],[0, 0]], n_side=64, width=64):
+def input_spkrate(maxrate = [800,800], sig=[6,6], position=[[-32, -32],[0, 0]], sti_type='Gaussian', n_side=64, width=64):
     '''
     generate the firing rate for the input poisson spike, the poisson rate of each input
     poisson spike has gaussian shape profile across the network
@@ -41,11 +41,19 @@ def input_spkrate(maxrate = [800,800], sig=[6,6], position=[[-32, -32],[0, 0]], 
     #sti2 = [0, 0]
     # number of stimulus
     n_stim = len(position)
-    for i in range(n_stim):
-        dist_sti = coordination.lattice_dist(lattice, width, position[i])
-        if i == 0:
-            rate_sti = np.zeros(len(dist_sti))
-        rate_sti += maxrate[i]*np.exp((-0.5)*(dist_sti/sig[i])**2)
+    if sti_type == 'Gaussian':
+        for i in range(n_stim):
+            dist_sti = coordination.lattice_dist(lattice, width, position[i])
+            if i == 0:
+                rate_sti = np.zeros(len(dist_sti))
+            rate_sti += maxrate[i]*np.exp((-0.5)*(dist_sti/sig[i])**2)
+    else:
+        for i in range(n_stim):
+            dist_sti = coordination.lattice_dist(lattice, width, position[i])
+            if i==0:
+                rate_sti = np.zeros(len(dist_sti))
+            # Uniform rate within sig radius, 0 outside
+            rate_sti += maxrate[i] * (dist_sti <= sig[i])
 
 #    dist_sti1 = coordination.lattice_dist(lattice, width, position[0])
 #    dist_sti2 = coordination.lattice_dist(lattice, width, position[1])

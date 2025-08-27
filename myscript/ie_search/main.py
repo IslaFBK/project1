@@ -502,6 +502,74 @@ def check_r_rf_maxrate(param=None,
     plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
     plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
 
+def receptive_field_repeat2(param, n_repeat, plot=False, 
+                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
+                            save_load0=False, save_load1=False):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=(i==0), save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=False, save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                    video=(i==0), save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                    video=False, save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
+
+    # 在第一个维度取平均
+    spk_rate0_mean = np.mean(spk_rate0_all, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean = np.mean(spk_rate1_all, axis=0)
+
+
+    # 取中心最近的四个点
+    center_indices = [(31, 31), (31, 32), (32, 31), (32, 32)]
+    center_spk_rate0 = np.array([spk_rate0_mean[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate1 = np.array([spk_rate1_mean[x, y, :] for x, y in center_indices])  # shape: (4, T)
+
+    # 对这四个点做平均
+    center_spk_rate0_mean = np.mean(center_spk_rate0, axis=0)  # shape: (T,)
+    center_spk_rate1_mean = np.mean(center_spk_rate1, axis=0)  # shape: (T,)
+    center_spk_rate0_tmean = np.mean(center_spk_rate0_mean, axis=0)
+    center_spk_rate1_tmean = np.mean(center_spk_rate1_mean, axis=0)
+
+    ratio = center_spk_rate1_tmean/center_spk_rate0_tmean
+    diff = center_spk_rate1_tmean-center_spk_rate0_tmean
+    return ratio, diff
+
+from math import ceil, sqrt
+def receptive_field2(param, n_repeat, plot=False, 
+                     video0=False, video1=False, maxrate=1000, sti_type='uniform',
+                     save_load0=False, save_load1=False):
+    max_sig = ceil(31.5*sqrt(2))
+    sigs = np.arange(0, max_sig + 1, 1)
+    ratios = []
+    diffs = []
+    for sig in sigs:
+        ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, 
+                                              video0=video0, video1=video1, maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1)
+        ratios.append(ratio)
+        diffs.append(diff)
+    return ratios, diffs, sigs
+
 #%% Execution area
 try:
     send_email.send_email('begin running', 'ie_search.main running')
@@ -528,12 +596,12 @@ try:
     # receptive_field(param=param, maxrate=5000)
 
     #%% repeat receptive field
-    # first layer
-    param = (1.795670364314891, 2.449990451446889)
-    receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
-    # second layer
-    param = (1.8870084212830673, 2.3990240481749168)
-    receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
+    # # first layer
+    # param = (1.795670364314891, 2.449990451446889)
+    # receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
+    # # second layer
+    # param = (1.8870084212830673, 2.3990240481749168)
+    # receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=5000)
@@ -555,6 +623,33 @@ try:
     #%% check r_rf(maxrate)
     # check_r_rf_maxrate(param = (1.8512390285440765, 2.399131446733395),
     #                    seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
+
+    #%% receptive field 2
+    def draw_receptive_field2(param, n_repeat, maxrate=1000):
+        ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
+                                         video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
+                                         save_load0=False, save_load1=False)
+        ie_r_e1, ie_r_i1 = param
+        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+        save_pathr = f'{recfield_dir}/zr{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+        save_pathd = f'{recfield_dir}/zd{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+        
+        plt.figure(figsize=(5,5))
+        plt.plot(sigs, ratios, 'o-')
+        plt.xlabel('Stimuli size')
+        plt.ylabel('Centre firing rate ratio')
+        plt.title('Centre firing rate ratio vs. stimuli size')
+        plt.savefig(save_pathr, dpi=600, format='eps')
+
+        plt.figure(figsize=(5,5))
+        plt.plot(sigs, diffs, 'o-')
+        plt.xlabel('Stimuli size')
+        plt.ylabel('Centre firing rate difference')
+        plt.title('Centre firing rate ratio vs. stimuli size')
+        plt.savefig(save_pathd, dpi=600, format='eps')
+    param = (1.795670364314891, 2.449990451446889)
+    draw_receptive_field2(param=param, n_repeat=64)
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:

@@ -499,3 +499,6 @@ def load_receptive_field(fr_ext,
 #     plt.legend()
 #     plt.savefig(save_path2, dpi=300, bbox_inches='tight')
 #     plt.close()
+
+
+# receptive field 2: uniform extend, global_fr_ext/global_fr_spo
