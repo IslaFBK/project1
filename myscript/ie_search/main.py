@@ -76,6 +76,8 @@ combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 recfield_dir = f'./{graph_dir}/recfield'
 Path(recfield_dir).mkdir(parents=True, exist_ok=True)
+LFP_dir = f'./{graph_dir}/LFP'
+Path(LFP_dir).mkdir(parents=True, exist_ok=True)
 
 #%% pick parameters and run `n_repeat` times
 def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
@@ -570,6 +572,142 @@ def receptive_field2(param, n_repeat, plot=False,
         diffs.append(diff)
     return ratios, diffs, sigs
 
+def LFP_1area(param, maxrate=2000, sig=5, dt=0.1, plot=True):
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    result = compute.compute_1(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=True)
+    LFP = result['data'].a1.ge.LFP
+    save_path = f'{LFP_dir}/1area_FFT_{sig}_{common_path}.eps'
+    freqs, power = mya.analyze_LFP_fft(LFP, dt=dt, plot=plot, save_path=save_path)
+    return freqs, power
+
+def LFP_2area(param, maxrate=2000, sig=5, dt=0.1, plot=True):
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    # common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
+    #                 rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
+    #                 rf'$\zeta^{{E2}}$: {ie_r_e2:.4f}, '
+    #                 rf'$\zeta^{{I2}}$: {ie_r_i2:.4f}')
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    result = compute.compute_2(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=True)
+    LFP = result['data'].a1.ge.LFP
+    save_path = f'{LFP_dir}/2area_FFT_{sig}_{common_path}.eps'
+    freqs, power = mya.analyze_LFP_fft(LFP, dt=dt, plot=plot, save_path=save_path)
+    return freqs, power
+
+def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, plot=True, video=True, save_load=False):
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    save_path = f'{LFP_dir}/1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if video:
+        results = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
+                                       sti_type=sti_type, video=(i==0), save_load=save_load)
+            for i in range(n_repeat)
+        )
+    else:
+        results = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
+                                       sti_type=sti_type, video=False, save_load=save_load)
+            for i in range(n_repeat)
+        )
+    # 提取所有LFP
+    LFP_list = [r['data'].a1.ge.LFP for r in results]
+    # 计算所有频谱
+    fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
+    freqs = fft_results[0][0]
+    powers = np.array([fr[1] for fr in fft_results])
+    mean_power = np.mean(powers, axis=0)
+
+    # 画平均频谱
+    if plot:
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum without feedback')
+        plt.grid(True)
+        plt.xlim(30, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs >= x_min) & (freqs <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    return freqs, mean_power
+
+def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, plot=True, video=True, save_load=False):
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    save_path = f'{LFP_dir}/2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if video:
+        results = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
+                                       sti_type=sti_type, video=(i==0), save_load=save_load)
+            for i in range(n_repeat)
+        )
+    else:
+        results = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
+                                       sti_type=sti_type, video=False, save_load=save_load)
+            for i in range(n_repeat)
+        )
+    # 提取所有LFP
+    LFP_list = [r['data'].a1.ge.LFP for r in results]
+    # 计算所有频谱
+    fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
+    freqs = fft_results[0][0]
+    powers = np.array([fr[1] for fr in fft_results])
+    mean_power = np.mean(powers, axis=0)
+
+    # 画平均频谱
+    if plot:
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.grid(True)
+        plt.xlim(30, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs >= x_min) & (freqs <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    return freqs, mean_power
+
+def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1,
+                    plot=True, video=True, save_load=False):
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    save_path = f'{LFP_dir}/diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    freqs1, mean_power1 = LFP_1area_repeat(param=param1, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
+                                           sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
+    freqs2, mean_power2 = LFP_2area_repeat(param=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
+                                           sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
+    freqs_diff = freqs2
+    mean_power_diff = mean_power2-mean_power1
+    if plot:
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum difference')
+        plt.grid(True)
+        plt.xlim(30, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power_diff[mask]), np.max(mean_power_diff[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
 #%% Execution area
 try:
     send_email.send_email('begin running', 'ie_search.main running')
@@ -625,31 +763,60 @@ try:
     #                    seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
 
     #%% receptive field 2
-    def draw_receptive_field2(param, n_repeat, maxrate=1000):
-        ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-                                         video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
-                                         save_load0=False, save_load1=False)
-        ie_r_e1, ie_r_i1 = param
-        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    # def draw_receptive_field2(param, n_repeat, maxrate=1000):
+    #     ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
+    #                                      video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
+    #                                      save_load0=False, save_load1=False)
+    #     ie_r_e1, ie_r_i1 = param
+    #     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-        save_pathr = f'{recfield_dir}/zr{n_repeat}_{maxrate}fr_ext{common_path}.eps'
-        save_pathd = f'{recfield_dir}/zd{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    #     save_pathr = f'{recfield_dir}/zr{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    #     save_pathd = f'{recfield_dir}/zd{n_repeat}_{maxrate}fr_ext{common_path}.eps'
         
-        plt.figure(figsize=(5,5))
-        plt.plot(sigs, ratios, 'o-')
-        plt.xlabel('Stimuli size')
-        plt.ylabel('Centre firing rate ratio')
-        plt.title('Centre firing rate ratio vs. stimuli size')
-        plt.savefig(save_pathr, dpi=600, format='eps')
+    #     plt.figure(figsize=(5,5))
+    #     plt.plot(sigs, ratios, 'o-')
+    #     plt.xlabel('Stimuli size')
+    #     plt.ylabel('Centre firing rate ratio')
+    #     plt.title('Centre firing rate ratio vs. stimuli size')
+    #     plt.savefig(save_pathr, dpi=600, format='eps')
 
-        plt.figure(figsize=(5,5))
-        plt.plot(sigs, diffs, 'o-')
-        plt.xlabel('Stimuli size')
-        plt.ylabel('Centre firing rate difference')
-        plt.title('Centre firing rate ratio vs. stimuli size')
-        plt.savefig(save_pathd, dpi=600, format='eps')
-    param = (1.795670364314891, 2.449990451446889)
-    draw_receptive_field2(param=param, n_repeat=64)
+    #     plt.figure(figsize=(5,5))
+    #     plt.plot(sigs, diffs, 'o-')
+    #     plt.xlabel('Stimuli size')
+    #     plt.ylabel('Centre firing rate difference')
+    #     plt.title('Centre firing rate ratio vs. stimuli size')
+    #     plt.savefig(save_pathd, dpi=600, format='eps')
+    # param = (1.795670364314891, 2.449990451446889)
+    # draw_receptive_field2(param=param, n_repeat=64)
+
+    #%% LFP
+    def draw_LFP_FFT_2area():
+        param1 = (1.795670364314891, 2.449990451446889)
+        param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+        sig=0
+        LFP_1area(param=param1,maxrate=500,sig=sig,dt=0.1,plot=True)
+        LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
+    # draw_LFP_FFT_2area()
+    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
+        param = (1.795670364314891, 2.449990451446889)
+        LFP_1area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
+        param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+        LFP_2area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    # draw_LFP_FFT_1area_repeat()
+    # draw_LFP_FFT_2area_repeat()
+    def draw_LFP_FFT_diff_repeat(n_repeat=128):
+        param1 = (1.795670364314891, 2.449990451446889)
+        param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+        for sig in [0,5,10,15,20,25]:
+            LFP_diff_repeat(param1=param1, param2=param2, n_repeat=n_repeat, sig=sig)
+        
+    draw_LFP_FFT_diff_repeat()
+
+
+
+
+
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
@@ -661,3 +828,4 @@ except Exception:
         body=f"info: \n\n{error_info}"
     )
     sys.exit(1)  # 退出程序并返回错误码
+# %%

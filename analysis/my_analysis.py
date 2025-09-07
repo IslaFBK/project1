@@ -502,3 +502,42 @@ def load_receptive_field(fr_ext,
 
 
 # receptive field 2: uniform extend, global_fr_ext/global_fr_spo
+
+
+def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
+    """
+    对LFP信号做FFT分析并绘制频谱
+    参数:
+        LFP: 一维或二维numpy数组，LFP信号
+        dt: 采样间隔(ms)，默认0.1ms
+        plot: 是否画图
+        save_path: 图片保存路径
+    返回:
+        freqs: 频率数组(Hz)
+        power: 幅值谱
+    """
+    # 如果是二维（多个电极），只分析第一个
+    if LFP.ndim > 1:
+        LFP = LFP[0]
+    N = len(LFP)
+    fs = 1000 / dt  # 采样率 Hz
+    freqs = np.fft.rfftfreq(N, d=dt/1000)  # 频率轴
+    fft_vals = np.fft.rfft(LFP)
+    power = np.abs(fft_vals)**2
+
+    if plot:
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs, power)
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('LFP FFT Spectrum')
+        plt.grid(True)
+        plt.xlim(1, 90)
+        x_min, x_max = plt.xlim()
+        mask = (freqs >= x_min) & (freqs <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(power[mask]), np.max(power[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    return freqs, power

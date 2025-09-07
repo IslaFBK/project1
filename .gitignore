@@ -26,5 +26,6 @@ analysis/load_data_dict.pyc
 test.py
 **/test.ipynb
 *.html
+*.eps
 ai.md
 send_email.py
