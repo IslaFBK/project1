@@ -328,6 +328,7 @@ def receptive_field(param):
                                plot=True)
     return r_rf
 
+# exam different distance firing rate
 def receptive_field_repeat(param, n_repeat, plot=False, 
                            video0=False, video1=False, maxrate=5000,
                            save_load0=False, save_load1=False):
@@ -466,6 +467,7 @@ def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
             fr_ext = pickle.load(file)
         _ = mya.load_receptive_field(fr_ext=fr_ext, save_path=save_path, plot=True)
 
+# find optimized stimuli rate
 def check_r_rf_maxrate(param=None, 
                         seq_maxrate=None,
                         n_repeat=128):
@@ -504,6 +506,7 @@ def check_r_rf_maxrate(param=None,
     plt.title(f'$r_{{rf}}$-Max rate \\n parameter: {param}')
     plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
 
+# exam middle 4 point firing rate (receptive field)
 def receptive_field_repeat2(param, n_repeat, plot=False, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
                             save_load0=False, save_load1=False):
@@ -536,7 +539,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
     spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
 
-    # 在第一个维度取平均
+    # 在第一个维度(realization)取平均
     spk_rate0_mean = np.mean(spk_rate0_all, axis=0)  # shape: (Nx, Ny, T)
     spk_rate1_mean = np.mean(spk_rate1_all, axis=0)
 
@@ -556,16 +559,84 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
+# exam whole field firing rate (receptive field)
+def receptive_field_repeat3(param, n_repeat, plot=False, 
+                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
+                            save_load0=False, save_load1=False):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=(i==0), save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=False, save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                    video=(i==0), save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                    video=False, save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
+
+    # 在第一个维度(realization)取平均
+    spk_rate0_mean = np.mean(spk_rate0_all, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean = np.mean(spk_rate1_all, axis=0)
+
+    # 全场平均
+    center_spk_rate0 = np.mean(spk_rate0_mean, axis=(0, 1))  # shape: (T,)
+    center_spk_rate1 = np.mean(spk_rate1_mean, axis=(0, 1))  # shape: (T,)
+
+    # 时间再平均
+    center_spk_rate0_tmean = np.mean(center_spk_rate0)
+    center_spk_rate1_tmean = np.mean(center_spk_rate1)
+
+    ratio = center_spk_rate1_tmean/center_spk_rate0_tmean
+    diff = center_spk_rate1_tmean-center_spk_rate0_tmean
+    return ratio, diff
+
 from math import ceil, sqrt
+# middle 4 point different sig scane
 def receptive_field2(param, n_repeat, plot=False, 
                      video0=False, video1=False, maxrate=1000, sti_type='uniform',
                      save_load0=False, save_load1=False):
-    max_sig = ceil(31.5*sqrt(2))
+    # max_sig = ceil(31.5*sqrt(2))
+    max_sig = ceil(31.5)
     sigs = np.arange(0, max_sig + 1, 1)
     ratios = []
     diffs = []
     for sig in sigs:
         ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, 
+                                              video0=video0, video1=video1, maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1)
+        ratios.append(ratio)
+        diffs.append(diff)
+    return ratios, diffs, sigs
+
+# exam whole field different sig scane
+def receptive_field3(param, n_repeat, plot=False, 
+                     video0=False, video1=False, maxrate=1000, sti_type='uniform',
+                     save_load0=False, save_load1=False):
+    # max_sig = ceil(31.5*sqrt(2))
+    max_sig = ceil(31.5)
+    sigs = np.arange(0, max_sig + 1, 1)
+    ratios = []
+    diffs = []
+    for sig in sigs:
+        ratio, diff = receptive_field_repeat3(param, n_repeat, plot=plot, 
                                               video0=video0, video1=video1, maxrate=maxrate, sig=sig, sti_type=sti_type,
                                               save_load0=save_load0, save_load1=save_load1)
         ratios.append(ratio)
@@ -680,6 +751,7 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     return freqs, mean_power
 
+# exam middle point LFP (FFT)
 def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1,
                     plot=True, video=True, save_load=False):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
@@ -707,6 +779,8 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
+
+    
 
 #%% Execution area
 try:
@@ -762,7 +836,7 @@ try:
     # check_r_rf_maxrate(param = (1.8512390285440765, 2.399131446733395),
     #                    seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
 
-    #%% receptive field 2
+    #%% receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
     # def draw_receptive_field2(param, n_repeat, maxrate=1000):
     #     ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
     #                                      video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
@@ -770,8 +844,8 @@ try:
     #     ie_r_e1, ie_r_i1 = param
     #     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    #     save_pathr = f'{recfield_dir}/zr{n_repeat}_{maxrate}fr_ext{common_path}.eps'
-    #     save_pathd = f'{recfield_dir}/zd{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    #     save_pathr = f'{recfield_dir}/middle_zratio{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    #     save_pathd = f'{recfield_dir}/middle_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.eps'
         
     #     plt.figure(figsize=(5,5))
     #     plt.plot(sigs, ratios, 'o-')
@@ -789,29 +863,56 @@ try:
     # param = (1.795670364314891, 2.449990451446889)
     # draw_receptive_field2(param=param, n_repeat=64)
 
-    #%% LFP
-    def draw_LFP_FFT_2area():
-        param1 = (1.795670364314891, 2.449990451446889)
-        param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-        sig=0
-        LFP_1area(param=param1,maxrate=500,sig=sig,dt=0.1,plot=True)
-        LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
-    # draw_LFP_FFT_2area()
-    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
-        param = (1.795670364314891, 2.449990451446889)
-        LFP_1area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
-        param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-        LFP_2area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    # draw_LFP_FFT_1area_repeat()
-    # draw_LFP_FFT_2area_repeat()
-    def draw_LFP_FFT_diff_repeat(n_repeat=128):
-        param1 = (1.795670364314891, 2.449990451446889)
-        param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-        for sig in [0,5,10,15,20,25]:
-            LFP_diff_repeat(param1=param1, param2=param2, n_repeat=n_repeat, sig=sig)
+    #%% receptive field 3 (exam whole field firing rate while scane stimuli size)
+    def draw_receptive_field3(param, n_repeat, maxrate=1000):
+        ratios, diffs, sigs = receptive_field3(param, n_repeat, plot=False, 
+                                         video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
+                                         save_load0=False, save_load1=False)
+        ie_r_e1, ie_r_i1 = param
+        common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+        save_pathr = f'{recfield_dir}/field_zratio{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+        save_pathd = f'{recfield_dir}/field_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.eps'
         
-    draw_LFP_FFT_diff_repeat()
+        plt.figure(figsize=(5,5))
+        plt.plot(sigs, ratios, 'o-')
+        plt.xlabel('Stimuli size')
+        plt.ylabel('Whole field mean firing rate ratio')
+        plt.title('Whole field mean firing rate ratio vs. stimuli size')
+        plt.savefig(save_pathr, dpi=600, format='eps')
+
+        plt.figure(figsize=(5,5))
+        plt.plot(sigs, diffs, 'o-')
+        plt.xlabel('Stimuli size')
+        plt.ylabel('Whole field mean firing rate difference')
+        plt.title('Whole field mean firing rate difference vs. stimuli size')
+        plt.savefig(save_pathd, dpi=600, format='eps')
+    param = (1.795670364314891, 2.449990451446889)
+    draw_receptive_field3(param=param, n_repeat=64)
+
+    #%% LFP
+    # def draw_LFP_FFT_2area():
+    #     param1 = (1.795670364314891, 2.449990451446889)
+    #     param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    #     sig=0
+    #     LFP_1area(param=param1,maxrate=500,sig=sig,dt=0.1,plot=True)
+    #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
+    # # draw_LFP_FFT_2area()
+    # def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
+    #     param = (1.795670364314891, 2.449990451446889)
+    #     LFP_1area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    # def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
+    #     param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    #     LFP_2area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    # # draw_LFP_FFT_1area_repeat()
+    # # draw_LFP_FFT_2area_repeat()
+    # def draw_LFP_FFT_diff_repeat(n_repeat=128):
+    #     param1 = (1.795670364314891, 2.449990451446889)
+    #     param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    #     for sig in [0,5,10,15,20,25]:
+    #         LFP_diff_repeat(param1=param1, param2=param2, n_repeat=n_repeat, sig=sig)
+        
+    # draw_LFP_FFT_diff_repeat()
 
 
 
