@@ -85,7 +85,7 @@ def wave_packet_exist(spk_rate, centre, r=0.6, epsilon=0.1, min_ratio=0.5):
         
     return count >= min_ratio * T
 
-def is_critical_state(msd, jump_interval, pdx, alpha_range=(1.00, 1.30), msd_r2_thresh=0.99):
+def is_critical_state(msd, jump_interval, pdx, alpha_range=(1.00, 1.50), msd_r2_thresh=0.99):
     # MSD fit
     log_time = np.log10(jump_interval)
     log_msd = np.log10(msd)

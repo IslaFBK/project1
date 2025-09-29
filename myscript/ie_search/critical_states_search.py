@@ -52,7 +52,7 @@ def eval_func(comb, index=1):
     alpha = info['alpha']
     critical = exist and motion_critical
     return critical, alpha
-
+# 似乎被淘汰了，因为重复计算数量爆炸，后续没有使用
 def eval_func_repeat(comb, n_repeat=64):
     result = compute_MSD_pdx_repeat_and_packet_exist(param=comb, n_repeat=n_repeat)
     msd = result['msd_mean']
@@ -77,8 +77,10 @@ def generate_children(parent, r, n_child):
     parent = np.array(parent)
     return [tuple(parent + r/3 * np.random.randn(*parent.shape)) for _ in range(n_child)]
 
-def evolve_search(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=5, n_jobs=-1):
-    parents = [{'param': param, 'alpha': None, 'n_child_': n_child, 'critical': None, 'parent_alpha': None} for param in initial_params]
+def evolve_search(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=5, n_jobs=-1, 
+                  max_children_per_gen=1000):
+    parents = [{'param': param, 'alpha': None, 'n_child_': n_child, 'critical': None, 'parent_alpha': None} 
+               for param in initial_params]
     history = []
     for gen in range(max_gen):
         print(f'Generation {gen}, parent num: {len(parents)}')
@@ -122,12 +124,18 @@ def evolve_search(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=
                 }
                 for child in generate_children(parent['param'], r, parent['n_child_'])
             ])
+        # 限制每代子代总数
+        if len(children) > max_children_per_gen:
+            idxs = np.random.choice(len(children), max_children_per_gen, replace=False)
+            children = [children[i] for i in idxs]
         parents = children
         history.append(gen_info)
     return history
-
-def evolve_search_repeat(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=5, n_jobs=-1):
-    parents = [{'param': param, 'alpha': None, 'n_child_': n_child, 'critical': None, 'parent_alpha': None} for param in initial_params]
+# 似乎被淘汰了，因为重复计算数量爆炸，后续没有使用
+def evolve_search_repeat(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=5, n_jobs=-1, 
+                         max_children_per_gen=1000):
+    parents = [{'param': param, 'alpha': None, 'n_child_': n_child, 'critical': None, 'parent_alpha': None} 
+               for param in initial_params]
     history = []
     for gen in range(max_gen):
         print(f'Generation {gen}, parent num: {len(parents)}')
@@ -171,6 +179,10 @@ def evolve_search_repeat(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n
                 }
                 for child in generate_children(parent['param'], r, parent['n_child_'])
             ])
+        # 限制每代子代总数
+        if len(children) > max_children_per_gen:
+            idxs = np.random.choice(len(children), max_children_per_gen, replace=False)
+            children = [children[i] for i in idxs]
         parents = children
         history.append(gen_info)
     return history

@@ -76,8 +76,9 @@ def compute_MSD_pdx(comb, seed=10, index=1, video=False, save_load=False):
     # mean synaptic weight
     w_ee_1 = 11
     w_ii_1 = 50
-    w_ei_1 = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_e1)
-    w_ie_1 = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
+    w_ei_1 = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_i1) # 重大改动！！！！两个ie_ratio写反了
+    w_ie_1 = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_e1) # 重大改动！！！！两个ie_ratio写反了
+    # 今后用可以对调用
 
     #%% build connection set
     # neuron quantity
