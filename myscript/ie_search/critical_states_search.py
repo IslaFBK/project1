@@ -1,6 +1,9 @@
 import brian2.numpy_ as np
 from brian2.only import *
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+from scipy.spatial import ConvexHull
+from scipy.stats import chi2
 import sys
 import pickle
 import itertools
@@ -187,7 +190,7 @@ def evolve_search_repeat(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n
         history.append(gen_info)
     return history
 
-def plot_evolution_history(history, save_path):
+def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=True, conf_level=0.99):
     plt.figure(figsize=(14, 7))
     generations = len(history)
     cmap = plt.get_cmap('viridis', generations)
@@ -225,6 +228,27 @@ def plot_evolution_history(history, save_path):
     # plt.savefig(save_path, dpi=300, bbox_inches='tight')
     # plt.close()
 
+    # 计算凸包边界
+    if plot_hull and np.sum(mask_critical) >= 3:
+        critical_points = np.column_stack([all_x[mask_critical], all_y[mask_critical]])
+
+        # 不剔除离群点
+        hull = ConvexHull(critical_points)
+
+        boundary = critical_points[hull.vertices]
+        boundary_closed = np.vstack([boundary, boundary[0]])  # 闭合曲线
+
+    # 计算椭圆边界
+    if plot_ellipse and np.sum(mask_critical) >= 3:
+        critical_points = np.column_stack([all_x[mask_critical], all_y[mask_critical]])
+        mean = np.mean(critical_points, axis=0)
+        cov = np.cov(critical_points, rowvar=False)
+        vals, vecs = np.linalg.eigh(cov)
+        order = vals.argsort()[::-1]
+        vals, vecs = vals[order], vecs[:, order]
+        theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+        width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
+
     # 子图1：颜色表示代数
     ax1 = plt.subplot(1, 2, 1)
     cmap_gen = plt.get_cmap('viridis', generations)
@@ -240,6 +264,14 @@ def plot_evolution_history(history, save_path):
         norm=norm_gen,
         s=60, edgecolors='k', label='Critical', zorder=2
     )
+    # 画凸包边界
+    if plot_hull and np.sum(mask_critical) >= 3:
+        ax1.plot(boundary_closed[:,0], boundary_closed[:,1], 'r-', linewidth=2, 
+                 label='Critical Region Boundary', zorder=3)
+    # 画椭圆边界
+    if plot_ellipse and np.sum(mask_critical) >= 3:
+        ellipse = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary', zorder=4)
+        ax1.add_patch(ellipse)
     ax1.set_xlabel(r'$\zeta^{\rm I}$')
     ax1.set_ylabel(r'$\zeta^{\rm E}$')
     ax1.set_title('Generation (Critical States)')
@@ -254,12 +286,22 @@ def plot_evolution_history(history, save_path):
     ax2.scatter(all_x[~mask_critical], all_y[~mask_critical], 
                 c='lightgray', s=30, alpha=0.5, label='Non-critical')
     if np.any(mask_critical):
-        norm_alpha = plt.Normalize(vmin=np.nanmin(all_alpha[mask_critical]), vmax=np.nanmax(all_alpha[mask_critical]))
+        norm_alpha = plt.Normalize(vmin=np.nanmin(all_alpha[mask_critical]), 
+                                   vmax=np.nanmax(all_alpha[mask_critical]))
         cmap_alpha = plt.get_cmap('plasma')
         sc2 = ax2.scatter(all_x[mask_critical], all_y[mask_critical], 
-                          c=all_alpha[mask_critical], cmap=cmap_alpha, norm=norm_alpha, s=60, edgecolors='k', label='Critical')
+                          c=all_alpha[mask_critical], cmap=cmap_alpha, norm=norm_alpha, 
+                          s=60, edgecolors='k', label='Critical')
         cbar2 = plt.colorbar(sc2, ax=ax2)
         cbar2.set_label('Alpha')
+        # 画凸包边界
+        if plot_hull and np.sum(mask_critical) >= 3:
+            ax2.plot(boundary_closed[:,0], boundary_closed[:,1], 'r-', linewidth=2, 
+                     label='Critical Region Boundary')
+        # 画椭圆边界
+        if plot_ellipse and np.sum(mask_critical) >= 3:
+            ellipse2 = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary')
+            ax2.add_patch(ellipse2)
     ax2.set_xlabel(r'$\zeta^{\rm I}$')
     ax2.set_ylabel(r'$\zeta^{\rm E}$')
     ax2.set_title('Alpha (Critical States)')
@@ -268,3 +310,11 @@ def plot_evolution_history(history, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
+
+    # 椭圆参数
+    ellipse_info = {
+        'mean': mean,         # 均值 (中心)
+        'cov': cov,           # 协方差矩阵
+        'conf_level': conf_level
+    }
+    return ellipse_info

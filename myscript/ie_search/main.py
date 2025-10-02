@@ -1,6 +1,9 @@
 import brian2.numpy_ as np
 from brian2.only import *
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from scipy.spatial import ConvexHull, Delaunay
+from scipy.stats import chi2
 import sys
 import pickle
 import itertools
@@ -286,8 +289,12 @@ def evalution_search(compute=False, repeat_MSD=False):
     # draw
     print('drawing')
     save_path = f'{graph_dir}/evaluation.png'
-    search.plot_evolution_history(history=history,save_path=save_path)
-
+    ellipse_info = search.plot_evolution_history(history=history,save_path=save_path)
+    # 保存椭圆边界信息
+    with open(f'{state_dir}/critical_ellipse.file', 'wb') as file:
+        pickle.dump(ellipse_info, file)
+    
+    plt.figure(figsize=(14, 7))
     # pick points
     min_alpha = get_min_alpha_critical(history=history)
     top10 = get_top_n_alpha_critical(history, n=10)
@@ -304,6 +311,22 @@ def evalution_search(compute=False, repeat_MSD=False):
             pick_parameters_and_repeat_compute(min_alpha['param'])
         else:
             print('critical point not found')
+
+# 在椭圆中均匀随机采样
+def sample_in_ellipse(mean, cov, conf_level, n_samples):
+    dim = len(mean)
+    threshold = np.sqrt(chi2.ppf(conf_level, df=dim))
+    samples = []
+    while len(samples) < n_samples:
+        # 在包络盒内均匀采样
+        box_min = mean - 2*np.sqrt(np.diag(cov))
+        box_max = mean + 2*np.sqrt(np.diag(cov))
+        point = np.random.uniform(box_min, box_max)
+        # 判断是否在椭圆内
+        dist = np.sqrt((point-mean) @ np.linalg.inv(cov) @ (point-mean).T)
+        if dist < threshold:
+            samples.append(point)
+    return np.array(samples)
 
 # Receptive_field
 def last_generation(history):
@@ -378,8 +401,8 @@ def receptive_field_repeat(param, n_repeat, plot=False,
                                plot=plot)
     return r_rf
 
-def find_max_min_receptive_field(n_repeat, maxrate=5000):
-    # load
+def find_max_min_receptive_field(n_repeat, maxrate=1000):
+    # load parameters directly
     print('loading')
     with open(f'{state_dir}/evolution.file', 'rb') as file:
         history = pickle.load(file)
@@ -457,6 +480,63 @@ def find_max_min_receptive_field(n_repeat, maxrate=5000):
     #     'min_pm': min_param,
     #     'min_rf': min_val
     # }
+
+def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=1000, n_sample=1000):
+    # 读取椭圆参数
+    with open(range_path, 'rb') as file:
+        ellipse_info = pickle.load(file)
+    mean = ellipse_info['mean']
+    cov = ellipse_info['cov']
+    conf_level = ellipse_info.get('conf_level', 0.99)
+
+    # 椭圆内采样参数
+    params = sample_in_ellipse(mean, cov, conf_level, n_sample)
+
+    max_val = -np.inf
+    min_val = np.inf
+    max_param = None
+    min_param = None
+    rf_list = []
+    for param in params:
+        param_tuple = tuple(param)
+        try:
+            field = receptive_field_repeat(param=param_tuple, n_repeat=n_repeat, maxrate=maxrate, plot=False)
+            r_rf = field['r_rf'] if isinstance(field, dict) and 'r_rf' in field else None
+        except Exception as e:
+            print(f"参数 {param_tuple} 计算失败: {e}")
+            continue
+        rf_list.append((param_tuple, r_rf))
+        if r_rf is not None:
+            if r_rf > max_val:
+                max_val = r_rf
+                max_param = param_tuple
+            if r_rf < min_val:
+                min_val = r_rf
+                min_param = param_tuple
+
+    print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
+    print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
+
+    # 画地形图
+    x = [p[0] for p, rf in rf_list]
+    y = [p[1] for p, rf in rf_list]
+    z = [rf for p, rf in rf_list]
+    plt.figure(figsize=(7,6))
+    sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
+    plt.colorbar(sc, label='Receptive Field')
+    plt.xlabel(r'$\zeta^{\rm E}$')
+    plt.ylabel(r'$\zeta^{\rm I}$')
+    plt.title('Receptive Field Landscape')
+    plt.tight_layout()
+    plt.savefig(f'{graph_dir}/rf_landscape.png', dpi=300)
+    plt.close()
+
+    return {
+        'max_param': max_param,
+        'max_rf': max_val,
+        'min_param': min_param,
+        'min_rf': min_val
+    }
 
 def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
     ie_r_e1, ie_r_i1 = param
@@ -1015,9 +1095,14 @@ try:
     #%% test
     # param = (1.8512390285440765, 2.399131446733395)
     # compute.compute_1(comb=param, seed=10, index=0, sti=True, video=True, save_load=False)
-
+    # # ie-ratio 写错时，e-i对调了：
+    # param1 = (1.795670364314891, 2.449990451446889)
+    # param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+    # # 改正后：
+    # param1 = (2.449990451446889, 1.795670364314891)
+    # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    evalution_search(compute=True)
+    # evalution_search(compute=False)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1044,6 +1129,11 @@ try:
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
+    range_path = f'{state_dir}/critical_ellipse.file'
+    result = find_receptive_field_distribution_in_range(n_repeat=64, 
+                                                        range_path=range_path, 
+                                                        maxrate=1000, 
+                                                        n_sample=100)
 
     #%% repeat 2 area computation recetive field (MSD, pdx) -> 2area/
     # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
