@@ -497,13 +497,19 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     max_param = None
     min_param = None
     rf_list = []
+    r_rf_history = []
+    loop_total = len(params)
+    loop_num = 0
+
     for param in params:
+        loop_num += 1
         param_tuple = tuple(param)
         try:
             field = receptive_field_repeat(param=param_tuple, n_repeat=n_repeat, maxrate=maxrate, plot=False)
             r_rf = field['r_rf'] if isinstance(field, dict) and 'r_rf' in field else None
         except Exception as e:
             print(f"参数 {param_tuple} 计算失败: {e}")
+            send_email.send_email('Progress', f"参数 {param_tuple} 计算失败: {e}")
             continue
         rf_list.append((param_tuple, r_rf))
         if r_rf is not None:
@@ -513,6 +519,20 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             if r_rf < min_val:
                 min_val = r_rf
                 min_param = param_tuple
+        
+        r_rf_result = [{'r_rf': r_rf, 'max_r_rf': max_val, 'min_r_rf': min_val, 'max_param': max_param, 'min_param': min_param}]
+        info = [{'param': param_tuple, 'r_rf_result': r_rf_result}]
+        r_rf_history.append(info)
+
+        # 实时保存
+        with open(f'{state_dir}/rf_landscape_{n_sample}.file', 'wb') as file:
+            pickle.dump(r_rf_history, file)
+
+        # 发邮件报告进度
+        send_email.send_email(
+            'Progress',
+            f'Complete {loop_num} in {loop_total}, \n parameter: {param_tuple}, r_rf: {r_rf}. Now, \n max r_rf: {max_val}, max parameter: {max_param}, \n min r_rf: {min_val}, min parameter: {min_param}'
+        )
 
     print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
     print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
@@ -528,7 +548,23 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     plt.ylabel(r'$\zeta^{\rm I}$')
     plt.title('Receptive Field Landscape')
     plt.tight_layout()
-    plt.savefig(f'{graph_dir}/rf_landscape.png', dpi=300)
+    plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
+    plt.close()
+
+    # 画3维地形图
+    x = [p[0] for p, rf in rf_list]
+    y = [p[1] for p, rf in rf_list]
+    z = [rf for p, rf in rf_list]
+    fig = plt.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+    ax.set_xlabel(r'$\zeta^{\rm E}$')
+    ax.set_ylabel(r'$\zeta^{\rm I}$')
+    ax.set_zlabel('Receptive Field')
+    ax.set_title('Receptive Field 3D Landscape')
+    fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+    plt.tight_layout()
+    plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
     plt.close()
 
     return {
@@ -1133,7 +1169,7 @@ try:
     result = find_receptive_field_distribution_in_range(n_repeat=64, 
                                                         range_path=range_path, 
                                                         maxrate=1000, 
-                                                        n_sample=100)
+                                                        n_sample=1000)
 
     #%% repeat 2 area computation recetive field (MSD, pdx) -> 2area/
     # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
