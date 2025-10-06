@@ -528,6 +528,36 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         with open(f'{state_dir}/rf_landscape_{n_sample}.file', 'wb') as file:
             pickle.dump(r_rf_history, file)
 
+        # 画地形图
+        x = [p[0] for p, rf in rf_list]
+        y = [p[1] for p, rf in rf_list]
+        z = [rf for p, rf in rf_list]
+        plt.figure(figsize=(7,6))
+        sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
+        plt.colorbar(sc, label='Receptive Field')
+        plt.xlabel(r'$\zeta^{\rm E}$')
+        plt.ylabel(r'$\zeta^{\rm I}$')
+        plt.title('Receptive Field Landscape')
+        plt.tight_layout()
+        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
+        plt.close()
+
+        # # 画3维地形图
+        # x = [p[0] for p, rf in rf_list]
+        # y = [p[1] for p, rf in rf_list]
+        # z = [rf for p, rf in rf_list]
+        # fig = plt.figure(figsize=(8,6))
+        # ax = fig.add_subplot(111, projection='3d')
+        # sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+        # ax.set_xlabel(r'$\zeta^{\rm E}$')
+        # ax.set_ylabel(r'$\zeta^{\rm I}$')
+        # ax.set_zlabel('Receptive Field')
+        # ax.set_title('Receptive Field 3D Landscape')
+        # fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+        # plt.tight_layout()
+        # plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
+        # plt.close()
+
         # 发邮件报告进度
         send_email.send_email(
             'Progress',
@@ -537,35 +567,35 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
     print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
 
-    # 画地形图
-    x = [p[0] for p, rf in rf_list]
-    y = [p[1] for p, rf in rf_list]
-    z = [rf for p, rf in rf_list]
-    plt.figure(figsize=(7,6))
-    sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
-    plt.colorbar(sc, label='Receptive Field')
-    plt.xlabel(r'$\zeta^{\rm E}$')
-    plt.ylabel(r'$\zeta^{\rm I}$')
-    plt.title('Receptive Field Landscape')
-    plt.tight_layout()
-    plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
-    plt.close()
+    # # 画地形图
+    # x = [p[0] for p, rf in rf_list]
+    # y = [p[1] for p, rf in rf_list]
+    # z = [rf for p, rf in rf_list]
+    # plt.figure(figsize=(7,6))
+    # sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
+    # plt.colorbar(sc, label='Receptive Field')
+    # plt.xlabel(r'$\zeta^{\rm E}$')
+    # plt.ylabel(r'$\zeta^{\rm I}$')
+    # plt.title('Receptive Field Landscape')
+    # plt.tight_layout()
+    # plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
+    # plt.close()
 
-    # 画3维地形图
-    x = [p[0] for p, rf in rf_list]
-    y = [p[1] for p, rf in rf_list]
-    z = [rf for p, rf in rf_list]
-    fig = plt.figure(figsize=(8,6))
-    ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
-    ax.set_xlabel(r'$\zeta^{\rm E}$')
-    ax.set_ylabel(r'$\zeta^{\rm I}$')
-    ax.set_zlabel('Receptive Field')
-    ax.set_title('Receptive Field 3D Landscape')
-    fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
-    plt.tight_layout()
-    plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
-    plt.close()
+    # # 画3维地形图
+    # x = [p[0] for p, rf in rf_list]
+    # y = [p[1] for p, rf in rf_list]
+    # z = [rf for p, rf in rf_list]
+    # fig = plt.figure(figsize=(8,6))
+    # ax = fig.add_subplot(111, projection='3d')
+    # sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+    # ax.set_xlabel(r'$\zeta^{\rm E}$')
+    # ax.set_ylabel(r'$\zeta^{\rm I}$')
+    # ax.set_zlabel('Receptive Field')
+    # ax.set_title('Receptive Field 3D Landscape')
+    # fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+    # plt.tight_layout()
+    # plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
+    # plt.close()
 
     return {
         'max_param': max_param,
