@@ -288,7 +288,7 @@ def evalution_search(compute=False, repeat_MSD=False):
 
     # draw
     print('drawing')
-    save_path = f'{graph_dir}/evaluation.png'
+    save_path = f'{graph_dir}/evaluation.eps'
     ellipse_info = search.plot_evolution_history(history=history,save_path=save_path)
     # 保存椭圆边界信息
     with open(f'{state_dir}/critical_ellipse.file', 'wb') as file:
@@ -1371,7 +1371,7 @@ try:
     # param1 = (2.449990451446889, 1.795670364314891)
     # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    # evalution_search(compute=False)
+    evalution_search(compute=False)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1398,11 +1398,11 @@ try:
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
-    range_path = f'{state_dir}/critical_ellipse.file'
-    result = find_receptive_field_distribution_in_range(n_repeat=64, 
-                                                        range_path=range_path, 
-                                                        maxrate=1000, 
-                                                        n_sample=1000)
+    # range_path = f'{state_dir}/critical_ellipse.file'
+    # result = find_receptive_field_distribution_in_range(n_repeat=64, 
+    #                                                     range_path=range_path, 
+    #                                                     maxrate=1000, 
+    #                                                     n_sample=1000)
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 

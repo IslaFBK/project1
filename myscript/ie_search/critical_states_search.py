@@ -192,7 +192,7 @@ def evolve_search_repeat(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n
     return history
 
 def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=True, conf_level=0.99):
-    plt.figure(figsize=(14, 7))
+    plt.figure(figsize=(7, 3.5))
     generations = len(history)
     cmap = plt.get_cmap('viridis', generations)
     all_x, all_y, all_alpha, all_gen, all_critical = [], [], [], [], []
@@ -273,14 +273,16 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
     if plot_ellipse and np.sum(mask_critical) >= 3:
         ellipse = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary', zorder=4)
         ax1.add_patch(ellipse)
-    ax1.set_xlabel(r'$\zeta^{\rm I}$')
-    ax1.set_ylabel(r'$\zeta^{\rm E}$')
-    ax1.set_title('Generation (Critical States)')
+    ax1.set_xlabel(r'$\zeta^{\rm I}$', fontsize=10)
+    ax1.set_ylabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax1.set_title('Generation (Critical States)', fontsize=11)
+    ax1.tick_params(axis='both', labelsize=10)
     cbar1 = plt.colorbar(sc1, ax=ax1, ticks=range(generations))
-    cbar1.set_label('Generation')
+    cbar1.set_label('Generation', fontsize=10)
+    cbar1.ax.tick_params(labelsize=10)
     cbar1.set_ticks(range(generations))
     cbar1.set_ticklabels([str(i) for i in range(generations)])
-    ax1.legend()
+    ax1.legend(fontsize=9)
 
     # 子图2：颜色表示alpha
     ax2 = plt.subplot(1, 2, 2)
@@ -294,7 +296,8 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
                           c=all_alpha[mask_critical], cmap=cmap_alpha, norm=norm_alpha, 
                           s=60, edgecolors='k', label='Critical')
         cbar2 = plt.colorbar(sc2, ax=ax2)
-        cbar2.set_label('Alpha')
+        cbar2.set_label('Alpha', fontsize=10)
+        cbar2.ax.tick_params(labelsize=10)
         # 画凸包边界
         if plot_hull and np.sum(mask_critical) >= 3:
             ax2.plot(boundary_closed[:,0], boundary_closed[:,1], 'r-', linewidth=2, 
@@ -303,12 +306,13 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
         if plot_ellipse and np.sum(mask_critical) >= 3:
             ellipse2 = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary')
             ax2.add_patch(ellipse2)
-    ax2.set_xlabel(r'$\zeta^{\rm I}$')
-    ax2.set_ylabel(r'$\zeta^{\rm E}$')
-    ax2.set_title('Alpha (Critical States)')
-    ax2.legend()
+    ax2.set_xlabel(r'$\zeta^{\rm I}$', fontsize=10)
+    ax2.set_ylabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax2.set_title('Alpha (Critical States)', fontsize=11)
+    ax2.tick_params(axis='both', labelsize=10)
+    ax2.legend(fontsize=9)
 
-    plt.tight_layout()
+    plt.tight_layout(pad=1.0)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
