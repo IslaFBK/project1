@@ -569,7 +569,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             r_rf_history = pickle.load(file)
         # 已经算过的参数
         for info in r_rf_history:
-            param = info[0]['param']
+            param = info['param']
             computed_params.add(tuple(param))
 
     max_val = -np.inf
@@ -577,7 +577,6 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     max_param = None
     min_param = None
     rf_list = []
-    r_rf_history = []
     loop_total = len(params)
     loop_num = 0
 
@@ -621,14 +620,14 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         fig, axs = plt.subplots(1, 2, figsize=(12, 6))
         # 左：r_rf
         sc1 = axs[0].scatter(x, y, c=z_rf, cmap='viridis', s=60)
-        axs[0].set_xlabel(r'$\zeta^{\rm I}$')
-        axs[0].set_ylabel(r'$\zeta^{\rm E}$')
+        axs[0].set_xlabel(r'$\zeta^{\rm E}$')
+        axs[0].set_ylabel(r'$\zeta^{\rm I}$')
         axs[0].set_title('Receptive Field Radius')
         plt.colorbar(sc1, ax=axs[0], label='Receptive Field')
         # 右：alpha
         sc2 = axs[1].scatter(x, y, c=z_alpha, cmap='plasma', s=60)
-        axs[1].set_xlabel(r'$\zeta^{\rm I}$')
-        axs[1].set_ylabel(r'$\zeta^{\rm E}$')
+        axs[1].set_xlabel(r'$\zeta^{\rm E}$')
+        axs[1].set_ylabel(r'$\zeta^{\rm I}$')
         axs[1].set_title(r'$\alpha$')
         plt.colorbar(sc2, ax=axs[1], label=r'$\alpha$')
         plt.tight_layout()
@@ -694,8 +693,8 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             # 可选：加图例
             ax.legend()
         
-        ax.set_xlabel(r'$\zeta^{\rm I}$')
-        ax.set_ylabel(r'$\zeta^{\rm E}$')
+        ax.set_xlabel(r'$\zeta^{\rm E}$')
+        ax.set_ylabel(r'$\zeta^{\rm I}$')
         ax.set_zlabel('Receptive Field')
         fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
         plt.tight_layout()
