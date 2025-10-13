@@ -401,6 +401,71 @@ def receptive_field_repeat(param, n_repeat, plot=False,
                                plot=plot)
     return r_rf
 
+# compute receptive field radius and alpha with repeat realizaiton
+def rf_and_alpha_repeat(param, n_repeat, plot=False,
+                        video0=False, video1=False, maxrate=1000,
+                        save_load0=False, save_load1=False):
+    # without stimuli
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=(i==0), save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
+                                    video=False, save_load=save_load0)
+            for i in range(n_repeat)
+        )
+    # with stimuli
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
+                                    video=(i==0), save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
+                                    video=False, save_load=save_load1)
+            for i in range(n_repeat)
+        )
+    # 计算rf
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all = np.stack([r['spk_rate'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all = np.stack([r['spk_rate'] for r in result1], axis=0)
+
+    # 在第一个维度取平均
+    spk_rate0_mean = np.mean(spk_rate0_all, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean = np.mean(spk_rate1_all, axis=0)
+
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
+    r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
+                               spk_rate1=spk_rate1_mean,
+                               save_path=save_path,
+                               data_path=data_path,
+                               plot=plot)['r_rf']
+    # 合并msd
+    msds = np.stack([r['msd'] for r in result0])
+    jump_interval = result0[0]['jump_interval']
+    msd_mean = np.mean(msds, axis=0)
+    msd_std = np.std(msds, axis=0)
+    # pdx合并
+    all_pdx = np.concatenate([r['pdx'] for r in result0])
+    # 计算alpha，判断是否临界
+    motion_critical, info = utils.is_critical_state(msd=msd_mean, 
+                                                    jump_interval=jump_interval, 
+                                                    pdx=all_pdx)
+    alpha = info['alpha']
+    critical = motion_critical
+    return {'r_rf': r_rf, 'alpha': alpha, 'critical': critical}
+
+# 已被find_receptive_field_distribution_in_range替代
 def find_max_min_receptive_field(n_repeat, maxrate=1000):
     # load parameters directly
     print('loading')
@@ -481,7 +546,9 @@ def find_max_min_receptive_field(n_repeat, maxrate=1000):
     #     'min_rf': min_val
     # }
 
-def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=1000, n_sample=1000):
+# 上面那个的完全上位
+def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=1000, 
+                                               n_sample=1000, fit=False):
     # 读取椭圆参数
     with open(range_path, 'rb') as file:
         ellipse_info = pickle.load(file)
@@ -491,6 +558,19 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
 
     # 椭圆内采样参数
     params = sample_in_ellipse(mean, cov, conf_level, n_sample)
+    params = [tuple(p) for p in params]
+
+    # 尝试读取已有历史
+    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+    r_rf_history = []
+    computed_params = set()
+    if os.path.exists(rf_history_path):
+        with open(rf_history_path, 'rb') as file:
+            r_rf_history = pickle.load(file)
+        # 已经算过的参数
+        for info in r_rf_history:
+            param = info[0]['param']
+            computed_params.add(tuple(param))
 
     max_val = -np.inf
     min_val = np.inf
@@ -503,10 +583,15 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
 
     for param in params:
         loop_num += 1
-        param_tuple = tuple(param)
+        param_tuple = (param[1], param[0])
         try:
-            field = receptive_field_repeat(param=param_tuple, n_repeat=n_repeat, maxrate=maxrate, plot=False)
-            r_rf = field['r_rf'] if isinstance(field, dict) and 'r_rf' in field else None
+            field = rf_and_alpha_repeat(param=param_tuple, 
+                                        n_repeat=n_repeat, 
+                                        maxrate=maxrate, 
+                                        plot=False)
+            r_rf = field['r_rf']
+            alpha = field['alpha']
+            critical = field['critical']
         except Exception as e:
             print(f"参数 {param_tuple} 计算失败: {e}")
             send_email.send_email('Progress', f"参数 {param_tuple} 计算失败: {e}")
@@ -520,8 +605,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
                 min_val = r_rf
                 min_param = param_tuple
         
-        r_rf_result = [{'r_rf': r_rf, 'max_r_rf': max_val, 'min_r_rf': min_val, 'max_param': max_param, 'min_param': min_param}]
-        info = [{'param': param_tuple, 'r_rf_result': r_rf_result}]
+        info = {'param': param_tuple, 'r_rf': r_rf, 'alpha': alpha, 'critical': critical}
         r_rf_history.append(info)
 
         # 实时保存
@@ -529,34 +613,99 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             pickle.dump(r_rf_history, file)
 
         # 画地形图
-        x = [p[0] for p, rf in rf_list]
-        y = [p[1] for p, rf in rf_list]
-        z = [rf for p, rf in rf_list]
-        plt.figure(figsize=(7,6))
-        sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
-        plt.colorbar(sc, label='Receptive Field')
-        plt.xlabel(r'$\zeta^{\rm E}$')
-        plt.ylabel(r'$\zeta^{\rm I}$')
-        plt.title('Receptive Field Landscape')
+        x = [info['param'][0] for info in r_rf_history]
+        y = [info['param'][1] for info in r_rf_history]
+        z_rf = [info['r_rf'] for info in r_rf_history]
+        z_alpha = [info['alpha'] for info in r_rf_history]
+
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        # 左：r_rf
+        sc1 = axs[0].scatter(x, y, c=z_rf, cmap='viridis', s=60)
+        axs[0].set_xlabel(r'$\zeta^{\rm I}$')
+        axs[0].set_ylabel(r'$\zeta^{\rm E}$')
+        axs[0].set_title('Receptive Field Radius')
+        plt.colorbar(sc1, ax=axs[0], label='Receptive Field')
+        # 右：alpha
+        sc2 = axs[1].scatter(x, y, c=z_alpha, cmap='plasma', s=60)
+        axs[1].set_xlabel(r'$\zeta^{\rm I}$')
+        axs[1].set_ylabel(r'$\zeta^{\rm E}$')
+        axs[1].set_title(r'$\alpha$')
+        plt.colorbar(sc2, ax=axs[1], label=r'$\alpha$')
         plt.tight_layout()
         plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
         plt.close()
 
-        # # 画3维地形图
-        # x = [p[0] for p, rf in rf_list]
-        # y = [p[1] for p, rf in rf_list]
-        # z = [rf for p, rf in rf_list]
-        # fig = plt.figure(figsize=(8,6))
-        # ax = fig.add_subplot(111, projection='3d')
-        # sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
-        # ax.set_xlabel(r'$\zeta^{\rm E}$')
-        # ax.set_ylabel(r'$\zeta^{\rm I}$')
-        # ax.set_zlabel('Receptive Field')
-        # ax.set_title('Receptive Field 3D Landscape')
-        # fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
-        # plt.tight_layout()
-        # plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
-        # plt.close()
+        # 画3维地形图
+        # 提取有效数据
+        x, y, z = [], [], []
+        x_bad, y_bad = [], []
+        for info in r_rf_history:
+            param = info['param']
+            r_rf = info['r_rf']
+            # 自动舍弃无效点
+            if r_rf is None or not isinstance(r_rf, (int, float)) or not (r_rf == r_rf):  # 排除None和NaN
+                x_bad.append(param[0])
+                y_bad.append(param[1])
+                continue
+            x.append(param[0])
+            y.append(param[1])
+            z.append(r_rf)
+        
+        # 转为numpy数组，避免幂运算报错
+        x = np.array(x)
+        y = np.array(y)
+        z = np.array(z)
+
+        fig = plt.figure(figsize=(8,6))
+        ax = fig.add_subplot(111, projection='3d')
+        sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+
+        if fit and len(x)>6:
+            # 曲面拟合
+            coeffs = fit_quadratic_surface(x, y, z)
+
+            # 计算拟合值和R²
+            X_design = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
+            z_fit = X_design @ coeffs
+            ss_res = np.sum((z - z_fit) ** 2)
+            ss_tot = np.sum((z - np.mean(z)) ** 2)
+            r2 = 1 - ss_res / ss_tot
+
+            # 生成网格用于画曲面
+            x_grid = np.linspace(np.min(x), np.max(x), 50)
+            y_grid = np.linspace(np.min(y), np.max(y), 50)
+            X_grid, Y_grid = np.meshgrid(x_grid, y_grid)
+            Z_grid = (coeffs[0]*X_grid**2 + coeffs[1]*Y_grid**2 + coeffs[2]*X_grid*Y_grid +
+                    coeffs[3]*X_grid + coeffs[4]*Y_grid + coeffs[5])
+
+            # 画三维地形图
+            surf = ax.plot_surface(X_grid, Y_grid, Z_grid, cmap='coolwarm', alpha=0.5, linewidth=0, antialiased=True)
+            ax.set_title(f'Receptive Field 3D Landscape with Quadratic Surface Fit, $R^2$={r2:.3f}')
+        else:
+            ax.set_title('Receptive Field 3D Landscape')
+
+        # 获取当前z轴范围
+        if len(z) > 0:
+            zmin, zmax = np.min(z), np.max(z)
+            dz = zmax - zmin
+            z_bad = np.full(len(x_bad), zmin - 0.05*dz if dz > 0 else zmin - 1)
+            # 在最低面下方一点画无效点
+            ax.scatter(x_bad, y_bad, z_bad, c='red', marker='x', s=50, label='Invalid r_rf')
+            # 可选：加图例
+            ax.legend()
+        
+        ax.set_xlabel(r'$\zeta^{\rm I}$')
+        ax.set_ylabel(r'$\zeta^{\rm E}$')
+        ax.set_zlabel('Receptive Field')
+        fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+        plt.tight_layout()
+        plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
+        # 俯视视角
+        ax.view_init(elev=90, azim=-90)
+        plt.tight_layout()
+        plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}_top.png', dpi=300)
+
+        plt.close()
 
         # 发邮件报告进度
         send_email.send_email(
@@ -567,42 +716,97 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
     print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
 
-    # # 画地形图
-    # x = [p[0] for p, rf in rf_list]
-    # y = [p[1] for p, rf in rf_list]
-    # z = [rf for p, rf in rf_list]
-    # plt.figure(figsize=(7,6))
-    # sc = plt.scatter(x, y, c=z, cmap='viridis', s=60)
-    # plt.colorbar(sc, label='Receptive Field')
-    # plt.xlabel(r'$\zeta^{\rm E}$')
-    # plt.ylabel(r'$\zeta^{\rm I}$')
-    # plt.title('Receptive Field Landscape')
-    # plt.tight_layout()
-    # plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
-    # plt.close()
-
-    # # 画3维地形图
-    # x = [p[0] for p, rf in rf_list]
-    # y = [p[1] for p, rf in rf_list]
-    # z = [rf for p, rf in rf_list]
-    # fig = plt.figure(figsize=(8,6))
-    # ax = fig.add_subplot(111, projection='3d')
-    # sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
-    # ax.set_xlabel(r'$\zeta^{\rm E}$')
-    # ax.set_ylabel(r'$\zeta^{\rm I}$')
-    # ax.set_zlabel('Receptive Field')
-    # ax.set_title('Receptive Field 3D Landscape')
-    # fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
-    # plt.tight_layout()
-    # plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
-    # plt.close()
-
     return {
         'max_param': max_param,
         'max_rf': max_val,
         'min_param': min_param,
         'min_rf': min_val
     }
+
+def fit_quadratic_surface(x, y, z):
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
+    X = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
+    coeffs, _, _, _ = np.linalg.lstsq(X, z, rcond=None)
+    return coeffs
+
+def plot_rf_landscape_3d(n_sample, fit=True):
+    # 读取历史文件
+    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+    with open(rf_history_path, 'rb') as file:
+        r_rf_history = pickle.load(file)
+
+    # 提取有效数据
+    x, y, z = [], [], []
+    x_bad, y_bad = [], []
+    for info in r_rf_history:
+        param = info[0]['param']
+        r_rf = info[0]['r_rf_result'][0]['r_rf']
+        # 自动舍弃无效点
+        if r_rf is None or not isinstance(r_rf, (int, float)) or not (r_rf == r_rf):  # 排除None和NaN
+            x_bad.append(param[0])
+            y_bad.append(param[1])
+            continue
+        x.append(param[0])
+        y.append(param[1])
+        z.append(r_rf)
+    
+    # 转为numpy数组，避免幂运算报错
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
+
+    fig = plt.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+
+    if fit and len(x)>6:
+        # 曲面拟合
+        coeffs = fit_quadratic_surface(x, y, z)
+
+        # 计算拟合值和R²
+        X_design = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
+        z_fit = X_design @ coeffs
+        ss_res = np.sum((z - z_fit) ** 2)
+        ss_tot = np.sum((z - np.mean(z)) ** 2)
+        r2 = 1 - ss_res / ss_tot
+
+        # 生成网格用于画曲面
+        x_grid = np.linspace(np.min(x), np.max(x), 50)
+        y_grid = np.linspace(np.min(y), np.max(y), 50)
+        X_grid, Y_grid = np.meshgrid(x_grid, y_grid)
+        Z_grid = (coeffs[0]*X_grid**2 + coeffs[1]*Y_grid**2 + coeffs[2]*X_grid*Y_grid +
+                coeffs[3]*X_grid + coeffs[4]*Y_grid + coeffs[5])
+
+        # 画三维地形图
+        surf = ax.plot_surface(X_grid, Y_grid, Z_grid, cmap='coolwarm', alpha=0.5, linewidth=0, antialiased=True)
+        ax.set_title(f'Receptive Field 3D Landscape with Quadratic Surface Fit, $R^2$={r2:.3f}')
+    else:
+        ax.set_title('Receptive Field 3D Landscape')
+
+    # 获取当前z轴范围
+    if len(z) > 0:
+        zmin, zmax = np.min(z), np.max(z)
+        dz = zmax - zmin
+        z_bad = np.full(len(x_bad), zmin - 0.05*dz if dz > 0 else zmin - 1)
+        # 在最低面下方一点画无效点
+        ax.scatter(x_bad, y_bad, z_bad, c='red', marker='x', s=50, label='Invalid r_rf')
+        # 可选：加图例
+        ax.legend()
+    
+    ax.set_xlabel(r'$\zeta^{\rm E}$')
+    ax.set_ylabel(r'$\zeta^{\rm I}$')
+    ax.set_zlabel('Receptive Field')
+    fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+    plt.tight_layout()
+    plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
+    # 俯视视角
+    ax.view_init(elev=90, azim=-90)
+    plt.tight_layout()
+    plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}_top.png', dpi=300)
+
+    plt.close()
 
 def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
     ie_r_e1, ie_r_i1 = param
@@ -1200,6 +1404,8 @@ try:
                                                         range_path=range_path, 
                                                         maxrate=1000, 
                                                         n_sample=1000)
+    #%% draw 3d distribution
+    # plot_rf_landscape_3d(1000,fit=False)
 
     #%% repeat 2 area computation recetive field (MSD, pdx) -> 2area/
     # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
