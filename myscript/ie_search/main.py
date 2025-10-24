@@ -2,6 +2,7 @@ import brian2.numpy_ as np
 from brian2.only import *
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from matplotlib.patches import Ellipse
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.stats import chi2
 import sys
@@ -103,6 +104,7 @@ def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
         video=video
     )
 
+# 会画出两层作用在一起时两层分别的MDS和pdx
 def pick_parameters_and_repeat_compute2(param=None, n_repeat=128, video=False):
     # common title & path
     # param = (1.8, 2.4)
@@ -313,19 +315,45 @@ def evalution_search(compute=False, repeat_MSD=False):
             print('critical point not found')
 
 # 在椭圆中均匀随机采样
+# def sample_in_ellipse(mean, cov, conf_level, n_samples):
+#     dim = len(mean)
+#     threshold = np.sqrt(chi2.ppf(conf_level, df=dim))
+#     samples = []
+#     while len(samples) < n_samples:
+#         # 在包络盒内均匀采样
+#         box_min = mean - 2*np.sqrt(np.diag(cov))
+#         box_max = mean + 2*np.sqrt(np.diag(cov))
+#         point = np.random.uniform(box_min, box_max)
+#         # 判断是否在椭圆内
+#         dist = np.sqrt((point-mean) @ np.linalg.inv(cov) @ (point-mean).T)
+#         if dist < threshold:
+#             samples.append(point)
+#     return np.array(samples)
+
 def sample_in_ellipse(mean, cov, conf_level, n_samples):
     dim = len(mean)
     threshold = np.sqrt(chi2.ppf(conf_level, df=dim))
+    
+    # 特征分解
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    
     samples = []
     while len(samples) < n_samples:
-        # 在包络盒内均匀采样
-        box_min = mean - 2*np.sqrt(np.diag(cov))
-        box_max = mean + 2*np.sqrt(np.diag(cov))
-        point = np.random.uniform(box_min, box_max)
-        # 判断是否在椭圆内
-        dist = np.sqrt((point-mean) @ np.linalg.inv(cov) @ (point-mean).T)
-        if dist < threshold:
-            samples.append(point)
+        # 在单位圆内均匀采样
+        u = np.random.uniform(0, 1, dim)
+        # 转换为球面上的均匀分布
+        radius = np.sqrt(u[0]) * threshold  # 确保在椭圆内均匀分布
+        angles = 2 * np.pi * u[1]
+        
+        # 转换为椭圆坐标
+        point_sphere = np.array([radius * np.cos(angles), radius * np.sin(angles)])
+        
+        # 变换到实际的椭圆
+        scaling = np.diag(np.sqrt(eigvals))
+        point_ellipse = eigvecs @ scaling @ point_sphere + mean
+        
+        samples.append(point_ellipse)
+    
     return np.array(samples)
 
 # Receptive_field
@@ -555,6 +583,12 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     mean = ellipse_info['mean']
     cov = ellipse_info['cov']
     conf_level = ellipse_info.get('conf_level', 0.99)
+    # 转换椭圆坐标(绘图用)
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+    theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+    width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
 
     # 椭圆内采样参数
     params = sample_in_ellipse(mean, cov, conf_level, n_sample)
@@ -581,7 +615,8 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     loop_num = 0
 
     for param in params:
-        loop_num += 1
+        # # 如果想看此轮采样的点中算了多少个，用这个
+        # loop_num += 1
         param_tuple = (param[1], param[0])
         try:
             field = rf_and_alpha_repeat(param=param_tuple, 
@@ -595,6 +630,13 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             print(f"参数 {param_tuple} 计算失败: {e}")
             send_email.send_email('Progress', f"参数 {param_tuple} 计算失败: {e}")
             continue
+        
+        # 修改1: 当alpha>1.5时跳过当前参数
+        if alpha > 1.5:
+            print(f"参数 {param_tuple} alpha={alpha:.3f}>1.5,跳过")
+            send_email.send_email('Progress', f"参数 {param_tuple} alpha={alpha:.3f}>1.5,跳过")
+            continue
+
         rf_list.append((param_tuple, r_rf))
         if r_rf is not None:
             if r_rf > max_val:
@@ -607,6 +649,9 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         info = {'param': param_tuple, 'r_rf': r_rf, 'alpha': alpha, 'critical': critical}
         r_rf_history.append(info)
 
+        # 如果想看r_rf_history这个量有多少组，即总共计算了多少组，用这个
+        loop_num = len(r_rf_history)
+
         # 实时保存
         with open(f'{state_dir}/rf_landscape_{n_sample}.file', 'wb') as file:
             pickle.dump(r_rf_history, file)
@@ -616,22 +661,39 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         y = [info['param'][1] for info in r_rf_history]
         z_rf = [info['r_rf'] for info in r_rf_history]
         z_alpha = [info['alpha'] for info in r_rf_history]
+        # 创建椭圆对象
+        ellipse1 = Ellipse(xy=(mean[1], mean[0]), width=width, height=height, angle=90-theta, 
+                            edgecolor='blue', facecolor='none', lw=2, 
+                            label='Ellipse Boundary', zorder=4)
+        ellipse2 = Ellipse(xy=(mean[1], mean[0]), width=width, height=height, angle=90-theta, 
+                            edgecolor='blue', facecolor='none', lw=2, 
+                            label='Ellipse Boundary', zorder=4)
 
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
         # 左：r_rf
         sc1 = axs[0].scatter(x, y, c=z_rf, cmap='viridis', s=60)
-        axs[0].set_xlabel(r'$\zeta^{\rm E}$')
-        axs[0].set_ylabel(r'$\zeta^{\rm I}$')
-        axs[0].set_title('Receptive Field Radius')
-        plt.colorbar(sc1, ax=axs[0], label='Receptive Field')
+        axs[0].add_patch(ellipse1)
+        axs[0].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
+        axs[0].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
+        axs[0].set_title('Receptive Field Radius', fontsize=11)
+        axs[0].tick_params(axis='both', labelsize=10)
+        cbar1 = plt.colorbar(sc1, ax=axs[0])
+        cbar1.set_label('Receptive Field', fontsize=10)
+        cbar1.ax.tick_params(labelsize=10)
+        # axs[0].legend(fontsize=9)
         # 右：alpha
         sc2 = axs[1].scatter(x, y, c=z_alpha, cmap='plasma', s=60)
-        axs[1].set_xlabel(r'$\zeta^{\rm E}$')
-        axs[1].set_ylabel(r'$\zeta^{\rm I}$')
-        axs[1].set_title(r'$\alpha$')
-        plt.colorbar(sc2, ax=axs[1], label=r'$\alpha$')
-        plt.tight_layout()
-        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.png', dpi=300)
+        axs[1].add_patch(ellipse2)
+        axs[1].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
+        axs[1].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
+        axs[1].set_title(r'$\alpha$', fontsize=11)
+        axs[1].tick_params(axis='both', labelsize=10)
+        cbar2 = plt.colorbar(sc2, ax=axs[1])
+        cbar2.set_label(r'$\alpha$', fontsize=10)
+        cbar2.ax.tick_params(labelsize=10)
+        # axs[1].legend(fontsize=9)
+        plt.tight_layout(pad=1.0)
+        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.eps', dpi=300)
         plt.close()
 
         # 画3维地形图
@@ -709,8 +771,11 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         # 发邮件报告进度
         send_email.send_email(
             'Progress',
-            f'Complete {loop_num} in {loop_total}, \n parameter: {param_tuple}, r_rf: {r_rf}. Now, \n max r_rf: {max_val}, max parameter: {max_param}, \n min r_rf: {min_val}, min parameter: {min_param}'
+            f'Complete {loop_num} in {loop_total}, \n parameter: {param_tuple}, \n r_rf: {r_rf}. \n Now, \n max r_rf: {max_val}, \n max parameter: {max_param}, \n min r_rf: {min_val}, \n min parameter: {min_param}'
         )
+
+        if loop_num >= n_sample:
+            break
 
     print(f'最大receptive field参数: {max_param}, 最大值: {max_val}')
     print(f'最小receptive field参数: {min_param}, 最小值: {min_val}')
@@ -909,6 +974,31 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
+#%% draw receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
+def draw_receptive_field2(param, n_repeat, maxrate=1000):
+    ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
+                                        video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
+                                        save_load0=False, save_load1=False)
+    ie_r_e1, ie_r_i1 = param
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+    save_pathr = f'{recfield_dir}/middle_zratio{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    save_pathd = f'{recfield_dir}/middle_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.eps'
+    
+    plt.figure(figsize=(5,5))
+    plt.plot(sigs, ratios, 'o-')
+    plt.xlabel('Stimuli size')
+    plt.ylabel('Centre firing rate ratio')
+    plt.title('Centre firing rate ratio vs. stimuli size')
+    plt.savefig(save_pathr, dpi=600, format='eps')
+
+    plt.figure(figsize=(5,5))
+    plt.plot(sigs, diffs, 'o-')
+    plt.xlabel('Stimuli size')
+    plt.ylabel('Centre firing rate difference')
+    plt.title('Centre firing rate ratio vs. stimuli size')
+    plt.savefig(save_pathd, dpi=600, format='eps')
+
 # exam whole field firing rate (receptive field)
 def receptive_field_repeat3(param, n_repeat, plot=False, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
@@ -995,7 +1085,7 @@ def receptive_field3(param, n_repeat, plot=False,
 
 #%% LFP
 # compute 1 area centre point LFP, and output FFT
-def LFP_1area(param, maxrate=2000, sig=5, dt=0.1, plot=True):
+def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
     result = compute.compute_1(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=True)
@@ -1005,7 +1095,7 @@ def LFP_1area(param, maxrate=2000, sig=5, dt=0.1, plot=True):
     return freqs, power
 
 # compute 2 area take 1st layer's centre point LFP, and output FFT
-def LFP_2area(param, maxrate=2000, sig=5, dt=0.1, plot=True):
+def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     # common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
     #                 rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
@@ -1363,7 +1453,32 @@ try:
     send_email.send_email('begin running', 'ie_search.main running')
     #%% test
     # param = (1.8512390285440765, 2.399131446733395)
-    # compute.compute_1(comb=param, seed=10, index=0, sti=True, video=True, save_load=False)
+    # param1  = (2.501407742047704, 1.8147028535939709)
+    # param2  = (2.425126038006674, 1.927524600435643)
+    # 故意写反看病态beta
+    # param1  = (1.8147028535939709, 2.501407742047704)
+    # param2  = (1.927524600435643, 2.425126038006674)
+    # 1st pair
+    # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
+    # 2nd pair(more d(r_rf), but alpha<=1.5)
+    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
+    # 故意写反看病态beta
+    # param12 = (1.8147028535939709, 2.501407742047704, 1.927524600435643, 2.425126038006674)
+    # shuzheng 的2nd area参数
+    # param2 = (1.9313, 1.5709)
+    # 我的第一层和黄的第二层
+    # param1  = (2.501407742047704, 1.8147028535939709)
+    # param2 = (1.9313, 1.5709)
+    # param12 = (2.501407742047704, 1.8147028535939709, 1.9313, 1.5709)
+    # critical zone 右上角的点
+    # param = (2.67,2.03)
+    # critical zone 左下角的点
+    param = (2.5,1.7)
+    # 算一下看看有没有明显病态（显然是要画动画）
+    compute.compute_1(comb=param, video=True)
+    # compute.compute_1(comb=param2, seed=10, index=0, sti=True, video=True, save_load=False)
+    # compute.compute_2(comb=param12,seed=10,video=True)
+
     # # ie-ratio 写错时，e-i对调了：
     # param1 = (1.795670364314891, 2.449990451446889)
     # param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
@@ -1371,7 +1486,7 @@ try:
     # param1 = (2.449990451446889, 1.795670364314891)
     # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    evalution_search(compute=False)
+    # evalution_search(compute=False)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1398,6 +1513,7 @@ try:
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
+    ## distribution search
     # range_path = f'{state_dir}/critical_ellipse.file'
     # result = find_receptive_field_distribution_in_range(n_repeat=64, 
     #                                                     range_path=range_path, 
@@ -1424,30 +1540,7 @@ try:
     # check_r_rf_maxrate(param = (1.8512390285440765, 2.399131446733395),
     #                    seq_maxrate = [0, 1, 10, 100, 200, 500, 1000, 2000, 5000])
 
-    #%% receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
-    # def draw_receptive_field2(param, n_repeat, maxrate=1000):
-    #     ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-    #                                      video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
-    #                                      save_load0=False, save_load1=False)
-    #     ie_r_e1, ie_r_i1 = param
-    #     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-
-    #     save_pathr = f'{recfield_dir}/middle_zratio{n_repeat}_{maxrate}fr_ext{common_path}.eps'
-    #     save_pathd = f'{recfield_dir}/middle_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.eps'
-        
-    #     plt.figure(figsize=(5,5))
-    #     plt.plot(sigs, ratios, 'o-')
-    #     plt.xlabel('Stimuli size')
-    #     plt.ylabel('Centre firing rate ratio')
-    #     plt.title('Centre firing rate ratio vs. stimuli size')
-    #     plt.savefig(save_pathr, dpi=600, format='eps')
-
-    #     plt.figure(figsize=(5,5))
-    #     plt.plot(sigs, diffs, 'o-')
-    #     plt.xlabel('Stimuli size')
-    #     plt.ylabel('Centre firing rate difference')
-    #     plt.title('Centre firing rate ratio vs. stimuli size')
-    #     plt.savefig(save_pathd, dpi=600, format='eps')
+    #%% draw receptive field2
     # param = (1.795670364314891, 2.449990451446889)
     # draw_receptive_field2(param=param, n_repeat=64)
 
@@ -1478,6 +1571,17 @@ try:
     # param = (1.795670364314891, 2.449990451446889)
     # draw_receptive_field3(param=param, n_repeat=64)
 
+    #%% 1.5内的最大最小r_rf
+    # param1  = (2.501407742047704, 1.8147028535939709)
+    # param2  = (2.425126038006674, 1.927524600435643)
+    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
+    # pick_parameters_and_repeat_compute(param=param1, video=True)
+    # pick_parameters_and_repeat_compute(param=param2, video=True)
+    # pick_parameters_and_repeat_compute2(param=param12,
+    #                                     n_repeat=128,
+    #                                     video=True)
+    
+
     #%% LFP
     # def draw_LFP_FFT_2area():
     #     param1 = (1.795670364314891, 2.449990451446889)
@@ -1505,6 +1609,13 @@ try:
     # param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
+    #%% alpha<1.5
+    # draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=128)
+    # print('computing start')
+    # draw_receptive_field2(param=param1, n_repeat=64)
+    # print('set 1 executed')
+    # draw_receptive_field2(param=param2, n_repeat=64)
+    # print('set 2 executed')
 
 
 

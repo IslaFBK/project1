@@ -432,8 +432,8 @@ def compute_MSD_pdx2(comb, seed=10, index=1, video=False, save_load=False):
 
     # mean synaptic weight
     ijwd1.w_ee_mean = w_ee_1
-    ijwd1.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_e1)
-    ijwd1.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
+    ijwd1.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_i1) # 重大改动！！！！两个ie_ratio写反了
+    ijwd1.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_e1) # 重大改动！！！！两个ie_ratio写反了
     ijwd1.w_ii_mean = w_ii_1
 
     ijwd1.generate_ijw()    # generate synaptics and weight
@@ -479,8 +479,8 @@ def compute_MSD_pdx2(comb, seed=10, index=1, video=False, save_load=False):
 
     # mean synaptic weight
     ijwd2.w_ee_mean = w_ee_2
-    ijwd2.w_ei_mean = find_w_e_(w_ii_2, num_ei, num_ii, ie_r_e2)
-    ijwd2.w_ie_mean = find_w_i_(w_ee_2, num_ee, num_ie, ie_r_i2)
+    ijwd2.w_ei_mean = find_w_e_(w_ii_2, num_ei, num_ii, ie_r_i2) # 重大改动！！！！两个ie_ratio写反了
+    ijwd2.w_ie_mean = find_w_i_(w_ee_2, num_ee, num_ie, ie_r_e2) # 重大改动！！！！两个ie_ratio写反了
     ijwd2.w_ii_mean = w_ii_2
 
     ijwd2.generate_ijw()

@@ -38,7 +38,8 @@ Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
-def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, sti_type='Gaussian', video=False, save_load=False):
+def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
+              sti_type='Gaussian', video=False, save_load=False):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -370,7 +371,8 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, sti_type='
         'centre': centre
     }
 
-def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, sti_type='Gaussian', video=False, save_load=False):
+def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
+              sti_type='Gaussian', video=False, save_load=False):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -458,8 +460,8 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, sti_type='
 
     # mean synaptic weight
     ijwd1.w_ee_mean = w_ee_1
-    ijwd1.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_e1)
-    ijwd1.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_i1)
+    ijwd1.w_ei_mean = find_w_e_(w_ii_1, num_ei, num_ii, ie_r_i1) # 重大改动！！！！两个ie_ratio写反了
+    ijwd1.w_ie_mean = find_w_i_(w_ee_1, num_ee, num_ie, ie_r_e1) # 重大改动！！！！两个ie_ratio写反了
     ijwd1.w_ii_mean = w_ii_1
 
     ijwd1.generate_ijw()    # generate synaptics and weight
@@ -505,8 +507,8 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, sti_type='
 
     # mean synaptic weight
     ijwd2.w_ee_mean = w_ee_2
-    ijwd2.w_ei_mean = find_w_e_(w_ii_2, num_ei, num_ii, ie_r_e2)
-    ijwd2.w_ie_mean = find_w_i_(w_ee_2, num_ee, num_ie, ie_r_i2)
+    ijwd2.w_ei_mean = find_w_e_(w_ii_2, num_ei, num_ii, ie_r_i2) # 重大改动！！！！两个ie_ratio写反了
+    ijwd2.w_ie_mean = find_w_i_(w_ee_2, num_ee, num_ie, ie_r_e2) # 重大改动！！！！两个ie_ratio写反了
     ijwd2.w_ii_mean = w_ii_2
 
     ijwd2.generate_ijw()

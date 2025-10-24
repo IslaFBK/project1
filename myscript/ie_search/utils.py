@@ -1,6 +1,8 @@
 import brian2.numpy_ as np
 from sklearn.linear_model import LinearRegression
 from levy import fit_levy
+import os
+import pickle
 
 import logging
 logging.getLogger('brian2').setLevel(logging.WARNING)
@@ -122,3 +124,47 @@ def is_param_near(param, param_list, tol=0.05):
         if np.linalg.norm(np.array(param) - np.array(p)) < tol:
             return True
     return False
+
+# 删掉alpha > 1.5 的数据
+def filter_alpha_data(state_dir, n_sample=1000, alpha_threshold=1.5):
+    """
+    处理已生成的数据文件，删除alpha>1.5的数据点
+    
+    参数:
+    n_sample: 样本数量，用于构建文件名
+    alpha_threshold: alpha阈值，默认1.5
+    """
+    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+    
+    if not os.path.exists(rf_history_path):
+        print(f"文件 {rf_history_path} 不存在")
+        return
+    
+    # 读取数据
+    with open(rf_history_path, 'rb') as file:
+        r_rf_history = pickle.load(file)
+    
+    # 过滤数据
+    original_count = len(r_rf_history)
+    # filtered_history = [info for info in r_rf_history if info.get('alpha', 2) <= alpha_threshold]
+    filtered_history = [info for info in r_rf_history if info['alpha'] <= alpha_threshold]
+    filtered_count = len(filtered_history)
+    
+    print(f"原始数据点数量: {original_count}")
+    print(f"过滤后数据点数量: {filtered_count}")
+    print(f"删除数据点数量: {original_count - filtered_count}")
+    
+    # 保存过滤后的数据（覆盖原文件）
+    with open(rf_history_path, 'wb') as file:
+        pickle.dump(filtered_history, file)
+    
+    print(f"已保存过滤后的数据到 {rf_history_path}")
+    
+    # 打印被删除的参数信息
+    removed_params = [info['param'] for info in r_rf_history if info.get('alpha', 0) > alpha_threshold]
+    if removed_params:
+        print("被删除的参数:")
+        for param in removed_params:
+            print(f"  {param}")
+    
+    return filtered_history
