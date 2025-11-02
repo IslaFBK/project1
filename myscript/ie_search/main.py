@@ -1085,24 +1085,24 @@ def receptive_field3(param, n_repeat, plot=False,
 
 #%% LFP
 # compute 1 area centre point LFP, and output FFT
-def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True):
+def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-    result = compute.compute_1(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=True)
-    LFP = result['data'].a1.ge.LFP
     save_path = f'{LFP_dir}/1area_FFT_{sig}_{common_path}.eps'
+    result = compute.compute_1(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=video)
+    LFP = result['data'].a1.ge.LFP
     freqs, power = mya.analyze_LFP_fft(LFP, dt=dt, plot=plot, save_path=save_path)
     return freqs, power
 
 # compute 2 area take 1st layer's centre point LFP, and output FFT
-def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True):
+def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     # common_title = (rf'$\zeta^{{E1}}$: {ie_r_e1:.4f}, '
     #                 rf'$\zeta^{{I1}}$: {ie_r_i1:.4f}, '
     #                 rf'$\zeta^{{E2}}$: {ie_r_e2:.4f}, '
     #                 rf'$\zeta^{{I2}}$: {ie_r_i2:.4f}')
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-    result = compute.compute_2(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=True)
+    result = compute.compute_2(comb=param, sti=True, maxrate=maxrate, sig=sig, sti_type='Uniform', video=video)
     LFP = result['data'].a1.ge.LFP
     save_path = f'{LFP_dir}/2area_FFT_{sig}_{common_path}.eps'
     freqs, power = mya.analyze_LFP_fft(LFP, dt=dt, plot=plot, save_path=save_path)
@@ -1114,6 +1114,7 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
     save_path_beta = f'{LFP_dir}/beta_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     save_path_gamma = f'{LFP_dir}/gamma_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    save_path = f'{LFP_dir}/whole_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     if video:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
@@ -1135,13 +1136,29 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     mean_power = np.mean(powers, axis=0)
 
     # 画平均频谱
-    # beta
     if plot:
+    # whole
         plt.figure(figsize=(6,4))
         plt.plot(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum without feedback')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs >= x_min) & (freqs <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) without feedback')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1153,12 +1170,11 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
             plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
         plt.close()
     # gamma
-    if plot:
         plt.figure(figsize=(6,4))
         plt.plot(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum without feedback')
+        plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1177,6 +1193,7 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     save_path_gamma = f'{LFP_dir}/gamma_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    save_path = f'{LFP_dir}/whole_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     if video:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
@@ -1198,13 +1215,29 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     mean_power = np.mean(powers, axis=0)
 
     # 画平均频谱
-    # beta
     if plot:
+    # whole
         plt.figure(figsize=(6,4))
         plt.plot(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs >= x_min) & (freqs <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) with feedback')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1215,12 +1248,12 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         if save_path_beta:
             plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
         plt.close()
-    if plot:
+    # gamma
         plt.figure(figsize=(6,4))
         plt.plot(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1240,19 +1273,37 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     save_path_beta = f'{LFP_dir}/beta_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
     save_path_gamma = f'{LFP_dir}/gamma_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    save_path = f'{LFP_dir}/whole_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
     freqs1, mean_power1 = LFP_1area_repeat(param=param1, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
                                            sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
     freqs2, mean_power2 = LFP_2area_repeat(param=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
                                            sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
     freqs_diff = freqs2
     mean_power_diff = mean_power2-mean_power1
-    # beta
+
     if plot:
+    # whole
         plt.figure(figsize=(6,4))
         plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power_diff[mask]), np.max(mean_power_diff[mask]))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) difference')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1264,12 +1315,11 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
             plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
         plt.close()
     # gamma
-    if plot:
         plt.figure(figsize=(6,4))
         plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum difference')
+        plt.title('Mean LFP FFT Spectrum (gamma) difference')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1295,6 +1345,9 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     save_path_gamma1 = f'{LFP_dir}/gamma_1area_FFT_{common_path1}_{n_repeat}.eps'
     save_path_gamma2 = f'{LFP_dir}/gamma_2area_FFT_{common_path2}_{n_repeat}.eps'
     save_path_gammad = f'{LFP_dir}/gamma_diff_FFT_{common_path2}_{n_repeat}.eps'
+    save_path1 = f'{LFP_dir}/whole_1area_FFT_{common_path1}_{n_repeat}.eps'
+    save_path2 = f'{LFP_dir}/whole_2area_FFT_{common_path2}_{n_repeat}.eps'
+    save_pathd = f'{LFP_dir}/whole_diff_FFT_{common_path2}_{n_repeat}.eps'
 
     results_1area = []
     results_2area = []
@@ -1310,13 +1363,35 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
 
     # 1area
     if plot:
-    # beta
+    # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_1area:
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum without feedback')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        all_masked_power = []
+        for sig, freqs, power in results_1area:
+            mask = (freqs >= x_min) & (freqs <= x_max)
+            if np.any(mask):
+                all_masked_power.append(power[mask])
+        if all_masked_power:
+            all_masked_power = np.concatenate(all_masked_power)
+            plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
+        if save_path1:
+            plt.savefig(save_path1, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        for sig, freqs, power in results_1area:
+            plt.plot(freqs, power, label=f'sig={sig}')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) without feedback')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1338,7 +1413,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum without feedback')
+        plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1356,13 +1431,35 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
         plt.close()
 
     # 2area
-    # beta
+    # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_2area:
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        all_masked_power = []
+        for sig, freqs, power in results_2area:
+            mask = (freqs >= x_min) & (freqs <= x_max)
+            if np.any(mask):
+                all_masked_power.append(power[mask])
+        if all_masked_power:
+            all_masked_power = np.concatenate(all_masked_power)
+            plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
+        if save_path2:
+            plt.savefig(save_path2, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        for sig, freqs, power in results_2area:
+            plt.plot(freqs, power, label=f'sig={sig}')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) with feedback')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1384,7 +1481,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1402,13 +1499,35 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
         plt.close()
 
     # diff
-    # beta
+    # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
+        plt.grid(True)
+        plt.xlim(15, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        all_masked_power = []
+        for sig, freqs, power in results_diff:
+            mask = (freqs >= x_min) & (freqs <= x_max)
+            if np.any(mask):
+                all_masked_power.append(power[mask])
+        if all_masked_power:
+            all_masked_power = np.concatenate(all_masked_power)
+            plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
+        if save_pathd:
+            plt.savefig(save_pathd, dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        for sig, freqs, power in results_diff:
+            plt.plot(freqs, power, label=f'sig={sig}')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) difference')
         plt.grid(True)
         plt.xlim(15, 30)
         plt.legend()
@@ -1430,7 +1549,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
             plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
-        plt.title('Mean LFP FFT Spectrum difference')
+        plt.title('Mean LFP FFT Spectrum (gamma) difference')
         plt.grid(True)
         plt.xlim(30, 80)
         plt.legend()
@@ -1453,17 +1572,20 @@ try:
     send_email.send_email('begin running', 'ie_search.main running')
     #%% test
     # param = (1.8512390285440765, 2.399131446733395)
+    # 1st pair (alpha <= 1.3)
+    # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
+    # 2nd pair(more d(r_rf), but alpha<=1.5)
     # param1  = (2.501407742047704, 1.8147028535939709)
     # param2  = (2.425126038006674, 1.927524600435643)
+    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
     # param2  = (1.927524600435643, 2.425126038006674)
-    # 1st pair
-    # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
-    # 2nd pair(more d(r_rf), but alpha<=1.5)
-    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
-    # 故意写反看病态beta
     # param12 = (1.8147028535939709, 2.501407742047704, 1.927524600435643, 2.425126038006674)
+    # shuzheng 的参数
+    param1  = (2.3641, 1.9706)
+    param2  = (1.9313, 1.5709)
+    param12 = (2.3641, 1.9706, 1.9313, 1.5709)
     # shuzheng 的2nd area参数
     # param2 = (1.9313, 1.5709)
     # 我的第一层和黄的第二层
@@ -1473,9 +1595,15 @@ try:
     # critical zone 右上角的点
     # param = (2.67,2.03)
     # critical zone 左下角的点
-    param = (2.5,1.7)
+    # param = (2.22, 1.64)
+    # 超过右下角的第一层，我的第二层
+    # param1  = (2.6, 1.7)
+    # param2  = (2.425126038006674, 1.927524600435643)
+    # param12 = (2.6, 1.7, 2.425126038006674, 1.927524600435643)
     # 算一下看看有没有明显病态（显然是要画动画）
-    compute.compute_1(comb=param, video=True)
+    # compute.compute_1(comb=param, video=True)
+    # LFP_1area(param=param)
+    # LFP_1area_repeat(param=param, n_repeat=64)
     # compute.compute_1(comb=param2, seed=10, index=0, sti=True, video=True, save_load=False)
     # compute.compute_2(comb=param12,seed=10,video=True)
 
@@ -1610,7 +1738,7 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    # draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=128)
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500)
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64)
     # print('set 1 executed')

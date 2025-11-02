@@ -53,7 +53,7 @@ def input_spkrate(maxrate = [800,800], sig=[6,6], position=[[-32, -32],[0, 0]], 
             if i==0:
                 rate_sti = np.zeros(len(dist_sti))
             # Uniform rate within sig radius, 0 outside
-            rate_sti += maxrate[i] * (dist_sti <= sig[i])
+            rate_sti += maxrate[i] * (dist_sti >= sig[i])
 
 #    dist_sti1 = coordination.lattice_dist(lattice, width, position[0])
 #    dist_sti2 = coordination.lattice_dist(lattice, width, position[1])
