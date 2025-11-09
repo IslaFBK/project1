@@ -39,7 +39,7 @@ combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False):
+              sti_type='Gaussian', video=False, save_load=False, le=64,li=32):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -87,9 +87,9 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     #%% build connection set
     # neuron quantity
     ijwd1 = pre_process_sc.get_ijwd()
-    ijwd1.Ne = 64*64
-    ijwd1.Ni = 32*32
-    ijwd1.width = 64
+    ijwd1.Ne = le*le
+    ijwd1.Ni = li*li
+    ijwd1.width = le
 
     # decay
     ijwd1.decay_p_ee = 7.5
@@ -142,7 +142,7 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     if record_LFP:
         from connection import get_LFP
 
-        LFP_elec = np.array([[0,0],[-32,-32]])
+        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
         # LFP_elec = np.array([[0,0]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
@@ -199,7 +199,7 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                 rate=1*Hz,
                                 weight=5*nS)
 
-    #%% Stimulus (Gaussian/Uniform)
+    #%% Stimulus (Gaussian/Uniform/Annulus)
     if sti == True:
         posi_stim_e1 = NeuronGroup(ijwd1.Ne, \
                                 '''rates =  bkg_rates + stim_1*scale_1(t) : Hz
@@ -208,8 +208,9 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                 ''', threshold='rand()<rates*dt')
 
         posi_stim_e1.bkg_rates = 0*Hz
-        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], sti_type=sti_type)*Hz
-        #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-32, -32]])*Hz
+        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], 
+                                                 sti_type=sti_type, n_side=le, width=le)*Hz
+        #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
         synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD
         syn_extnl_e1 = Synapses(posi_stim_e1, group_e_1, 
@@ -332,7 +333,7 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     stim = None
     if sti:
-        stim = [[[[31.5,31.5]], 
+        stim = [[[[(le-1)/2,(le-1)/2]], 
                 [stim_on_off], 
                 [[sig]*stim_on_off.shape[0]]]]
         
@@ -372,7 +373,7 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     }
 
 def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False):
+              sti_type='Gaussian', video=False, save_load=False,le=64,li=32):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -440,9 +441,9 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     #%% build connection set
     # neuron quantity
     ijwd1 = pre_process_sc.get_ijwd()
-    ijwd1.Ne = 64*64
-    ijwd1.Ni = 32*32
-    ijwd1.width = 64
+    ijwd1.Ne = le*le
+    ijwd1.Ni = li*li
+    ijwd1.width = le
 
     # decay
     ijwd1.decay_p_ee = 7.5
@@ -487,9 +488,9 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     #%% build connection set 2
     # neuron quantity
     ijwd2 = pre_process_sc.get_ijwd()
-    ijwd2.Ne = 64*64
-    ijwd2.Ni = 32*32
-    ijwd2.width = 64
+    ijwd2.Ne = le*le
+    ijwd2.Ni = li*li
+    ijwd2.width = le
 
     # decay
     ijwd2.decay_p_ee = 7.5
@@ -524,8 +525,8 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     #%% build inter connection set
     ijwd_inter = preprocess_2area.get_ijwd_2()
-    ijwd_inter.Ne1 = 64*64; ijwd_inter.Ne2 = 64*64; 
-    ijwd_inter.width1 = 64; ijwd_inter.width2 = 64; 
+    ijwd_inter.Ne1 = le*le; ijwd_inter.Ne2 = le*le; 
+    ijwd_inter.width1 = le; ijwd_inter.width2 = le; 
     ijwd_inter.p_inter_area_1 = 1/2; ijwd_inter.p_inter_area_2 = 1/2
     ijwd_inter.section_width_1 = 4;  ijwd_inter.section_width_2 = 4; 
     ijwd_inter.peak_p_e1_e2 = peak_p_e1_e2; ijwd_inter.tau_p_d_e1_e2 = tau_p_d_e1_e2
@@ -559,7 +560,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     if record_LFP:
         from connection import get_LFP
 
-        LFP_elec = np.array([[0,0],[-32,-32]])
+        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
                                             LFP_sigma=8,LFP_effect_range=2.5)
@@ -625,7 +626,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                 rate=1*Hz,
                                 weight=5*nS)
 
-    #%% Stimulus (Gaussian/Uniform)
+    #%% Stimulus (Gaussian/Uniform/Annulus)
     if sti == True:
         posi_stim_e1 = NeuronGroup(ijwd1.Ne, \
                                 '''rates =  bkg_rates + stim_1*scale_1(t) : Hz
@@ -634,8 +635,9 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                 ''', threshold='rand()<rates*dt')
 
         posi_stim_e1.bkg_rates = 0*Hz
-        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], sti_type=sti_type)*Hz
-        #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-32, -32]])*Hz
+        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], 
+                                                 sti_type=sti_type, n_side=le, width=le)*Hz
+        #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
         synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD
         syn_extnl_e1 = Synapses(posi_stim_e1, group_e_1, 
@@ -842,7 +844,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     stim = None
     if sti:
-        stim = [[[[31.5,31.5]], 
+        stim = [[[[(le-1)/2,(le-1)/2]], 
                 [stim_on_off], 
                 [[sig]*stim_on_off.shape[0]]],None]
         

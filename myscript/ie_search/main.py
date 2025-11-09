@@ -923,7 +923,7 @@ def check_r_rf_maxrate(param=None,
 
 # exam middle 4 point firing rate (receptive field)
 def receptive_field_repeat2(param, n_repeat, plot=False, 
-                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
+                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
                             save_load0=False, save_load1=False):
     
     if video0:
@@ -977,7 +977,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
 #%% draw receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
 def draw_receptive_field2(param, n_repeat, maxrate=1000):
     ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-                                        video0=False, video1=False, maxrate=maxrate, sti_type='uniform',
+                                        video0=False, video1=False, maxrate=maxrate, sti_type='Uniform',
                                         save_load0=False, save_load1=False)
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
@@ -1001,7 +1001,7 @@ def draw_receptive_field2(param, n_repeat, maxrate=1000):
 
 # exam whole field firing rate (receptive field)
 def receptive_field_repeat3(param, n_repeat, plot=False, 
-                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='uniform',
+                            video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
                             save_load0=False, save_load1=False):
     
     if video0:
@@ -1051,7 +1051,7 @@ def receptive_field_repeat3(param, n_repeat, plot=False,
 from math import ceil, sqrt
 # middle 4 point different sig scane
 def receptive_field2(param, n_repeat, plot=False, 
-                     video0=False, video1=False, maxrate=1000, sti_type='uniform',
+                     video0=False, video1=False, maxrate=1000, sti_type='Uniform',
                      save_load0=False, save_load1=False):
     # max_sig = ceil(31.5*sqrt(2))
     max_sig = ceil(31.5)
@@ -1068,7 +1068,7 @@ def receptive_field2(param, n_repeat, plot=False,
 
 # exam whole field different sig scane
 def receptive_field3(param, n_repeat, plot=False, 
-                     video0=False, video1=False, maxrate=1000, sti_type='uniform',
+                     video0=False, video1=False, maxrate=1000, sti_type='Uniform',
                      save_load0=False, save_load1=False):
     # max_sig = ceil(31.5*sqrt(2))
     max_sig = ceil(31.5)
@@ -1084,6 +1084,8 @@ def receptive_field3(param, n_repeat, plot=False,
     return ratios, diffs, sigs
 
 #%% LFP
+fft_l = 1
+fft_r = 100
 # compute 1 area centre point LFP, and output FFT
 def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
     ie_r_e1, ie_r_i1 = param
@@ -1139,12 +1141,12 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     if plot:
     # whole
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum without feedback')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         mask = (freqs >= x_min) & (freqs <= x_max)
@@ -1155,7 +1157,7 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) without feedback')
@@ -1171,7 +1173,7 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
@@ -1218,12 +1220,12 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     if plot:
     # whole
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum with feedback')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         mask = (freqs >= x_min) & (freqs <= x_max)
@@ -1234,7 +1236,7 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) with feedback')
@@ -1250,7 +1252,7 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
-        plt.plot(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs, mean_power, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
@@ -1284,12 +1286,12 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     if plot:
     # whole
         plt.figure(figsize=(6,4))
-        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
@@ -1300,7 +1302,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
-        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) difference')
@@ -1316,7 +1318,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
-        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) difference')
@@ -1333,7 +1335,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     return freqs1, mean_power1, freqs2, mean_power2, freqs_diff, mean_power_diff
 # 1,2area and diff, compare different sig
 def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], maxrate=500, dt=0.1, 
-                         plot=True, video=True, save_load=False):
+                         sti_type='Uniform', plot=True, video=True, save_load=False):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
@@ -1355,7 +1357,8 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
 
     for sig in sigs:
         freqs1, mean_power1, freqs2, mean_power2, freqs_diff, mean_power_diff = LFP_diff_repeat(
-            param1=param1, param2=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig, dt=dt, plot=plot, video=video, save_load=save_load
+            param1=param1, param2=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig, dt=dt, 
+            sti_type=sti_type, plot=plot, video=video, save_load=save_load
             )
         results_1area.append((sig, freqs1, mean_power1))
         results_2area.append((sig, freqs2, mean_power2))
@@ -1366,12 +1369,12 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_1area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum without feedback')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         all_masked_power = []
@@ -1388,7 +1391,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # beta
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_1area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) without feedback')
@@ -1410,7 +1413,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # gamma
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_1area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
@@ -1434,12 +1437,12 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_2area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum with feedback')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         all_masked_power = []
@@ -1456,7 +1459,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # beta
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_2area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) with feedback')
@@ -1478,7 +1481,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # gamma
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_2area:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
@@ -1502,12 +1505,12 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
         plt.grid(True)
-        plt.xlim(15, 80)
+        plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
         all_masked_power = []
@@ -1524,7 +1527,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # beta
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) difference')
@@ -1546,7 +1549,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # gamma
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.loglog(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) difference')
@@ -1596,6 +1599,8 @@ try:
     # param = (2.67,2.03)
     # critical zone 左下角的点
     # param = (2.22, 1.64)
+    # 中心点
+    # param1 = (2.4331,1.8447)
     # 超过右下角的第一层，我的第二层
     # param1  = (2.6, 1.7)
     # param2  = (2.425126038006674, 1.927524600435643)
@@ -1604,8 +1609,14 @@ try:
     # compute.compute_1(comb=param, video=True)
     # LFP_1area(param=param)
     # LFP_1area_repeat(param=param, n_repeat=64)
-    # compute.compute_1(comb=param2, seed=10, index=0, sti=True, video=True, save_load=False)
-    # compute.compute_2(comb=param12,seed=10,video=True)
+
+    # # change scale
+    # le=80
+    # li=40
+    # compute.compute_1(comb=param1, seed=10,sti=False,maxrate=500,sig=5,
+    #                   sti_type='Annulus',video=True,le=int(le),li=int(li))
+    # compute.compute_2(comb=param12,seed=10,sti=False,maxrate=500,sig=5,
+    #                   sti_type='Annulus',video=True,le=int(le),li=int(li))
 
     # # ie-ratio 写错时，e-i对调了：
     # param1 = (1.795670364314891, 2.449990451446889)
@@ -1738,7 +1749,7 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500)
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=512, maxrate=100, sti_type='Uniform')
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64)
     # print('set 1 executed')
