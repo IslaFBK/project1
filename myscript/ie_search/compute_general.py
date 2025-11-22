@@ -420,23 +420,24 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     w_ee_2 = 11
     w_ii_2 = 50
 
+    #%% INTER PARAMETERS
     # inter mean weight
-    scale_w_12_e = 3.656
-    scale_w_12_i = scale_w_12_e
-    scale_w_21_e = 0.578
-    scale_w_21_i = scale_w_21_e
+    scale_w_12_e = 5 # 3.656
+    scale_w_12_i = 5 # scale_w_12_e
+    scale_w_21_e = 2 # 0.578
+    scale_w_21_i = 2 # scale_w_21_e
 
     # inter decay
     tau_p_d_e1_e2 = 8
-    tau_p_d_e1_i2 = tau_p_d_e1_e2
+    tau_p_d_e1_i2 = 8
     tau_p_d_e2_e1 = 8
-    tau_p_d_e2_i1 = tau_p_d_e2_e1
+    tau_p_d_e2_i1 = 6
 
     #inter probability peak
-    peak_p_e1_e2 = 0.4
-    peak_p_e1_i2 = 0.4
-    peak_p_e2_e1 = 0.4
-    peak_p_e2_i1 = 0.4
+    peak_p_e1_e2 = 0.3
+    peak_p_e1_i2 = 0.3
+    peak_p_e2_e1 = 0.2
+    peak_p_e2_i1 = 0.5
 
     #%% build connection set
     # neuron quantity

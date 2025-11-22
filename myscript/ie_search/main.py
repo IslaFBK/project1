@@ -924,30 +924,36 @@ def check_r_rf_maxrate(param=None,
 # exam middle 4 point firing rate (receptive field)
 def receptive_field_repeat2(param, n_repeat, plot=False, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
-                            save_load0=False, save_load1=False):
+                            save_load0=False, save_load1=False, le=64, li=32):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=(i==0), save_load=save_load0)
+                                       video=(i==0), save_load=save_load0, 
+                                       le=le, li=li)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=False, save_load=save_load0)
+                                       video=False, save_load=save_load0, 
+                                       le=le, li=li)
             for i in range(n_repeat)
         )
     if video1:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
-                                    video=(i==0), save_load=save_load1)
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, 
+                                       maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                       video=(i==0), save_load=save_load1, 
+                                       le=le, li=li)
             for i in range(n_repeat)
         )
     else:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, sti_type=sti_type, 
-                                    video=False, save_load=save_load1)
+            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, 
+                                       maxrate=maxrate, sig=sig, sti_type=sti_type, 
+                                       video=False, save_load=save_load1, 
+                                       le=le, li=li)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -975,10 +981,12 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     return ratio, diff
 
 #%% draw receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
-def draw_receptive_field2(param, n_repeat, maxrate=1000):
+def draw_receptive_field2(param, n_repeat, maxrate=1000, le=64, li=32):
     ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-                                        video0=False, video1=False, maxrate=maxrate, sti_type='Uniform',
-                                        save_load0=False, save_load1=False)
+                                           video0=False, video1=False, 
+                                           maxrate=maxrate, sti_type='Uniform',
+                                           save_load0=False, save_load1=False, 
+                                           le=le, li=li)
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
@@ -1051,17 +1059,21 @@ def receptive_field_repeat3(param, n_repeat, plot=False,
 from math import ceil, sqrt
 # middle 4 point different sig scane
 def receptive_field2(param, n_repeat, plot=False, 
-                     video0=False, video1=False, maxrate=1000, sti_type='Uniform',
-                     save_load0=False, save_load1=False):
+                     video0=False, video1=False, 
+                     maxrate=1000, sti_type='Uniform',
+                     save_load0=False, save_load1=False, 
+                     le=64, li=32):
     # max_sig = ceil(31.5*sqrt(2))
-    max_sig = ceil(31.5)
+    max_sig = ceil((le-1)/2)
     sigs = np.arange(0, max_sig + 1, 1)
     ratios = []
     diffs = []
     for sig in sigs:
         ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, 
-                                              video0=video0, video1=video1, maxrate=maxrate, sig=sig, sti_type=sti_type,
-                                              save_load0=save_load0, save_load1=save_load1)
+                                              video0=video0, video1=video1, 
+                                              maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1, 
+                                              le=le, li=li)
         ratios.append(ratio)
         diffs.append(diff)
     return ratios, diffs, sigs
@@ -1286,7 +1298,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     if plot:
     # whole
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
@@ -1302,7 +1314,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) difference')
@@ -1318,7 +1330,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs_diff, mean_power_diff, label='Mean Power')
+        plt.plot(freqs_diff, mean_power_diff, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) difference')
@@ -1505,7 +1517,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.loglog(freqs, power, label=f'sig={sig}')
+            plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
@@ -1527,7 +1539,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # beta
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.loglog(freqs, power, label=f'sig={sig}')
+            plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) difference')
@@ -1549,7 +1561,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
     # gamma
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.loglog(freqs, power, label=f'sig={sig}')
+            plt.plot(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) difference')
@@ -1578,17 +1590,17 @@ try:
     # 1st pair (alpha <= 1.3)
     # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     # 2nd pair(more d(r_rf), but alpha<=1.5)
-    # param1  = (2.501407742047704, 1.8147028535939709)
-    # param2  = (2.425126038006674, 1.927524600435643)
-    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
+    param1  = (2.501407742047704, 1.8147028535939709)
+    param2  = (2.425126038006674, 1.927524600435643)
+    param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
     # param2  = (1.927524600435643, 2.425126038006674)
     # param12 = (1.8147028535939709, 2.501407742047704, 1.927524600435643, 2.425126038006674)
     # shuzheng 的参数
-    param1  = (2.3641, 1.9706)
-    param2  = (1.9313, 1.5709)
-    param12 = (2.3641, 1.9706, 1.9313, 1.5709)
+    # param1  = (2.3641, 1.9706)
+    # param2  = (1.9313, 1.5709)
+    # param12 = (2.3641, 1.9706, 1.9313, 1.5709)
     # shuzheng 的2nd area参数
     # param2 = (1.9313, 1.5709)
     # 我的第一层和黄的第二层
@@ -1610,13 +1622,14 @@ try:
     # LFP_1area(param=param)
     # LFP_1area_repeat(param=param, n_repeat=64)
 
-    # # change scale
-    # le=80
-    # li=40
+    # change scale
+    le=64
+    li=32
+    # sti_type='Gaussian''Uniform''Annulus'
     # compute.compute_1(comb=param1, seed=10,sti=False,maxrate=500,sig=5,
-    #                   sti_type='Annulus',video=True,le=int(le),li=int(li))
+    #                   sti_type='Uniform',video=True,le=int(le),li=int(li))
     # compute.compute_2(comb=param12,seed=10,sti=False,maxrate=500,sig=5,
-    #                   sti_type='Annulus',video=True,le=int(le),li=int(li))
+    #                   sti_type='Uniform',video=True,le=int(le),li=int(li))
 
     # # ie-ratio 写错时，e-i对调了：
     # param1 = (1.795670364314891, 2.449990451446889)
@@ -1749,12 +1762,14 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=512, maxrate=100, sti_type='Uniform')
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=1024, maxrate=100, sti_type='Uniform')
     # print('computing start')
-    # draw_receptive_field2(param=param1, n_repeat=64)
+    # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
     # print('set 1 executed')
-    # draw_receptive_field2(param=param2, n_repeat=64)
+    # send_email.send_email('set 1 executed', 'set 1 executed')
+    # draw_receptive_field2(param=param2, n_repeat=64, le=le,li=li)
     # print('set 2 executed')
+    # send_email.send_email('set 2 executed', 'set 2 executed')
 
 
 

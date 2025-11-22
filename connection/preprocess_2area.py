@@ -76,10 +76,10 @@ class get_ijwd_2:
                                                         self.peak_p_e2_i1, self.tau_p_d_e2_i1, src_equal_trg = False, self_cnt = False)
         
 
-        self.w_e1_e2 = np.abs(np.random.normal(self.w_e1_e2_mean, self.w_e1_e2_mean*0.1, len(self.i_e1_e2)))#*nS*scale_e_21[j]
-        self.w_e1_i2 = np.abs(np.random.normal(self.w_e1_i2_mean, self.w_e1_i2_mean*0.1, len(self.i_e1_i2)))#*nS*scale_e_21[j]
-        self.w_e2_e1 = np.abs(np.random.normal(self.w_e2_e1_mean, self.w_e2_e1_mean*0.1, len(self.i_e2_e1)))#*nS*scale_e_21[j]
-        self.w_e2_i1 = np.abs(np.random.normal(self.w_e2_i1_mean, self.w_e2_i1_mean*0.1, len(self.i_e2_i1)))#*nS*scale_e_21[j]
+        self.w_e1_e2 = np.abs(np.random.normal(self.w_e1_e2_mean, self.w_e1_e2_mean*0.05, len(self.i_e1_e2)))#*nS*scale_e_21[j]
+        self.w_e1_i2 = np.abs(np.random.normal(self.w_e1_i2_mean, self.w_e1_i2_mean*0.05, len(self.i_e1_i2)))#*nS*scale_e_21[j]
+        self.w_e2_e1 = np.abs(np.random.normal(self.w_e2_e1_mean, self.w_e2_e1_mean*0.05, len(self.i_e2_e1)))#*nS*scale_e_21[j]
+        self.w_e2_i1 = np.abs(np.random.normal(self.w_e2_i1_mean, self.w_e2_i1_mean*0.05, len(self.i_e2_i1)))#*nS*scale_e_21[j]
 
         self.d_e1_e2 = np.random.uniform(self.delay[0], self.delay[1], len(self.i_e1_e2))
         self.d_e1_i2 = np.random.uniform(self.delay[0], self.delay[1], len(self.i_e1_i2))
