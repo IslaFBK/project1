@@ -10,6 +10,7 @@
 *.tar
 *.mat
 *.file
+*.ini
 spkdata*
 *.m~
 *.py~

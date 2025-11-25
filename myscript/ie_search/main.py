@@ -1123,7 +1123,8 @@ def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
     return freqs, power
 
 # repeat computing 1 area FFT of LFP, output beta band and gamma band spectrum
-def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, plot=True, video=True, save_load=False):
+def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, 
+                     plot=True, video=True, save_load=False):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
     save_path_beta = f'{LFP_dir}/beta_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
@@ -1202,7 +1203,8 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
     return freqs, mean_power
 
 # repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum
-def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, plot=True, video=True, save_load=False):
+def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, 
+                     plot=True, video=True, save_load=False):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
@@ -1590,9 +1592,19 @@ try:
     # 1st pair (alpha <= 1.3)
     # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     # 2nd pair(more d(r_rf), but alpha<=1.5)
-    param1  = (2.501407742047704, 1.8147028535939709)
+    # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
+    # param1  = (2.501407742047704, 1.8147028535939709)
+    # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
     param2  = (2.425126038006674, 1.927524600435643)
-    param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
+    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
+    # critical zone 右上角的点 - gamma peak 小
+    # param1 = (2.67,2.03)
+    # critical zone 左下角的点 - gamma peak 正常
+    param1 = (2.22, 1.64)
+    # 中心点 - gamma peak 较小
+    # param1 = (2.4331,1.8447)
+    param12 = (2.22, 1.64, 2.425126038006674, 1.927524600435643)
+
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
     # param2  = (1.927524600435643, 2.425126038006674)
@@ -1607,12 +1619,6 @@ try:
     # param1  = (2.501407742047704, 1.8147028535939709)
     # param2 = (1.9313, 1.5709)
     # param12 = (2.501407742047704, 1.8147028535939709, 1.9313, 1.5709)
-    # critical zone 右上角的点
-    # param = (2.67,2.03)
-    # critical zone 左下角的点
-    # param = (2.22, 1.64)
-    # 中心点
-    # param1 = (2.4331,1.8447)
     # 超过右下角的第一层，我的第二层
     # param1  = (2.6, 1.7)
     # param2  = (2.425126038006674, 1.927524600435643)
@@ -1742,14 +1748,25 @@ try:
     #     LFP_1area(param=param1,maxrate=500,sig=sig,dt=0.1,plot=True)
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
-    # def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
-    #     param = (1.795670364314891, 2.449990451446889)
-    #     LFP_1area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    # def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
-    #     param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-    #     LFP_2area_repeat(param=param,n_repeat=64,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    # # draw_LFP_FFT_1area_repeat()
-    # # draw_LFP_FFT_2area_repeat()
+    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
+        # critical zone 右上角的点 - gamma peak 小
+        # param = (2.67,2.03)
+        # critical zone 左下角的点 - gamma peak 正常
+        # param = (2.22, 1.64)
+        # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
+        # param  = (2.501407742047704, 1.8147028535939709)
+        # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
+        # param  = (2.425126038006674, 1.927524600435643)
+        # 中心点 - gamma peak 较小
+        param = (2.4331,1.8447)
+        # param = (1.795670364314891, 2.449990451446889)
+        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
+        param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+        LFP_2area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+    # draw_LFP_FFT_1area_repeat()
+    # draw_LFP_FFT_2area_repeat()
+
     # def draw_LFP_FFT_diff_repeat(n_repeat=128):
     #     param1 = (1.795670364314891, 2.449990451446889)
     #     param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
@@ -1762,7 +1779,8 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=1024, maxrate=100, sti_type='Uniform')
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500, sti_type='Uniform')
+    
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
     # print('set 1 executed')

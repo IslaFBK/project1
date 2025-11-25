@@ -422,10 +422,10 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     #%% INTER PARAMETERS
     # inter mean weight
-    scale_w_12_e = 5 # 3.656
-    scale_w_12_i = 5 # scale_w_12_e
-    scale_w_21_e = 2 # 0.578
-    scale_w_21_i = 2 # scale_w_21_e
+    scale_w_12_e = 3 # 3.656
+    scale_w_12_i = 3 # scale_w_12_e
+    scale_w_21_e = 4 # 0.578
+    scale_w_21_i = 4 # scale_w_21_e
 
     # inter decay
     tau_p_d_e1_e2 = 8
