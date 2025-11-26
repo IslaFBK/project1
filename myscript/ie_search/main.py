@@ -1779,7 +1779,7 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500, sti_type='Uniform')
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=1024, maxrate=500, sti_type='Uniform')
     
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
