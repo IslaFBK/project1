@@ -1592,18 +1592,17 @@ try:
     # 1st pair (alpha <= 1.3)
     # param12 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     # 2nd pair(more d(r_rf), but alpha<=1.5)
-    # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
-    # param1  = (2.501407742047704, 1.8147028535939709)
-    # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
-    param2  = (2.425126038006674, 1.927524600435643)
-    # param12 = (2.501407742047704, 1.8147028535939709, 2.425126038006674, 1.927524600435643)
     # critical zone 右上角的点 - gamma peak 小
-    # param1 = (2.67,2.03)
+    param_ne = (2.67,2.03)
     # critical zone 左下角的点 - gamma peak 正常
-    param1 = (2.22, 1.64)
+    param_sw = (2.22, 1.64)
+    # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
+    param_se  = (2.501407742047704, 1.8147028535939709)
+    # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
+    param_nw  = (2.425126038006674, 1.927524600435643)
     # 中心点 - gamma peak 较小
     # param1 = (2.4331,1.8447)
-    param12 = (2.22, 1.64, 2.425126038006674, 1.927524600435643)
+    # param12 = (2.22, 1.64, 2.425126038006674, 1.927524600435643)
 
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
@@ -1741,6 +1740,27 @@ try:
     
 
     #%% LFP
+    def vary_ie_ratio(dx=0,dy=0):
+        # critical zone 右上角的点 - gamma peak 小
+        param_ne = (2.67,2.03)
+        # critical zone 左下角的点 - gamma peak 正常
+        param_sw = (2.22, 1.64)
+        # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
+        param_se  = (2.501407742047704, 1.8147028535939709)
+        # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
+        param_nw  = (2.425126038006674, 1.927524600435643)
+        # 使用 numpy 数组做向量运算
+        p_ne = np.array(param_ne, dtype=float)
+        p_sw = np.array(param_sw, dtype=float)
+        p_se = np.array(param_se, dtype=float)
+        p_nw = np.array(param_nw, dtype=float)
+        param_c0 = (p_ne + p_sw + p_se + p_nw) / 4.0
+        param_vec_hrz = (p_se - p_nw) / 2.0
+        param_vec_vtc = (p_sw - p_ne) / 2.0
+        # dx朝右下, dy朝左下
+        param = tuple(param_c0 + param_vec_hrz*dx + param_vec_vtc*dy)
+        return param
+    
     # def draw_LFP_FFT_2area():
     #     param1 = (1.795670364314891, 2.449990451446889)
     #     param2 = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
@@ -1748,22 +1768,16 @@ try:
     #     LFP_1area(param=param1,maxrate=500,sig=sig,dt=0.1,plot=True)
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
+
     def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
-        # critical zone 右上角的点 - gamma peak 小
-        # param = (2.67,2.03)
-        # critical zone 左下角的点 - gamma peak 正常
-        # param = (2.22, 1.64)
-        # 右下边缘，rf最小，alpha~1.5 - 双峰 gamma peak
-        # param  = (2.501407742047704, 1.8147028535939709)
-        # 左上边缘，rf最大，alpha~1.5 - 没有 gamma peak
-        # param  = (2.425126038006674, 1.927524600435643)
-        # 中心点 - gamma peak 较小
-        param = (2.4331,1.8447)
-        # param = (1.795670364314891, 2.449990451446889)
+        param=vary_ie_ratio(dx=0,dy=0)
         LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
     def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
-        param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-        LFP_2area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
+        # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
+        param1=vary_ie_ratio(dx=1,dy=0)
+        param2=vary_ie_ratio(dx=-1,dy=0)
+        param12=param1+param2
+        LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
     # draw_LFP_FFT_1area_repeat()
     # draw_LFP_FFT_2area_repeat()
 
@@ -1779,7 +1793,10 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=1024, maxrate=500, sti_type='Uniform')
+    param1=vary_ie_ratio(dx=-0.2,dy=1)
+    param2=vary_ie_ratio(dx=-0.9,dy=0)
+    param12 = param1+param2
+    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500, sti_type='Uniform')
     
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
