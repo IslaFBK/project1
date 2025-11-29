@@ -1124,12 +1124,16 @@ def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
 
 # repeat computing 1 area FFT of LFP, output beta band and gamma band spectrum
 def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, 
-                     plot=True, video=True, save_load=False):
+                     plot=True, video=True, save_load=False,
+                     save_path_beta=None,save_path_gamma=None,save_path=None):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-    save_path_beta = f'{LFP_dir}/beta_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path_gamma = f'{LFP_dir}/gamma_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path = f'{LFP_dir}/whole_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_beta is None:
+        save_path_beta = f'{LFP_dir}/beta_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_gamma is None:
+        save_path_gamma = f'{LFP_dir}/gamma_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path is None:
+        save_path = f'{LFP_dir}/whole_1area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     if video:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
@@ -1204,22 +1208,29 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
 
 # repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum
 def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, 
-                     plot=True, video=True, save_load=False):
+                     plot=True, video=True, save_load=False,
+                     w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
+                     save_path_beta=None,save_path_gamma=None,save_path=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-    save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path_gamma = f'{LFP_dir}/gamma_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path = f'{LFP_dir}/whole_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_beta is None:
+        save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_gamma is None:
+        save_path_gamma = f'{LFP_dir}/gamma_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path is None:
+        save_path = f'{LFP_dir}/whole_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
     if video:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
-                                       sti_type=sti_type, video=(i==0), save_load=save_load)
+                                       sti_type=sti_type, video=(i==0), save_load=save_load,
+                                       w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
             for i in range(n_repeat)
         )
     else:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
-                                       sti_type=sti_type, video=False, save_load=save_load)
+                                       sti_type=sti_type, video=False, save_load=save_load,
+                                       w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
             for i in range(n_repeat)
         )
     # 提取所有LFP
@@ -1284,12 +1295,16 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
 
 # exam middle point LFP (FFT)
 def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1,
-                    plot=True, video=True, save_load=False):
+                    plot=True, video=True, save_load=False,
+                    save_path_beta=None,save_path_gamma=None,save_path=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-    save_path_beta = f'{LFP_dir}/beta_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path_gamma = f'{LFP_dir}/gamma_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
-    save_path = f'{LFP_dir}/whole_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_beta is None:
+        save_path_beta = f'{LFP_dir}/beta_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path_gamma is None:
+        save_path_gamma = f'{LFP_dir}/gamma_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+    if save_path is None:
+        save_path = f'{LFP_dir}/whole_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
     freqs1, mean_power1 = LFP_1area_repeat(param=param1, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
                                            sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
     freqs2, mean_power2 = LFP_2area_repeat(param=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
@@ -1349,21 +1364,33 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     return freqs1, mean_power1, freqs2, mean_power2, freqs_diff, mean_power_diff
 # 1,2area and diff, compare different sig
 def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], maxrate=500, dt=0.1, 
-                         sti_type='Uniform', plot=True, video=True, save_load=False):
+                         sti_type='Uniform', plot=True, video=True, save_load=False,
+                         save_path_beta1=None,save_path_gamma1=None,save_path1=None,
+                         save_path_beta2=None,save_path_gamma2=None,save_path2=None,
+                         save_path_betad=None,save_path_gammad=None,save_pathd=None):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
     common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-    save_path_beta1 = f'{LFP_dir}/beta_1area_FFT_{common_path1}_{n_repeat}.eps'
-    save_path_beta2 = f'{LFP_dir}/beta_2area_FFT_{common_path2}_{n_repeat}.eps'
-    save_path_betad = f'{LFP_dir}/beta_diff_FFT_{common_path2}_{n_repeat}.eps'
-    save_path_gamma1 = f'{LFP_dir}/gamma_1area_FFT_{common_path1}_{n_repeat}.eps'
-    save_path_gamma2 = f'{LFP_dir}/gamma_2area_FFT_{common_path2}_{n_repeat}.eps'
-    save_path_gammad = f'{LFP_dir}/gamma_diff_FFT_{common_path2}_{n_repeat}.eps'
-    save_path1 = f'{LFP_dir}/whole_1area_FFT_{common_path1}_{n_repeat}.eps'
-    save_path2 = f'{LFP_dir}/whole_2area_FFT_{common_path2}_{n_repeat}.eps'
-    save_pathd = f'{LFP_dir}/whole_diff_FFT_{common_path2}_{n_repeat}.eps'
+    if save_path_beta1 is None:
+        save_path_beta1 = f'{LFP_dir}/beta_1area_FFT_{common_path1}_{n_repeat}.eps'
+    if save_path_beta2 is None:
+        save_path_beta2 = f'{LFP_dir}/beta_2area_FFT_{common_path2}_{n_repeat}.eps'
+    if save_path_betad is None:
+        save_path_betad = f'{LFP_dir}/beta_diff_FFT_{common_path2}_{n_repeat}.eps'
+    if save_path_gamma1 is None:
+        save_path_gamma1 = f'{LFP_dir}/gamma_1area_FFT_{common_path1}_{n_repeat}.eps'
+    if save_path_gamma2 is None:
+        save_path_gamma2 = f'{LFP_dir}/gamma_2area_FFT_{common_path2}_{n_repeat}.eps'
+    if save_path_gammad is None:
+        save_path_gammad = f'{LFP_dir}/gamma_diff_FFT_{common_path2}_{n_repeat}.eps'
+    if save_path1 is None:
+        save_path1 = f'{LFP_dir}/whole_1area_FFT_{common_path1}_{n_repeat}.eps'
+    if save_path2 is None:
+        save_path2 = f'{LFP_dir}/whole_2area_FFT_{common_path2}_{n_repeat}.eps'
+    if save_pathd is None:
+        save_pathd = f'{LFP_dir}/whole_diff_FFT_{common_path2}_{n_repeat}.eps'
 
     results_1area = []
     results_2area = []
@@ -1769,17 +1796,53 @@ try:
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
 
-    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0):
-        param=vary_ie_ratio(dx=0,dy=0)
-        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0):
-        # param = (1.795670364314891, 2.449990451446889, 1.8512390285440765, 2.399131446733395)
-        param1=vary_ie_ratio(dx=1,dy=0)
-        param2=vary_ie_ratio(dx=-1,dy=0)
+    dx1=0.0
+    dy1=1.0
+    dx2=0.0
+    dy2=-1.0
+    w_12_e=2.2
+    w_12_i=2.2
+    w_21_e=2.2
+    w_21_i=2.2
+    temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
+    temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+    Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+    Path(temp_dir2).mkdir(parents=True, exist_ok=True)
+    path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
+    path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,
+                                  save_path_beta=None,
+                                  save_path_gamma=None,
+                                  save_path=None):
+        param=vary_ie_ratio(dx=dx1,dy=dy1)
+        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
+                         plot=True,video=True,save_load=False,
+                         save_path=save_path,
+                         save_path_beta=save_path_beta,
+                         save_path_gamma=save_path_gamma)
+    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,dx2=0.0,dy2=0.0,
+                                  w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
+                                  save_path_beta=None,
+                                  save_path_gamma=None,
+                                  save_path=None):
+        param1=vary_ie_ratio(dx=dx1,dy=dy1)
+        param2=vary_ie_ratio(dx=dx2,dy=dy2)
         param12=param1+param2
-        LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,plot=True,video=True,save_load=False)
-    # draw_LFP_FFT_1area_repeat()
-    # draw_LFP_FFT_2area_repeat()
+        LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
+                         plot=True,video=True,save_load=False,
+                         w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                         save_path=save_path,
+                         save_path_beta=save_path_beta,
+                         save_path_gamma=save_path_gamma)
+    # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
+    #                           save_path=f'./{path_1}_whole.eps',
+    #                           save_path_beta=f'./{path_1}_beta.eps',
+    #                           save_path_gamma=f'./{path_1}_gamma.eps')
+    draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
+                              w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                              save_path=f'./{path_2}_whole.eps',
+                              save_path_beta=f'./{path_2}_beta.eps',
+                              save_path_gamma=f'./{path_2}_gamma.eps')
 
     # def draw_LFP_FFT_diff_repeat(n_repeat=128):
     #     param1 = (1.795670364314891, 2.449990451446889)
@@ -1793,10 +1856,10 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param2)
 
     #%% alpha<1.5
-    param1=vary_ie_ratio(dx=-0.2,dy=1)
-    param2=vary_ie_ratio(dx=-0.9,dy=0)
-    param12 = param1+param2
-    draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500, sti_type='Uniform')
+    # param1=vary_ie_ratio(dx=-0.2,dy=1)
+    # param2=vary_ie_ratio(dx=-0.2,dy=1)
+    # param12 = param1+param2
+    # draw_LFP_FFT_compare(param1=param1, param2=param12, n_repeat=64, maxrate=500, sti_type='Uniform')
     
     # print('computing start')
     # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)

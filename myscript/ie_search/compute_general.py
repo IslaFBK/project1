@@ -373,7 +373,8 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     }
 
 def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False,le=64,li=32):
+              sti_type='Gaussian', video=False, save_load=False,le=64,li=32,
+              w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -422,10 +423,22 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     #%% INTER PARAMETERS
     # inter mean weight
-    scale_w_12_e = 3 # 3.656
-    scale_w_12_i = 3 # scale_w_12_e
-    scale_w_21_e = 2 # 0.578
-    scale_w_21_i = 2 # scale_w_21_e
+    if w_12_e is None:
+        scale_w_12_e = 3 # 3.656
+    else:
+        scale_w_12_e = w_12_e
+    if w_12_i is None:
+        scale_w_12_i = 3 # scale_w_12_e
+    else:
+        scale_w_12_i = w_12_i
+    if w_21_e is None:
+        scale_w_21_e = 3 # 0.578
+    else:
+        scale_w_21_e = w_21_e
+    if w_21_i is None:
+        scale_w_21_i = 3 # scale_w_21_e
+    else:
+        scale_w_21_i = w_21_i
 
     # inter decay
     tau_p_d_e1_e2 = 8
