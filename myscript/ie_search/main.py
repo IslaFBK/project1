@@ -1613,7 +1613,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], ma
 
 #%% Execution area
 try:
-    send_email.send_email('begin running', 'ie_search.main running')
+    send_email.send_email('begin running - server 1', 'ie_search.main running')
     #%% test
     # param = (1.8512390285440765, 2.399131446733395)
     # 1st pair (alpha <= 1.3)
@@ -1796,20 +1796,6 @@ try:
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
 
-    dx1=0.0
-    dy1=1.0
-    dx2=0.0
-    dy2=-1.0
-    w_12_e=2.2
-    w_12_i=2.2
-    w_21_e=2.2
-    w_21_i=2.2
-    temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
-    temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
-    Path(temp_dir1).mkdir(parents=True, exist_ok=True)
-    Path(temp_dir2).mkdir(parents=True, exist_ok=True)
-    path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
-    path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
     def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,
                                   save_path_beta=None,
                                   save_path_gamma=None,
@@ -1834,15 +1820,31 @@ try:
                          save_path=save_path,
                          save_path_beta=save_path_beta,
                          save_path_gamma=save_path_gamma)
-    # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
-    #                           save_path=f'./{path_1}_whole.eps',
-    #                           save_path_beta=f'./{path_1}_beta.eps',
-    #                           save_path_gamma=f'./{path_1}_gamma.eps')
-    draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
-                              w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                              save_path=f'./{path_2}_whole.eps',
-                              save_path_beta=f'./{path_2}_beta.eps',
-                              save_path_gamma=f'./{path_2}_gamma.eps')
+    dx1=0.0
+    dy1=1.0
+    # dx2=-1.0 # 0,-1,1
+    # dy2=-1.0 # 0,1,-1
+    w_12_e=2.2
+    w_12_i=2.2
+    w_21_e=2.2
+    w_21_i=2.2
+    for dy2 in [0.0, 1.0, -1.0]:
+        for dx2 in [0.0, -1.0, 1.0]:
+            temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
+            temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+            # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+            Path(temp_dir2).mkdir(parents=True, exist_ok=True)
+            path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
+            path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+            # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
+            #                           save_path=f'./{path_1}_whole.eps',
+            #                           save_path_beta=f'./{path_1}_beta.eps',
+            #                           save_path_gamma=f'./{path_1}_gamma.eps')
+            draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
+                                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                                    save_path=f'./{path_2}_whole.eps',
+                                    save_path_beta=f'./{path_2}_beta.eps',
+                                    save_path_gamma=f'./{path_2}_gamma.eps')
 
     # def draw_LFP_FFT_diff_repeat(n_repeat=128):
     #     param1 = (1.795670364314891, 2.449990451446889)
@@ -1872,7 +1874,7 @@ try:
 
 
 
-    send_email.send_email('code executed', 'ie_search.main accomplished')
+    send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈
