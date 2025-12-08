@@ -573,16 +573,26 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     '''record LFP'''
     if record_LFP:
         from connection import get_LFP
-
+        # area 1
         LFP_elec = np.array([[0,0],[-le/2,-le/2]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
                                             LFP_sigma=8,LFP_effect_range=2.5)
         group_LFP_record = NeuronGroup(len(LFP_elec),
-                                    model=get_LFP.LFP_recordneuron)
+                                       model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
         syn_LFP.connect(i=i_LFP,j=j_LFP)
         syn_LFP.w[:] = w_LFP[:]
+        # area 2
+        LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
+                                               width=ijwd2.width,
+                                               LFP_sigma=8,LFP_effect_range=2.5)
+        group_LFP_record2 = NeuronGroup(len(LFP_elec2),
+                                        model=get_LFP.LFP_recordneuron)
+        syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
+        syn_LFP2.connect(i=i_LFP2,j=j_LFP2)
+        syn_LFP2.w[:] = w_LFP2[:]
                                                 
     #%%
     '''stim 1; constant amplitude'''
@@ -725,6 +735,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     if record_LFP:
         lfp_moni = StateMonitor(group_LFP_record, ('lfp'), record = True)
+        lfp_moni2= StateMonitor(group_LFP_record2, ('lfp'), record = True)
 
     #%%
     net = Network(collect())
@@ -778,6 +789,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
             'inter':{'param':param_inter}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a2']['ge']['LFP'] = lfp_moni2.lfp[:]/nA
 
     if save_load:
         # save and load
@@ -888,7 +900,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
         'centre2': centre2
     }
 
-#%% computation with all vital parameters input
+#%% computation with all vital parameters input 允许改变其他值，允许使用第二层adaptation
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 
                       sig=2, sti_type='Gaussian', 
@@ -900,7 +912,8 @@ def compute_1_general(comb, seed=10, index=1,
                       decay_p_ee_1 = 7.5,
                       decay_p_ei_1 = 9.5,
                       decay_p_ie_1 = 19,
-                      decay_p_ii_1 = 19):
+                      decay_p_ii_1 = 19,
+                      delta_gk = 1): # delta_gk=1表示用第一层的adaptation,=2表示用第二层的adaptation
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -1100,7 +1113,15 @@ def compute_1_general(comb, seed=10, index=1,
 
     group_e_1.v = np.random.random(ijwd1.Ne)*35*mV-85*mV
     group_i_1.v = np.random.random(ijwd1.Ni)*35*mV-85*mV
-    group_e_1.delta_gk = delta_gk_1*nS
+    # 允许使用第二层adaptation
+    # try:
+    #     delta_gk = int(float(delta_gk))
+    # except Exception:
+    #     delta_gk = 1
+    if delta_gk == 2:
+        group_e_1.delta_gk = delta_gk_2*nS
+    else:
+        group_e_1.delta_gk = delta_gk_1*nS
     group_e_1.tau_k = tau_k_*ms
     group_e_1.g_l = g_l_E
     group_i_1.g_l = g_l_I
@@ -1445,16 +1466,26 @@ def compute_2_general(comb, seed=10, index=1,
     '''record LFP'''
     if record_LFP:
         from connection import get_LFP
-
+        # area 1
         LFP_elec = np.array([[0,0],[-le/2,-le/2]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
                                             LFP_sigma=8,LFP_effect_range=2.5)
         group_LFP_record = NeuronGroup(len(LFP_elec),
-                                    model=get_LFP.LFP_recordneuron)
+                                       model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
         syn_LFP.connect(i=i_LFP,j=j_LFP)
         syn_LFP.w[:] = w_LFP[:]
+        # area 2
+        LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
+                                               width=ijwd2.width,
+                                               LFP_sigma=8,LFP_effect_range=2.5)
+        group_LFP_record2 = NeuronGroup(len(LFP_elec2),
+                                        model=get_LFP.LFP_recordneuron)
+        syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
+        syn_LFP2.connect(i=i_LFP2,j=j_LFP2)
+        syn_LFP2.w[:] = w_LFP2[:]
                                                 
     #%%
     '''stim 1; constant amplitude'''
@@ -1597,6 +1628,7 @@ def compute_2_general(comb, seed=10, index=1,
 
     if record_LFP:
         lfp_moni = StateMonitor(group_LFP_record, ('lfp'), record = True)
+        lfp_moni2= StateMonitor(group_LFP_record2, ('lfp'), record = True)
 
     #%%
     net = Network(collect())
@@ -1654,6 +1686,7 @@ def compute_2_general(comb, seed=10, index=1,
             'inter':{'param':param_inter}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a2']['ge']['LFP'] = lfp_moni2.lfp[:]/nA
 
     if save_load:
         # save and load

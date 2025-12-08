@@ -26,6 +26,10 @@ from joblib import Parallel, delayed
 from pathlib import Path
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx_repeat_and_packet_exist
+from myscript.ie_search.compute_general import compute_1
+from myscript.ie_search.compute_general import compute_2
+from myscript.ie_search.compute_general import compute_1_general
+from myscript.ie_search.compute_general import compute_2_general
 import myscript.ie_search.utils as utils
 import myscript.ie_search.batch_repeat as batch_repeat
 import myscript.ie_search.load_repeat as load_repeat
@@ -41,8 +45,9 @@ initial_param = {
 parents = list(itertools.product(*initial_param.values()))
 # get total looping number
 loop_total = len(parents)
-def eval_func(comb, index=1):
-    result = compute_MSD_pdx(comb=comb, index=index, video=False)
+def eval_func(comb, index=1, delta_gk=1):
+    # result = compute_MSD_pdx(comb=comb, index=index, video=False)
+    result = compute_1_general(comb=comb, index=index, video=False, delta_gk=delta_gk)
     msd = result['msd']
     jump_interval = result['jump_interval']
     pdx = result['pdx']
@@ -81,7 +86,7 @@ def generate_children(parent, r, n_child):
     return [tuple(parent + r/3 * np.random.randn(*parent.shape)) for _ in range(n_child)]
 
 def evolve_search(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=5, n_jobs=-1, 
-                  max_children_per_gen=1000):
+                  max_children_per_gen=1000, delta_gk=1):
     parents = [{'param': param, 'alpha': None, 'n_child_': n_child, 'critical': None, 'parent_alpha': None} 
                for param in initial_params]
     history = []
@@ -89,7 +94,7 @@ def evolve_search(initial_params, eval_func, r0=1.0, k=0.2, max_gen=10, n_child=
         print(f'Generation {gen}, parent num: {len(parents)}')
         # 1. 并行评估所有父代
         results = Parallel(n_jobs=n_jobs)(
-            delayed(eval_func)(comb=parent['param'])
+            delayed(eval_func)(comb=parent['param'], delta_gk=delta_gk)
             for parent in parents
         )
         # 2. 更新父代的alpha和critical
@@ -199,8 +204,8 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
     for gen, gen_info in enumerate(history):
         for entry in gen_info:
             ie_r_e1, ie_r_i1 = entry['param']
-            all_x.append(ie_r_i1)
-            all_y.append(ie_r_e1)
+            all_x.append(ie_r_e1)
+            all_y.append(ie_r_i1)
             all_alpha.append(entry['alpha'])
             all_gen.append(gen)
             all_critical.append(entry['critical'])
@@ -273,8 +278,8 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
     if plot_ellipse and np.sum(mask_critical) >= 3:
         ellipse = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary', zorder=4)
         ax1.add_patch(ellipse)
-    ax1.set_xlabel(r'$\zeta^{\rm I}$', fontsize=10)
-    ax1.set_ylabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax1.set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax1.set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
     ax1.set_title('Generation (Critical States)', fontsize=11)
     ax1.tick_params(axis='both', labelsize=10)
     cbar1 = plt.colorbar(sc1, ax=ax1, ticks=range(generations))
@@ -306,8 +311,8 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
         if plot_ellipse and np.sum(mask_critical) >= 3:
             ellipse2 = Ellipse(xy=mean, width=width, height=height, angle=theta, edgecolor='blue', facecolor='none', lw=2, label='Ellipse Boundary')
             ax2.add_patch(ellipse2)
-    ax2.set_xlabel(r'$\zeta^{\rm I}$', fontsize=10)
-    ax2.set_ylabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax2.set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
+    ax2.set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
     ax2.set_title('Alpha (Critical States)', fontsize=11)
     ax2.tick_params(axis='both', labelsize=10)
     ax2.legend(fontsize=9)

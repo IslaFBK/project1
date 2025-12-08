@@ -258,12 +258,12 @@ def pick_farthest_critical_point(history):
     farthest_point = max(critical_points, key=euclidean_dist)
     return min_alpha_point, farthest_point
 
-def evalution_search(compute=False, repeat_MSD=False):
+def evalution_search(compute=False, repeat_MSD=False, delta_gk=1):
     if compute:
         # 初始参数栅格
         initial_param = {
-            'ie_r_e1': np.linspace(1.8, 2.5, 8),
-            'ie_r_i1': np.linspace(1.8, 2.5, 8)
+            'ie_r_e1': np.linspace(2.1, 2.8, 8),
+            'ie_r_i1': np.linspace(1.5, 2.2, 8)
         }
         initial_params = list(itertools.product(*initial_param.values()))
         # 运行进化搜索
@@ -274,16 +274,17 @@ def evalution_search(compute=False, repeat_MSD=False):
             r0=0.1,
             k=0.2,
             max_gen=10,
-            n_child=5
+            n_child=5,
+            delta_gk=delta_gk
         )
         # save
         print('saving')
-        with open(f'{state_dir}/evolution.file', 'wb') as file:
+        with open(f'{state_dir}/evolution{delta_gk}.file', 'wb') as file:
             pickle.dump(history, file)
 
     # load
     print('loading')
-    with open(f'{state_dir}/evolution.file', 'rb') as file:
+    with open(f'{state_dir}/evolution{delta_gk}.file', 'rb') as file:
         history = pickle.load(file)
 
     # print(len(history))
@@ -617,7 +618,9 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     for param in params:
         # # 如果想看此轮采样的点中算了多少个，用这个
         # loop_num += 1
-        param_tuple = (param[1], param[0])
+
+        # 由于已修改critical_states_search.plot_evolution_history的xy轴，这里可以改回来了
+        param_tuple = (param[0], param[1]) 
         try:
             field = rf_and_alpha_repeat(param=param_tuple, 
                                         n_repeat=n_repeat, 
@@ -1670,7 +1673,7 @@ try:
     # param1 = (2.449990451446889, 1.795670364314891)
     # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    # evalution_search(compute=False)
+    evalution_search(compute=True, delta_gk=2)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1820,31 +1823,32 @@ try:
                          save_path=save_path,
                          save_path_beta=save_path_beta,
                          save_path_gamma=save_path_gamma)
-    dx1=0.0
-    dy1=1.0
+    ## 这里在第一层椭圆临界域内尝试计算特殊点的LFP，就连第二层也在第一层临界域内取值
+    # dx1=0.0
+    # dy1=1.0
     # dx2=-1.0 # 0,-1,1
     # dy2=-1.0 # 0,1,-1
-    w_12_e=2.2
-    w_12_i=2.2
-    w_21_e=2.2
-    w_21_i=2.2
-    for dy2 in [0.0, 1.0, -1.0]:
-        for dx2 in [0.0, -1.0, 1.0]:
-            temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
-            temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
-            # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
-            Path(temp_dir2).mkdir(parents=True, exist_ok=True)
-            path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
-            path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
-            # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
-            #                           save_path=f'./{path_1}_whole.eps',
-            #                           save_path_beta=f'./{path_1}_beta.eps',
-            #                           save_path_gamma=f'./{path_1}_gamma.eps')
-            draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
-                                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                                    save_path=f'./{path_2}_whole.eps',
-                                    save_path_beta=f'./{path_2}_beta.eps',
-                                    save_path_gamma=f'./{path_2}_gamma.eps')
+    # w_12_e=2.7
+    # w_12_i=2.7
+    # w_21_e=2.7
+    # w_21_i=2.7
+    # for dy2 in [0.0, 1.0, -1.0]:
+    #     for dx2 in [0.0, -1.0, 1.0]:
+    #         temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
+    #         temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+    #         # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+    #         Path(temp_dir2).mkdir(parents=True, exist_ok=True)
+    #         path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
+    #         path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
+    #         # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
+    #         #                           save_path=f'./{path_1}_whole.eps',
+    #         #                           save_path_beta=f'./{path_1}_beta.eps',
+    #         #                           save_path_gamma=f'./{path_1}_gamma.eps')
+    #         draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
+    #                                 w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+    #                                 save_path=f'./{path_2}_whole.eps',
+    #                                 save_path_beta=f'./{path_2}_beta.eps',
+    #                                 save_path_gamma=f'./{path_2}_gamma.eps')
 
     # def draw_LFP_FFT_diff_repeat(n_repeat=128):
     #     param1 = (1.795670364314891, 2.449990451446889)
