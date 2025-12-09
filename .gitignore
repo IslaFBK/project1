@@ -30,3 +30,4 @@ test.py
 *.eps
 ai.md
 send_email.py
+*.bak

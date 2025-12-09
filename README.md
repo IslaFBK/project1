@@ -17,6 +17,7 @@ In the vary folder:
 ```
 python.exe -m pip install -r packages.txt
 python.exe -m pip install -r requirements.txt
+python.exe -m pip install --no-build-isolation -r requirements.txt
 ```
 ## Windows:
 ### Add the three folders to path:

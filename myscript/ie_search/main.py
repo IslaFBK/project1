@@ -262,7 +262,7 @@ def evalution_search(compute=False, repeat_MSD=False, delta_gk=1):
     if compute:
         # 初始参数栅格
         initial_param = {
-            'ie_r_e1': np.linspace(2.1, 2.8, 8),
+            'ie_r_e1': np.linspace(1.9, 2.6, 8),
             'ie_r_i1': np.linspace(1.5, 2.2, 8)
         }
         initial_params = list(itertools.product(*initial_param.values()))
@@ -291,10 +291,10 @@ def evalution_search(compute=False, repeat_MSD=False, delta_gk=1):
 
     # draw
     print('drawing')
-    save_path = f'{graph_dir}/evaluation.eps'
+    save_path = f'{graph_dir}/evaluation{delta_gk}.eps'
     ellipse_info = search.plot_evolution_history(history=history,save_path=save_path)
     # 保存椭圆边界信息
-    with open(f'{state_dir}/critical_ellipse.file', 'wb') as file:
+    with open(f'{state_dir}/critical_ellipse{delta_gk}.file', 'wb') as file:
         pickle.dump(ellipse_info, file)
     
     plt.figure(figsize=(14, 7))
@@ -577,7 +577,7 @@ def find_max_min_receptive_field(n_repeat, maxrate=1000):
 
 # 上面那个的完全上位
 def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=1000, 
-                                               n_sample=1000, fit=False):
+                                               n_sample=1000, fit=False, delta_gk=1):
     # 读取椭圆参数
     with open(range_path, 'rb') as file:
         ellipse_info = pickle.load(file)
@@ -596,7 +596,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     params = [tuple(p) for p in params]
 
     # 尝试读取已有历史
-    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
     r_rf_history = []
     computed_params = set()
     if os.path.exists(rf_history_path):
@@ -656,7 +656,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         loop_num = len(r_rf_history)
 
         # 实时保存
-        with open(f'{state_dir}/rf_landscape_{n_sample}.file', 'wb') as file:
+        with open(f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file', 'wb') as file:
             pickle.dump(r_rf_history, file)
 
         # 画地形图
@@ -696,7 +696,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         cbar2.ax.tick_params(labelsize=10)
         # axs[1].legend(fontsize=9)
         plt.tight_layout(pad=1.0)
-        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}.eps', dpi=300)
+        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}_{delta_gk}.eps', dpi=300)
         plt.close()
 
         # 画3维地形图
@@ -798,9 +798,9 @@ def fit_quadratic_surface(x, y, z):
     coeffs, _, _, _ = np.linalg.lstsq(X, z, rcond=None)
     return coeffs
 
-def plot_rf_landscape_3d(n_sample, fit=True):
+def plot_rf_landscape_3d(n_sample, fit=True, delta_gk=1):
     # 读取历史文件
-    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
     with open(rf_history_path, 'rb') as file:
         r_rf_history = pickle.load(file)
 
@@ -1700,12 +1700,14 @@ try:
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
-    ## distribution search
-    # range_path = f'{state_dir}/critical_ellipse.file'
+    # # distribution search
+    # delta_gk=1
+    # range_path = f'{state_dir}/critical_ellipse_{delta_gk}.file'
     # result = find_receptive_field_distribution_in_range(n_repeat=64, 
     #                                                     range_path=range_path, 
     #                                                     maxrate=1000, 
-    #                                                     n_sample=1000)
+    #                                                     n_sample=1000,
+    #                                                     delta_gk=delta_gk)
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 
