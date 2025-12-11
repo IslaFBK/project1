@@ -258,7 +258,8 @@ def pick_farthest_critical_point(history):
     farthest_point = max(critical_points, key=euclidean_dist)
     return min_alpha_point, farthest_point
 
-def evalution_search(compute=False, repeat_MSD=False, conf_level=0.99, delta_gk=1):
+def evalution_search(compute=False, repeat_MSD=False, conf_level=0.99, delta_gk=1, 
+                     remove_outlier=True):
     if compute:
         # 初始参数栅格
         initial_param = {
@@ -294,8 +295,11 @@ def evalution_search(compute=False, repeat_MSD=False, conf_level=0.99, delta_gk=
     save_path = f'{graph_dir}/evaluation{delta_gk}.eps'
     ellipse_info = search.plot_evolution_history(history=history,
                                                  save_path=save_path,
+                                                 remove_outlier=remove_outlier,
+                                                 plot_hull=True,
+                                                 plot_ellipse=True,
                                                  conf_level=conf_level)
-    # 保存椭圆边界信息
+    # 保存椭圆（及凸包）边界信息
     with open(f'{state_dir}/critical_ellipse{delta_gk}.file', 'wb') as file:
         pickle.dump(ellipse_info, file)
     
@@ -357,6 +361,36 @@ def sample_in_ellipse(mean, cov, conf_level, n_samples):
         
         samples.append(point_ellipse)
     
+    return np.array(samples)
+
+def sample_hull_uniform(hull_vertices, n_samples=1000):
+    """基于凸包顶点进行均匀采样"""
+    triangles = []
+    areas = []
+    # 三角剖分：以第一个顶点为公共顶点
+    for i in range(1, len(hull_vertices)-1):
+        tri = np.array([hull_vertices[0], hull_vertices[i], hull_vertices[i+1]])
+        triangles.append(tri)
+        # 计算三角形面积
+        area = 0.5 * np.abs(
+            (tri[1,0]-tri[0,0])*(tri[2,1]-tri[0,1]) - (tri[1,1]-tri[0,1])*(tri[2,0]-tri[0,0])
+        )
+        areas.append(area)
+    
+    # 面积加权采样
+    areas = np.array(areas)
+    area_weights = areas / areas.sum()
+    tri_indices = np.random.choice(len(triangles), size=n_samples, p=area_weights)
+    
+    # 三角形内均匀采样
+    samples = []
+    for idx in tri_indices:
+        tri = triangles[idx]
+        a, b = np.random.rand(2)
+        if a + b > 1:
+            a, b = 1 - a, 1 - b
+        sample = a * tri[0] + b * tri[1] + (1 - a - b) * tri[2]
+        samples.append(sample)
     return np.array(samples)
 
 # Receptive_field
@@ -580,13 +614,15 @@ def find_max_min_receptive_field(n_repeat, maxrate=1000):
 
 # 上面那个的完全上位
 def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=1000, 
-                                               n_sample=1000, fit=False, delta_gk=1):
+                                               n_sample=1000, fit=False, delta_gk=1, 
+                                               sample_type='Ellipse'):
     # 读取椭圆参数
     with open(range_path, 'rb') as file:
         ellipse_info = pickle.load(file)
     mean = ellipse_info['mean']
     cov = ellipse_info['cov']
     conf_level = ellipse_info.get('conf_level', 0.99)
+
     # 转换椭圆坐标(绘图用)
     vals, vecs = np.linalg.eigh(cov)
     order = vals.argsort()[::-1]
@@ -594,9 +630,25 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
     theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
     width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
 
-    # 椭圆内采样参数
-    params = sample_in_ellipse(mean, cov, conf_level, n_sample)
-    params = [tuple(p) for p in params]
+    # 提取凸包核心信息
+    hull_vertices = ellipse_info['hull_vertices']
+    # filtered_points = ellipse_info['filtered_critical_points']
+    # hull = ellipse_info['hull_object']
+
+    if sample_type == 'Ellipse':
+        # 椭圆内采样参数
+        params = sample_in_ellipse(mean, cov, conf_level, n_sample)
+        params = [tuple(p) for p in params]
+    elif sample_type == 'Hull':
+        # 椭圆内采样参数
+        params = sample_hull_uniform(hull_vertices, n_sample)
+        params = [tuple(p) for p in params]
+    else:
+        # 抛出 ValueError，明确提示合法取值和当前错误值
+        raise ValueError(
+            f"无效的采样类型 '{sample_type}'!"
+            f"合法的采样类型仅支持：'Ellipse' 或 'Hull'。"
+        )
 
     # 尝试读取已有历史
     rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
@@ -1705,13 +1757,13 @@ try:
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
     # # distribution search
-    delta_gk=2
-    range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
-    result = find_receptive_field_distribution_in_range(n_repeat=64, 
-                                                        range_path=range_path, 
-                                                        maxrate=1000, 
-                                                        n_sample=1000,
-                                                        delta_gk=delta_gk)
+    # delta_gk=2
+    # range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
+    # result = find_receptive_field_distribution_in_range(n_repeat=64, 
+    #                                                     range_path=range_path, 
+    #                                                     maxrate=1000, 
+    #                                                     n_sample=1000,
+    #                                                     delta_gk=delta_gk)
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 
