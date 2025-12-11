@@ -258,7 +258,7 @@ def pick_farthest_critical_point(history):
     farthest_point = max(critical_points, key=euclidean_dist)
     return min_alpha_point, farthest_point
 
-def evalution_search(compute=False, repeat_MSD=False, delta_gk=1):
+def evalution_search(compute=False, repeat_MSD=False, conf_level=0.99, delta_gk=1):
     if compute:
         # 初始参数栅格
         initial_param = {
@@ -292,7 +292,9 @@ def evalution_search(compute=False, repeat_MSD=False, delta_gk=1):
     # draw
     print('drawing')
     save_path = f'{graph_dir}/evaluation{delta_gk}.eps'
-    ellipse_info = search.plot_evolution_history(history=history,save_path=save_path)
+    ellipse_info = search.plot_evolution_history(history=history,
+                                                 save_path=save_path,
+                                                 conf_level=conf_level)
     # 保存椭圆边界信息
     with open(f'{state_dir}/critical_ellipse{delta_gk}.file', 'wb') as file:
         pickle.dump(ellipse_info, file)
@@ -433,31 +435,32 @@ def receptive_field_repeat(param, n_repeat, plot=False,
 # compute receptive field radius and alpha with repeat realizaiton
 def rf_and_alpha_repeat(param, n_repeat, plot=False,
                         video0=False, video1=False, maxrate=1000,
-                        save_load0=False, save_load1=False):
+                        save_load0=False, save_load1=False,
+                        delta_gk=1):
     # without stimuli
     if video0:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=(i==0), save_load=save_load0)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False, 
+                                               video=(i==0), save_load=save_load0, delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=False, save_load=save_load0)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False, 
+                                               video=False, save_load=save_load0, delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     # with stimuli
     if video1:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
-                                    video=(i==0), save_load=save_load1)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
+                                               video=(i==0), save_load=save_load1, delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
-                                    video=False, save_load=save_load1)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
+                                               video=False, save_load=save_load1, delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     # 计算rf
@@ -472,8 +475,8 @@ def rf_and_alpha_repeat(param, n_repeat, plot=False,
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
-    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}_{delta_gk}.png'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}_{delta_gk}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
                                save_path=save_path,
@@ -625,7 +628,8 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             field = rf_and_alpha_repeat(param=param_tuple, 
                                         n_repeat=n_repeat, 
                                         maxrate=maxrate, 
-                                        plot=False)
+                                        plot=False,
+                                        delta_gk=delta_gk)
             r_rf = field['r_rf']
             alpha = field['alpha']
             critical = field['critical']
@@ -665,10 +669,10 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         z_rf = [info['r_rf'] for info in r_rf_history]
         z_alpha = [info['alpha'] for info in r_rf_history]
         # 创建椭圆对象
-        ellipse1 = Ellipse(xy=(mean[1], mean[0]), width=width, height=height, angle=90-theta, 
+        ellipse1 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
                             edgecolor='blue', facecolor='none', lw=2, 
                             label='Ellipse Boundary', zorder=4)
-        ellipse2 = Ellipse(xy=(mean[1], mean[0]), width=width, height=height, angle=90-theta, 
+        ellipse2 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
                             edgecolor='blue', facecolor='none', lw=2, 
                             label='Ellipse Boundary', zorder=4)
 
@@ -1673,7 +1677,7 @@ try:
     # param1 = (2.449990451446889, 1.795670364314891)
     # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    evalution_search(compute=True, delta_gk=2)
+    # evalution_search(compute=False, conf_level=0.9, delta_gk=2)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1701,13 +1705,13 @@ try:
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
     # # distribution search
-    # delta_gk=1
-    # range_path = f'{state_dir}/critical_ellipse_{delta_gk}.file'
-    # result = find_receptive_field_distribution_in_range(n_repeat=64, 
-    #                                                     range_path=range_path, 
-    #                                                     maxrate=1000, 
-    #                                                     n_sample=1000,
-    #                                                     delta_gk=delta_gk)
+    delta_gk=2
+    range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
+    result = find_receptive_field_distribution_in_range(n_repeat=64, 
+                                                        range_path=range_path, 
+                                                        maxrate=1000, 
+                                                        n_sample=1000,
+                                                        delta_gk=delta_gk)
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 

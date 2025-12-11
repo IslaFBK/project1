@@ -247,13 +247,49 @@ def plot_evolution_history(history, save_path, plot_hull=False, plot_ellipse=Tru
     # 计算椭圆边界
     if plot_ellipse and np.sum(mask_critical) >= 3:
         critical_points = np.column_stack([all_x[mask_critical], all_y[mask_critical]])
-        mean = np.mean(critical_points, axis=0)
+        ## 直接通过协方差计算椭圆
+        # mean = np.mean(critical_points, axis=0)
+        # cov = np.cov(critical_points, rowvar=False)
+        # vals, vecs = np.linalg.eigh(cov)
+        # order = vals.argsort()[::-1]
+        # vals, vecs = vals[order], vecs[:, order]
+        # theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+        # width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
+        ## 鲁棒椭圆
+        # 步骤1：初始均值和协方差
+        mean_x = np.mean(critical_points[:, 0])
+        mean_y = np.mean(critical_points[:, 1])
         cov = np.cov(critical_points, rowvar=False)
+
+        # 步骤2：计算马氏距离
+        inv_cov = np.linalg.inv(cov)
+        centered = critical_points - [mean_x, mean_y]
+        mahalanobis_dist = np.sqrt(np.sum(centered @ inv_cov * centered, axis=1))
+
+        # 步骤3：去除离群点
+        threshold = np.sqrt(chi2.ppf(conf_level, 2))
+        inlier_mask = mahalanobis_dist <= threshold
+        inlier_points = critical_points[inlier_mask]
+
+        # 如果去除离群点后点数不足，则使用所有点
+        if len(inlier_points) < 3:
+            inlier_points = critical_points
+
+        # 步骤4：重新计算均值和协方差
+        mean = np.mean(inlier_points, axis=0)
+        cov = np.cov(inlier_points, rowvar=False)
+
+        # 步骤5：计算椭圆参数
         vals, vecs = np.linalg.eigh(cov)
         order = vals.argsort()[::-1]
         vals, vecs = vals[order], vecs[:, order]
-        theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
-        width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
+
+        # 旋转角度（以度为单位）
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        # 半轴长度乘以缩放因子s（根据置信水平）
+        s = np.sqrt(chi2.ppf(conf_level, 2))
+        width, height = 2 * np.sqrt(vals) * s
 
     # 子图1：颜色表示代数
     ax1 = plt.subplot(1, 2, 1)
