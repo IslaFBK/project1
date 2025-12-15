@@ -338,6 +338,7 @@ class CriticalityAnalyzer:
 def receptive_field(spk_rate0, spk_rate1, 
                     save_path='temp.png', 
                     data_path=None,
+                    save_file=True,
                     plot=False):
     tmean_fr0 = np.mean(spk_rate0, axis=2)
     mean_fr0 = np.mean(tmean_fr0)
@@ -346,9 +347,10 @@ def receptive_field(spk_rate0, spk_rate1,
     tmean_fr = np.mean(spk_rate1, axis=2)
     fr_ext = tmean_fr - uniform_fr0
 
-    # save external firing rate distribution data
-    with open(data_path, 'wb') as file:
-        pickle.dump(fr_ext, file)
+    if save_file:
+        # save external firing rate distribution data
+        with open(data_path, 'wb') as file:
+            pickle.dump(fr_ext, file)
 
     Nx, Ny = fr_ext.shape
     width = Nx

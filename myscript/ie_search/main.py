@@ -941,11 +941,11 @@ def plot_rf_landscape_3d(n_sample, fit=True, delta_gk=1):
 
     plt.close()
 
-def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64):
+def load_and_draw_receptive_field(param, maxrate=5000, n_repeat=64, delta_gk=1):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
-    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}_{delta_gk}.png'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}_{delta_gk}.file'
     if not os.path.exists(save_path) or 1:
         with open(data_path, 'rb') as file:
             fr_ext = pickle.load(file)
