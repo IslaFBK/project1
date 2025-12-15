@@ -632,6 +632,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
 
     # 提取凸包核心信息
     hull_vertices = ellipse_info['hull_vertices']
+    hull_boundary_closed = ellipse_info['hull_boundary_closed']
     # filtered_points = ellipse_info['filtered_critical_points']
     # hull = ellipse_info['hull_object']
 
@@ -720,18 +721,23 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         y = [info['param'][1] for info in r_rf_history]
         z_rf = [info['r_rf'] for info in r_rf_history]
         z_alpha = [info['alpha'] for info in r_rf_history]
-        # 创建椭圆对象
-        ellipse1 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
-                            edgecolor='blue', facecolor='none', lw=2, 
-                            label='Ellipse Boundary', zorder=4)
-        ellipse2 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
-                            edgecolor='blue', facecolor='none', lw=2, 
-                            label='Ellipse Boundary', zorder=4)
+        if sample_type == 'Ellipse':
+            # 创建椭圆对象
+            ellipse1 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
+                                edgecolor='blue', facecolor='none', lw=2, 
+                                label='Ellipse Boundary', zorder=4)
+            ellipse2 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
+                                edgecolor='blue', facecolor='none', lw=2, 
+                                label='Ellipse Boundary', zorder=4)
 
         fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
         # 左：r_rf
         sc1 = axs[0].scatter(x, y, c=z_rf, cmap='viridis', s=60)
-        axs[0].add_patch(ellipse1)
+        if sample_type == 'Ellipse':
+            axs[0].add_patch(ellipse1)
+        elif sample_type == 'Hull':
+            axs[0].plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
+                        'r-', linewidth=2, label='Convex Hull')
         axs[0].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
         axs[0].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
         axs[0].set_title('Receptive Field Radius', fontsize=11)
@@ -742,7 +748,11 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         # axs[0].legend(fontsize=9)
         # 右：alpha
         sc2 = axs[1].scatter(x, y, c=z_alpha, cmap='plasma', s=60)
-        axs[1].add_patch(ellipse2)
+        if sample_type == 'Ellipse':
+            axs[1].add_patch(ellipse2)
+        elif sample_type == 'Hull':
+            axs[1].plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
+                        'r-', linewidth=2, label='Convex Hull')
         axs[1].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
         axs[1].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
         axs[1].set_title(r'$\alpha$', fontsize=11)
@@ -1729,7 +1739,8 @@ try:
     # param1 = (2.449990451446889, 1.795670364314891)
     # param2 = (2.449990451446889, 1.795670364314891, 2.399131446733395, 1.8512390285440765)
     #%% evalutionary search
-    # evalution_search(compute=False, conf_level=0.9, delta_gk=2)
+    # evalution_search(compute=False, conf_level=0.99, 
+    #                  delta_gk=2, remove_outlier=False)
 
     #%% repeat 1 area computation
     # param1 = (1.824478865468595, 2.4061741957998843)
@@ -1757,13 +1768,14 @@ try:
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
     # # distribution search
-    # delta_gk=2
-    # range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
-    # result = find_receptive_field_distribution_in_range(n_repeat=64, 
-    #                                                     range_path=range_path, 
-    #                                                     maxrate=1000, 
-    #                                                     n_sample=1000,
-    #                                                     delta_gk=delta_gk)
+    delta_gk=2
+    range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
+    result = find_receptive_field_distribution_in_range(n_repeat=64, 
+                                                        range_path=range_path, 
+                                                        maxrate=1000, 
+                                                        n_sample=1000,
+                                                        delta_gk=delta_gk,
+                                                        sample_type='Hull')
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 

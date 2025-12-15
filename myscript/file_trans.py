@@ -6,7 +6,8 @@ state_dir = 'ie_ratio_2/state/'
 
 #%% 3d dots
 n_sample = 1000
-rf_history_path = f'{state_dir}/rf_landscape_{n_sample}.file'
+delta_gk = 2
+rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
 with open(rf_history_path, 'rb') as file:
     r_rf_history = pickle.load(file)
 
@@ -30,7 +31,7 @@ y = np.array(y)
 z1 = np.array(z1)
 z2 = np.array(z2)
 
-savemat(f'{state_dir}/rf_alpha_landscape_{n_sample}.mat', {'x': x, 'y': y, 'z1': z1, 'z2': z2})
+savemat(f'{state_dir}/rf_alpha_landscape_{n_sample}_{delta_gk}.mat', {'x': x, 'y': y, 'z1': z1, 'z2': z2})
 
 #%% 椭圆信息转化
 # ellipse_path = f'{state_dir}/critical_ellipse.file'
