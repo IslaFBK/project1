@@ -1988,7 +1988,8 @@ try:
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算
     dx=0
     dy=1
-    param2= (1.81273,1.53026)
+    # param2 = (1.81273,1.53026)
+    param2 = (1.84138, 1.57448)
     for w in [2.2, 2.3, 2.4, 2.5]:
         w_12_e=w
         w_12_i=w
@@ -1998,7 +1999,7 @@ try:
         # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
         path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
-        draw_LFP_FFT_2area_repeat2(dx1=dx,dy1=dy,param2=param2,
+        draw_LFP_FFT_2area_repeat2(dx=dx,dy=dy,param2=param2,
                                 w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                                 save_path=f'./{path}_whole.eps',
                                 save_path_beta=f'./{path}_beta.eps',
