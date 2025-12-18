@@ -652,7 +652,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         )
 
     # 尝试读取已有历史
-    rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
+    rf_history_path = f'{state_dir}/rf_landscape_{maxrate}_{delta_gk}.file'
     r_rf_history = []
     computed_params = set()
     if os.path.exists(rf_history_path):
@@ -688,13 +688,13 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
             critical = field['critical']
         except Exception as e:
             print(f"参数 {param_tuple} 计算失败: {e}")
-            send_email.send_email('Progress', f"参数 {param_tuple} 计算失败: {e}")
+            send_email.send_email('Error', f"参数 {param_tuple} 计算失败: {e}")
             continue
         
         # 修改1: 当alpha>1.5时跳过当前参数
         if alpha > 1.5:
             print(f"参数 {param_tuple} alpha={alpha:.3f}>1.5,跳过")
-            send_email.send_email('Progress', f"参数 {param_tuple} alpha={alpha:.3f}>1.5,跳过")
+            send_email.send_email('Skip', f"参数 {param_tuple} alpha={alpha:.3f}>1.5,跳过")
             continue
 
         rf_list.append((param_tuple, r_rf))
@@ -713,7 +713,7 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         loop_num = len(r_rf_history)
 
         # 实时保存
-        with open(f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file', 'wb') as file:
+        with open(f'{state_dir}/rf_landscape_{maxrate}_{delta_gk}.file', 'wb') as file:
             pickle.dump(r_rf_history, file)
 
         # 画地形图
@@ -762,84 +762,84 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         cbar2.ax.tick_params(labelsize=10)
         # axs[1].legend(fontsize=9)
         plt.tight_layout(pad=1.0)
-        plt.savefig(f'{graph_dir}/rf_landscape_{n_sample}_{delta_gk}.eps', dpi=300)
+        plt.savefig(f'{graph_dir}/rf_landscape_{maxrate}_{delta_gk}.eps', dpi=300)
         plt.close()
 
-        # 画3维地形图
-        # 提取有效数据
-        x, y, z = [], [], []
-        x_bad, y_bad = [], []
-        for info in r_rf_history:
-            param = info['param']
-            r_rf = info['r_rf']
-            # 自动舍弃无效点
-            if r_rf is None or not isinstance(r_rf, (int, float)) or not (r_rf == r_rf):  # 排除None和NaN
-                x_bad.append(param[0])
-                y_bad.append(param[1])
-                continue
-            x.append(param[0])
-            y.append(param[1])
-            z.append(r_rf)
+        # # 画3维地形图（已淘汰，现在用matlab画3d图）
+        # # 提取有效数据
+        # x, y, z = [], [], []
+        # x_bad, y_bad = [], []
+        # for info in r_rf_history:
+        #     param = info['param']
+        #     r_rf = info['r_rf']
+        #     # 自动舍弃无效点
+        #     if r_rf is None or not isinstance(r_rf, (int, float)) or not (r_rf == r_rf):  # 排除None和NaN
+        #         x_bad.append(param[0])
+        #         y_bad.append(param[1])
+        #         continue
+        #     x.append(param[0])
+        #     y.append(param[1])
+        #     z.append(r_rf)
         
-        # 转为numpy数组，避免幂运算报错
-        x = np.array(x)
-        y = np.array(y)
-        z = np.array(z)
+        # # 转为numpy数组，避免幂运算报错
+        # x = np.array(x)
+        # y = np.array(y)
+        # z = np.array(z)
 
-        fig = plt.figure(figsize=(8,6))
-        ax = fig.add_subplot(111, projection='3d')
-        sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
+        # fig = plt.figure(figsize=(8,6))
+        # ax = fig.add_subplot(111, projection='3d')
+        # sc = ax.scatter(x, y, z, c=z, cmap='viridis', s=40)
 
-        if fit and len(x)>6:
-            # 曲面拟合
-            coeffs = fit_quadratic_surface(x, y, z)
+        # if fit and len(x)>6:
+        #     # 曲面拟合
+        #     coeffs = fit_quadratic_surface(x, y, z)
 
-            # 计算拟合值和R²
-            X_design = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
-            z_fit = X_design @ coeffs
-            ss_res = np.sum((z - z_fit) ** 2)
-            ss_tot = np.sum((z - np.mean(z)) ** 2)
-            r2 = 1 - ss_res / ss_tot
+        #     # 计算拟合值和R²
+        #     X_design = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
+        #     z_fit = X_design @ coeffs
+        #     ss_res = np.sum((z - z_fit) ** 2)
+        #     ss_tot = np.sum((z - np.mean(z)) ** 2)
+        #     r2 = 1 - ss_res / ss_tot
 
-            # 生成网格用于画曲面
-            x_grid = np.linspace(np.min(x), np.max(x), 50)
-            y_grid = np.linspace(np.min(y), np.max(y), 50)
-            X_grid, Y_grid = np.meshgrid(x_grid, y_grid)
-            Z_grid = (coeffs[0]*X_grid**2 + coeffs[1]*Y_grid**2 + coeffs[2]*X_grid*Y_grid +
-                    coeffs[3]*X_grid + coeffs[4]*Y_grid + coeffs[5])
+        #     # 生成网格用于画曲面
+        #     x_grid = np.linspace(np.min(x), np.max(x), 50)
+        #     y_grid = np.linspace(np.min(y), np.max(y), 50)
+        #     X_grid, Y_grid = np.meshgrid(x_grid, y_grid)
+        #     Z_grid = (coeffs[0]*X_grid**2 + coeffs[1]*Y_grid**2 + coeffs[2]*X_grid*Y_grid +
+        #             coeffs[3]*X_grid + coeffs[4]*Y_grid + coeffs[5])
 
-            # 画三维地形图
-            surf = ax.plot_surface(X_grid, Y_grid, Z_grid, cmap='coolwarm', alpha=0.5, linewidth=0, antialiased=True)
-            ax.set_title(f'Receptive Field 3D Landscape with Quadratic Surface Fit, $R^2$={r2:.3f}')
-        else:
-            ax.set_title('Receptive Field 3D Landscape')
+        #     # 画三维地形图
+        #     surf = ax.plot_surface(X_grid, Y_grid, Z_grid, cmap='coolwarm', alpha=0.5, linewidth=0, antialiased=True)
+        #     ax.set_title(f'Receptive Field 3D Landscape with Quadratic Surface Fit, $R^2$={r2:.3f}')
+        # else:
+        #     ax.set_title('Receptive Field 3D Landscape')
 
-        # 获取当前z轴范围
-        if len(z) > 0:
-            zmin, zmax = np.min(z), np.max(z)
-            dz = zmax - zmin
-            z_bad = np.full(len(x_bad), zmin - 0.05*dz if dz > 0 else zmin - 1)
-            # 在最低面下方一点画无效点
-            ax.scatter(x_bad, y_bad, z_bad, c='red', marker='x', s=50, label='Invalid r_rf')
-            # 可选：加图例
-            ax.legend()
+        # # 获取当前z轴范围
+        # if len(z) > 0:
+        #     zmin, zmax = np.min(z), np.max(z)
+        #     dz = zmax - zmin
+        #     z_bad = np.full(len(x_bad), zmin - 0.05*dz if dz > 0 else zmin - 1)
+        #     # 在最低面下方一点画无效点
+        #     ax.scatter(x_bad, y_bad, z_bad, c='red', marker='x', s=50, label='Invalid r_rf')
+        #     # 可选：加图例
+        #     ax.legend()
         
-        ax.set_xlabel(r'$\zeta^{\rm E}$')
-        ax.set_ylabel(r'$\zeta^{\rm I}$')
-        ax.set_zlabel('Receptive Field')
-        fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
-        plt.tight_layout()
-        plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}.png', dpi=300)
-        # 俯视视角
-        ax.view_init(elev=90, azim=-90)
-        plt.tight_layout()
-        plt.savefig(f'{graph_dir}/rf_landscape_3d_{n_sample}_top.png', dpi=300)
+        # ax.set_xlabel(r'$\zeta^{\rm E}$')
+        # ax.set_ylabel(r'$\zeta^{\rm I}$')
+        # ax.set_zlabel('Receptive Field')
+        # fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, label='Receptive Field')
+        # plt.tight_layout()
+        # plt.savefig(f'{graph_dir}/rf_landscape_3d_{maxrate}_{delta_gk}.png', dpi=300)
+        # # 俯视视角
+        # ax.view_init(elev=90, azim=-90)
+        # plt.tight_layout()
+        # plt.savefig(f'{graph_dir}/rf_landscape_3d_{maxrate}_{delta_gk}_top.png', dpi=300)
 
-        plt.close()
+        # plt.close()
 
         # 发邮件报告进度
         send_email.send_email(
-            'Progress',
+            f'Progress: Complete {loop_num} in {loop_total}',
             f'Complete {loop_num} in {loop_total}, \n parameter: {param_tuple}, \n r_rf: {r_rf}. \n Now, \n max r_rf: {max_val}, \n max parameter: {max_param}, \n min r_rf: {min_val}, \n min parameter: {min_param}'
         )
 
@@ -863,7 +863,7 @@ def fit_quadratic_surface(x, y, z):
     X = np.column_stack([x**2, y**2, x*y, x, y, np.ones_like(x)])
     coeffs, _, _, _ = np.linalg.lstsq(X, z, rcond=None)
     return coeffs
-
+# 已过时，n_sample意义不大现已替换为maxrate索引，而且3d图现在会在matlab里画
 def plot_rf_landscape_3d(n_sample, fit=True, delta_gk=1):
     # 读取历史文件
     rf_history_path = f'{state_dir}/rf_landscape_{n_sample}_{delta_gk}.file'
@@ -1275,19 +1275,19 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.close()
     return freqs, mean_power
 
-# repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum
+# repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum(已修改，添加第二份LFP)
 def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1, 
-                     plot=True, video=True, save_load=False,
+                     plot=True, plot12=False, video=True, save_load=False,
                      w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                      save_path_beta=None,save_path_gamma=None,save_path=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     if save_path_beta is None:
-        save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path_beta = f'{LFP_dir}/beta_2area_FFT_{sig}_{common_path}_{n_repeat}'
     if save_path_gamma is None:
-        save_path_gamma = f'{LFP_dir}/gamma_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path_gamma = f'{LFP_dir}/gamma_2area_FFT_{sig}_{common_path}_{n_repeat}'
     if save_path is None:
-        save_path = f'{LFP_dir}/whole_2area_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path = f'{LFP_dir}/whole_2area_FFT_{sig}_{common_path}_{n_repeat}'
     if video:
         results = Parallel(n_jobs=-1)(
             delayed(compute.compute_2)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate, sig=sig, 
@@ -1303,18 +1303,25 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
             for i in range(n_repeat)
         )
     # 提取所有LFP
-    LFP_list = [r['data'].a1.ge.LFP for r in results]
+    LFP1_list = [r['data'].a1.ge.LFP for r in results]
+    LFP2_list = [r['data'].a2.ge.LFP for r in results]
     # 计算所有频谱
-    fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
-    freqs = fft_results[0][0]
-    powers = np.array([fr[1] for fr in fft_results])
-    mean_power = np.mean(powers, axis=0)
+    fft1_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP1_list]
+    freqs1 = fft1_results[0][0]
+    powers1 = np.array([fr[1] for fr in fft1_results])
+    mean_power1 = np.mean(powers1, axis=0)
 
+    fft2_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP2_list]
+    freqs2 = fft2_results[0][0]
+    powers2 = np.array([fr[1] for fr in fft2_results])
+    mean_power2 = np.mean(powers2, axis=0)
+
+    ## 第一层LFP
     # 画平均频谱
     if plot:
     # whole
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs1, mean_power1, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum with feedback')
@@ -1322,15 +1329,15 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.xlim(fft_l, fft_r)
         plt.legend()
         x_min, x_max = plt.xlim()
-        mask = (freqs >= x_min) & (freqs <= x_max)
+        mask = (freqs1 >= x_min) & (freqs1 <= x_max)
         if np.any(mask):
-            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+            plt.ylim(np.min(mean_power1[mask]), np.max(mean_power1[mask]))
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs1, mean_power1, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) with feedback')
@@ -1338,15 +1345,15 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.xlim(15, 30)
         plt.legend()
         x_min, x_max = plt.xlim()
-        mask = (freqs >= x_min) & (freqs <= x_max)
+        mask = (freqs1 >= x_min) & (freqs1 <= x_max)
         if np.any(mask):
-            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+            plt.ylim(np.min(mean_power1[mask]), np.max(mean_power1[mask]))
         if save_path_beta:
-            plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path_beta}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
-        plt.loglog(freqs, mean_power, label='Mean Power')
+        plt.loglog(freqs1, mean_power1, label='Mean Power')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
@@ -1354,13 +1361,72 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform',
         plt.xlim(30, 80)
         plt.legend()
         x_min, x_max = plt.xlim()
-        mask = (freqs >= x_min) & (freqs <= x_max)
+        mask = (freqs1 >= x_min) & (freqs1 <= x_max)
         if np.any(mask):
-            plt.ylim(np.min(mean_power[mask]), np.max(mean_power[mask]))
+            plt.ylim(np.min(mean_power1[mask]), np.max(mean_power1[mask]))
         if save_path_gamma:
-            plt.savefig(save_path_gamma, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path_gamma}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
-    return freqs, mean_power
+
+    ## 第二层LFP
+    # 画平均频谱
+    if plot12:
+    # whole
+        plt.figure(figsize=(6,4))
+        plt.loglog(freqs2, mean_power2, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum with feedback')
+        plt.grid(True)
+        plt.xlim(fft_l, fft_r)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs2 >= x_min) & (freqs2 <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power2[mask]), np.max(mean_power2[mask]))
+        if save_path:
+            plt.savefig(f'{save_path}_2.eps', dpi=300, bbox_inches='tight')
+        plt.close()
+    # beta
+        plt.figure(figsize=(6,4))
+        plt.loglog(freqs2, mean_power2, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (beta) with feedback')
+        plt.grid(True)
+        plt.xlim(15, 30)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs2 >= x_min) & (freqs2 <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power2[mask]), np.max(mean_power2[mask]))
+        if save_path_beta:
+            plt.savefig(f'{save_path_beta}_2.eps', dpi=300, bbox_inches='tight')
+        plt.close()
+    # gamma
+        plt.figure(figsize=(6,4))
+        plt.loglog(freqs2, mean_power2, label='Mean Power')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power')
+        plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
+        plt.grid(True)
+        plt.xlim(30, 80)
+        plt.legend()
+        x_min, x_max = plt.xlim()
+        mask = (freqs2 >= x_min) & (freqs2 <= x_max)
+        if np.any(mask):
+            plt.ylim(np.min(mean_power2[mask]), np.max(mean_power2[mask]))
+        if save_path_gamma:
+            plt.savefig(f'{save_path_gamma}_2.eps', dpi=300, bbox_inches='tight')
+        plt.close()
+
+    fft12 = {
+        'freqs1': freqs1,
+        'mean_power1': mean_power1,
+        'freqs2': freqs2,
+        'mean_power2': mean_power2,
+    }
+    return fft12
 
 # exam middle point LFP (FFT)
 def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='Uniform', dt=0.1,
@@ -1369,15 +1435,17 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     if save_path_beta is None:
-        save_path_beta = f'{LFP_dir}/beta_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path_beta = f'{LFP_dir}/beta_diff_FFT_{sig}_{common_path}_{n_repeat}'
     if save_path_gamma is None:
-        save_path_gamma = f'{LFP_dir}/gamma_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path_gamma = f'{LFP_dir}/gamma_diff_FFT_{sig}_{common_path}_{n_repeat}'
     if save_path is None:
-        save_path = f'{LFP_dir}/whole_diff_FFT_{sig}_{common_path}_{n_repeat}.eps'
+        save_path = f'{LFP_dir}/whole_diff_FFT_{sig}_{common_path}_{n_repeat}'
     freqs1, mean_power1 = LFP_1area_repeat(param=param1, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
                                            sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
-    freqs2, mean_power2 = LFP_2area_repeat(param=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
+    fft12 = LFP_2area_repeat(param=param2, n_repeat=n_repeat, maxrate=maxrate, sig=sig,
                                            sti_type=sti_type, dt=dt, plot=plot, video=video, save_load=save_load)
+    freqs2 = fft12['freqs1']
+    mean_power2 = fft12['mean_power1']
     freqs_diff = freqs2
     mean_power_diff = mean_power2-mean_power1
 
@@ -1396,7 +1464,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         if np.any(mask):
             plt.ylim(np.min(mean_power_diff[mask]), np.max(mean_power_diff[mask]))
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
     # beta
         plt.figure(figsize=(6,4))
@@ -1412,7 +1480,7 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         if np.any(mask):
             plt.ylim(np.min(mean_power_diff[mask]), np.max(mean_power_diff[mask]))
         if save_path_beta:
-            plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path_beta}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
     # gamma
         plt.figure(figsize=(6,4))
@@ -1428,8 +1496,9 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, sti_type='U
         if np.any(mask):
             plt.ylim(np.min(mean_power_diff[mask]), np.max(mean_power_diff[mask]))
         if save_path_gamma:
-            plt.savefig(save_path_gamma, dpi=300, bbox_inches='tight')
+            plt.savefig(f'{save_path_gamma}_1.eps', dpi=300, bbox_inches='tight')
         plt.close()
+
     return freqs1, mean_power1, freqs2, mean_power2, freqs_diff, mean_power_diff
 # 1,2area and diff, compare different sig
 def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25], maxrate=500, dt=0.1, 
@@ -1764,18 +1833,24 @@ try:
     # # second layer
     # param = (1.8870084212830673, 2.3990240481749168)
     # receptive_field_repeat(param=param, n_repeat=128, maxrate=1000, plot=True, video1=True)
+    # # 邻近的两个点，1000hz下第一个rf=17.66,第二个rf=15.35。试试2000hz，5000hz
+    # param1 = (1.8999,1.6314)
+    # param2 = (1.9009,1.6124)
+    # maxrate=100
+    # receptive_field_repeat(param=param1, n_repeat=64, maxrate=maxrate, plot=True, video1=True)
+    # receptive_field_repeat(param=param2, n_repeat=64, maxrate=maxrate, plot=True, video1=True)
 
     #%% search receptive field
     # result = find_max_min_receptive_field(n_repeat=64, maxrate=1000)
     # # distribution search
-    delta_gk=2
-    range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
-    result = find_receptive_field_distribution_in_range(n_repeat=64, 
-                                                        range_path=range_path, 
-                                                        maxrate=1000, 
-                                                        n_sample=1000,
-                                                        delta_gk=delta_gk,
-                                                        sample_type='Hull')
+    # delta_gk=2
+    # range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
+    # result = find_receptive_field_distribution_in_range(n_repeat=64, 
+    #                                                     range_path=range_path, 
+    #                                                     maxrate=2000, 
+    #                                                     n_sample=1000,
+    #                                                     delta_gk=delta_gk,
+    #                                                     sample_type='Hull')
     #%% draw 3d distribution
     # plot_rf_landscape_3d(1000,fit=False)
 
@@ -1879,6 +1954,7 @@ try:
                          save_path=save_path,
                          save_path_beta=save_path_beta,
                          save_path_gamma=save_path_gamma)
+    # 这个还是认为第二层可以用第一层参数空间，已被淘汰
     def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,dx2=0.0,dy2=0.0,
                                   w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                   save_path_beta=None,
@@ -1893,6 +1969,41 @@ try:
                          save_path=save_path,
                          save_path_beta=save_path_beta,
                          save_path_gamma=save_path_gamma)
+
+    ## 第一层由dxdy指定，第二层直接指定的双层LFP计算，且画出第二层LFP
+    def draw_LFP_FFT_2area_repeat2(n_repeat=64,sig=0,dx=0.0,dy=0.0,param2=None,
+                                  w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
+                                  save_path_beta=None,
+                                  save_path_gamma=None,
+                                  save_path=None):
+        param1=vary_ie_ratio(dx=dx,dy=dy)
+        param2=param2
+        param12=param1+param2
+        LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
+                         plot=True,plot12=True,video=True,save_load=False,
+                         w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                         save_path=save_path,
+                         save_path_beta=save_path_beta,
+                         save_path_gamma=save_path_gamma)
+    ## 第一层由dxdy指定，第二层直接指定的双层LFP计算
+    dx=0
+    dy=1
+    param2= (1.81273,1.53026)
+    for w in [2.2, 2.3, 2.4, 2.5]:
+        w_12_e=w
+        w_12_i=w
+        w_21_e=w
+        w_21_i=w
+        temp_dir=f'./{LFP_dir}/r{dx}_{dy}_{param2}w{w}'
+        # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+        Path(temp_dir).mkdir(parents=True, exist_ok=True)
+        path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
+        draw_LFP_FFT_2area_repeat2(dx1=dx,dy1=dy,param2=param2,
+                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                                save_path=f'./{path}_whole.eps',
+                                save_path_beta=f'./{path}_beta.eps',
+                                save_path_gamma=f'./{path}_gamma.eps')
+
     ## 这里在第一层椭圆临界域内尝试计算特殊点的LFP，就连第二层也在第一层临界域内取值
     # dx1=0.0
     # dy1=1.0
