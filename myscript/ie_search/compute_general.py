@@ -39,7 +39,8 @@ combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
 def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False, le=64,li=32):
+              sti_type='Gaussian', video=False, save_load=False, stim_dura=1000,
+              save_path_data=None, save_path_video=None, le=64,li=32):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -155,7 +156,7 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                                 
     #%%
     # --- 刺激参数设置与时序生成 ---
-    stim_dura = 1000      # 每次刺激持续时间（ms）
+    stim_dura = stim_dura # 每次刺激持续时间（ms）
     transient = 3000      # 仿真初始预热期（ms），用于网络稳定
     inter_time = 2000     # 两次刺激间隔（ms）
 
@@ -301,12 +302,20 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     if save_load:
         # save and load
-        ''' save data to disk'''
-        with open(f"{data_dir}data_{index}.file", 'wb') as file:
-            pickle.dump(data, file)
-        '''load data from disk'''
-        data_load = mydata.mydata()
-        data_load.load(f"{data_dir}data_{index}.file")
+        if save_path_data is None:
+            ''' save data to disk'''
+            with open(f"{data_dir}data_{index}.file", 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(f"{data_dir}data_{index}.file")
+        else:
+            ''' save data to disk'''
+            with open(save_path_data, 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(save_path_data)
     else:
         # directly use mydata module
         data_load = mydata.mydata(data)
@@ -362,7 +371,10 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                anititle=title,
                                stim=stim,
                                adpt=None)
-        ani.save(f'./{video_dir}/1area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        if save_path_video is None:
+            ani.save(f'./{video_dir}/1area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        else:
+            ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
         'data': data_load,
         'msd': msd,
@@ -373,7 +385,8 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     }
 
 def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False,le=64,li=32,
+              sti_type='Gaussian', video=False, save_load=False,
+              save_path_data=None, save_path_video=None, le=64,li=32,
               w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
@@ -793,12 +806,20 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     if save_load:
         # save and load
-        ''' save data to disk'''
-        with open(f"{data_dir}data_{index}.file", 'wb') as file:
-            pickle.dump(data, file)
-        '''load data from disk'''
-        data_load = mydata.mydata()
-        data_load.load(f"{data_dir}data_{index}.file")
+        if save_path_data is None:
+            ''' save data to disk'''
+            with open(f"{data_dir}data_{index}.file", 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(f"{data_dir}data_{index}.file")
+        else:
+            ''' save data to disk'''
+            with open(save_path_data, 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(save_path_data)
     else:
         # directly use mydata module
         data_load = mydata.mydata(data)
@@ -885,7 +906,10 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
                                anititle=title,
                                stim=stim,
                                adpt=None)
-        ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        if save_path_video is None:
+            ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        else:
+            ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
         'data': data_load,
         'msd1': msd1,
@@ -905,6 +929,7 @@ def compute_1_general(comb, seed=10, index=1,
                       sti=False, maxrate=2000, 
                       sig=2, sti_type='Gaussian', 
                       video=False, save_load=False, 
+                      save_path_data=None, save_path_video=None, 
                       le=64,li=32,
                       num_ee_1 = 270, num_ei_1 = 350,
                       num_ie_1 = 130, num_ii_1 = 180,
@@ -1183,12 +1208,20 @@ def compute_1_general(comb, seed=10, index=1,
 
     if save_load:
         # save and load
-        ''' save data to disk'''
-        with open(f"{data_dir}data_{index}.file", 'wb') as file:
-            pickle.dump(data, file)
-        '''load data from disk'''
-        data_load = mydata.mydata()
-        data_load.load(f"{data_dir}data_{index}.file")
+        if save_path_data is None:
+            ''' save data to disk'''
+            with open(f"{data_dir}data_{index}.file", 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(f"{data_dir}data_{index}.file")
+        else:
+            ''' save data to disk'''
+            with open(save_path_data, 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(save_path_data)
     else:
         # directly use mydata module
         data_load = mydata.mydata(data)
@@ -1244,7 +1277,10 @@ def compute_1_general(comb, seed=10, index=1,
                                anititle=title,
                                stim=stim,
                                adpt=None)
-        ani.save(f'./{video_dir}/1area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        if save_path_video is None:
+            ani.save(f'./{video_dir}/1area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        else:
+            ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
         'data': data_load,
         'msd': msd,
@@ -1258,6 +1294,7 @@ def compute_2_general(comb, seed=10, index=1,
                       sti=False, maxrate=2000, 
                       sig=2, sti_type='Gaussian', 
                       video=False, save_load=False,
+                      save_path_data=None, save_path_video=None, 
                       le=64,li=32,
                       num_ee_1=270, num_ei_1=350,
                       num_ie_1=130, num_ii_1=180,
@@ -1690,12 +1727,20 @@ def compute_2_general(comb, seed=10, index=1,
 
     if save_load:
         # save and load
-        ''' save data to disk'''
-        with open(f"{data_dir}data_{index}.file", 'wb') as file:
-            pickle.dump(data, file)
-        '''load data from disk'''
-        data_load = mydata.mydata()
-        data_load.load(f"{data_dir}data_{index}.file")
+        if save_path_data is None:
+            ''' save data to disk'''
+            with open(f"{data_dir}data_{index}.file", 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(f"{data_dir}data_{index}.file")
+        else:
+            ''' save data to disk'''
+            with open(save_path_data, 'wb') as file:
+                pickle.dump(data, file)
+            '''load data from disk'''
+            data_load = mydata.mydata()
+            data_load.load(save_path_data)
     else:
         # directly use mydata module
         data_load = mydata.mydata(data)
@@ -1782,7 +1827,10 @@ def compute_2_general(comb, seed=10, index=1,
                                anititle=title,
                                stim=stim,
                                adpt=None)
-        ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        if save_path_video is None:
+            ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+        else:
+            ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
         'data': data_load,
         'msd1': msd1,

@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.collections import LineCollection
 import connection as cn
 from scipy.stats import linregress
 from matplotlib.colors import Normalize
@@ -39,25 +40,79 @@ def unwrap_periodic_path(centre, width=64):
     
     return continuous_centre
 
+# def plot_trajectory(
+#         data: np.ndarray,
+#         title: str = None,
+#         save_path: str = None
+# ):
+#     plt.figure(figsize=(6, 6))
+#     plt.plot(data[:,0],data[:,1])
+#     # get range, take maximum as general boundary
+#     x_min, x_max = data[:, 0].min(), data[:, 0].max()
+#     y_min, y_max = data[:, 1].min(), data[:, 1].max()
+#     max_range = max(x_max - x_min, y_max - y_min) * 1.1  # take 10% edge
+#     # set the same range
+#     plt.xlim((x_min + x_max - max_range) / 2, (x_min + x_max + max_range) / 2)
+#     plt.ylim((y_min + y_max - max_range) / 2, (y_min + y_max + max_range) / 2)
+#     # plot
+#     plt.title(title, fontsize=14, pad=20)
+#     plt.xlabel('Horizontal Position')
+#     plt.ylabel('Vertical Position')
+#     plt.savefig(save_path, dpi=300, bbox_inches='tight')
+#     return None
+
 def plot_trajectory(
         data: np.ndarray,
         title: str = None,
-        save_path: str = None
+        save_path: str = None,
+        cmap: str = "viridis",
+        linewidth: float = 2.0,
+        show_colorbar: bool = True
 ):
-    plt.figure(figsize=(6, 6))
-    plt.plot(data[:,0],data[:,1])
-    # get range, take maximum as general boundary
+    """
+    绘制二维轨迹，线条随时间呈现渐变色。
+    参数:
+        data: Nx2 数组 (x, y)
+        title: 图标题
+        save_path: 保存路径 (若为 None 则不保存)
+        cmap: colormap 名称
+        linewidth: 线宽
+        show_colorbar: 是否显示颜色条（表示时间方向）
+    """
+    data = np.asarray(data, dtype=float)
+    if data.ndim != 2 or data.shape[1] != 2:
+        raise ValueError("data must be an (N,2) array")
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # 构造线段并按时间着色
+    points = data.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)  # (N-1,2,2)
+    t = np.linspace(0.0, 1.0, len(segments))
+    norm = matplotlib.colors.Normalize(vmin=0.0, vmax=1.0)
+    lc = LineCollection(segments, array=t, cmap=plt.get_cmap(cmap), norm=norm, linewidths=linewidth)
+    ax.add_collection(lc)
+
+    # 设置范围，使 x 和 y 轴比例一致并留白
     x_min, x_max = data[:, 0].min(), data[:, 0].max()
     y_min, y_max = data[:, 1].min(), data[:, 1].max()
-    max_range = max(x_max - x_min, y_max - y_min) * 1.1  # take 10% edge
-    # set the same range
-    plt.xlim((x_min + x_max - max_range) / 2, (x_min + x_max + max_range) / 2)
-    plt.ylim((y_min + y_max - max_range) / 2, (y_min + y_max + max_range) / 2)
-    # plot
-    plt.title(title, fontsize=14, pad=20)
-    plt.xlabel('Horizontal Position')
-    plt.ylabel('Vertical Position')
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    max_range = max(x_max - x_min, y_max - y_min) * 1.1
+    ax.set_xlim((x_min + x_max - max_range) / 2, (x_min + x_max + max_range) / 2)
+    ax.set_ylim((y_min + y_max - max_range) / 2, (y_min + y_max + max_range) / 2)
+
+    ax.set_title(title, fontsize=14, pad=20)
+    ax.set_xlabel('Horizontal Position')
+    ax.set_ylabel('Vertical Position')
+    ax.set_aspect('equal', adjustable='box')
+
+    if show_colorbar:
+        sm = plt.cm.ScalarMappable(cmap=plt.get_cmap(cmap), norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, ax=ax, label='Normalized Time')
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     return None
 
 def check_jump_power_law(

@@ -1986,24 +1986,24 @@ try:
                          save_path_beta=save_path_beta,
                          save_path_gamma=save_path_gamma)
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算
-    dx=0
-    dy=1
-    # param2 = (1.81273,1.53026)
-    param2 = (1.84138, 1.57448)
-    for w in [2.2, 2.3, 2.4, 2.5]:
-        w_12_e=w
-        w_12_i=w
-        w_21_e=w
-        w_21_i=w
-        temp_dir=f'./{LFP_dir}/r{dx}_{dy}_{param2}w{w}'
-        # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
-        Path(temp_dir).mkdir(parents=True, exist_ok=True)
-        path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
-        draw_LFP_FFT_2area_repeat2(dx=dx,dy=dy,param2=param2,
-                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                                save_path=f'./{path}_whole.eps',
-                                save_path_beta=f'./{path}_beta.eps',
-                                save_path_gamma=f'./{path}_gamma.eps')
+    # dx=0
+    # dy=1
+    # # param2 = (1.81273,1.53026)
+    # param2 = (1.84138, 1.57448)
+    # for w in [2.2, 2.3, 2.4, 2.5]:
+    #     w_12_e=w
+    #     w_12_i=w
+    #     w_21_e=w
+    #     w_21_i=w
+    #     temp_dir=f'./{LFP_dir}/r{dx}_{dy}_{param2}w{w}'
+    #     # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+    #     Path(temp_dir).mkdir(parents=True, exist_ok=True)
+    #     path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
+    #     draw_LFP_FFT_2area_repeat2(dx=dx,dy=dy,param2=param2,
+    #                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+    #                             save_path=f'./{path}_whole.eps',
+    #                             save_path_beta=f'./{path}_beta.eps',
+    #                             save_path_gamma=f'./{path}_gamma.eps')
 
     ## 这里在第一层椭圆临界域内尝试计算特殊点的LFP，就连第二层也在第一层临界域内取值
     # dx1=0.0
@@ -2057,7 +2057,15 @@ try:
     # print('set 2 executed')
     # send_email.send_email('set 2 executed', 'set 2 executed')
 
-
+    #%% plot trajectory
+    param = vary_ie_ratio(dx=0,dy=1)
+    # param = (1.899,1.6314)
+    result = compute.compute_1(comb=param,video=True,stim_dura=10000)
+    data = result['data']
+    centre = data.a1.ge.centre_mass.centre
+    save_path_trajectory = f"{graph_dir}/Levy_trajecotry.eps"
+    conti = mya.unwrap_periodic_path(centre=centre)
+    mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
