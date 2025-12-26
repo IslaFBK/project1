@@ -62,6 +62,8 @@ def input_spkrate(maxrate = [800,800], sig=[6,6], position=[[-32, -32],[0, 0]],
                 rate_sti = np.zeros(len(dist_sti))
             # Annulus: rate for distances >= sig[i]
             rate_sti += maxrate[i] * (dist_sti >= sig[i])
+    else:
+        raise ValueError(f"Unknown sti_type '{sti_type}'. Supported values: 'Gaussian', 'Uniform', 'Annulus'.")
 
 #    dist_sti1 = coordination.lattice_dist(lattice, width, position[0])
 #    dist_sti2 = coordination.lattice_dist(lattice, width, position[1])

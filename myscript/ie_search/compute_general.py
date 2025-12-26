@@ -11,6 +11,9 @@ from connection import preprocess_2area
 from connection import build_one_area
 from connection import build_two_areas
 from connection import get_stim_scale
+from connection import adapt_gaussian
+from connection import adapt_logistic
+from connection import adapt_uniform
 from analysis import mydata
 from analysis import firing_rate_analysis as fra
 from pathlib import Path
@@ -38,9 +41,12 @@ Path(pdx_dir).mkdir(parents=True, exist_ok=True)
 combined_dir = f'./{graph_dir}/combined'
 Path(combined_dir).mkdir(parents=True, exist_ok=True)
 
-def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False, stim_dura=1000,
-              save_path_data=None, save_path_video=None, le=64,li=32):
+def compute_1(comb, seed=10, index=1, 
+              sti=False, maxrate=2000, 
+              sig=2, sti_type='Gaussian', 
+              video=False, save_load=False, 
+              save_path_data=None, save_path_video=None, 
+              le=64,li=32,stim_dura=1000,):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -262,12 +268,13 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     #%%
     tic = time.perf_counter()
 
-    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time2 = simu_time_tot - simu_time1
+    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms # 把滑动窗口那一帧的15ms加回来
+    # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
-    net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
     spk_tstep_e1 = np.round(spk_e_1.t/(0.1*ms)).astype(int)
@@ -365,9 +372,9 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
         # Animation
         title = f'Animation \n {common_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
-                               frames = frames,
+                               frames = frames, # 一共多少帧
                                start_time = start_time,
-                               interval_movie=15,
+                               interval_movie=15, # 每帧的虚拟时间间隔，等于window
                                anititle=title,
                                stim=stim,
                                adpt=None)
@@ -384,9 +391,12 @@ def compute_1(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
         'centre': centre
     }
 
-def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2, 
-              sti_type='Gaussian', video=False, save_load=False,
-              save_path_data=None, save_path_video=None, le=64,li=32,
+def compute_2(comb, seed=10, index=1, 
+              sti=False, maxrate=2000, adapt=False,
+              sig=2, sti_type='Gaussian', adapt_type='Gaussian',
+              video=False, save_load=False,
+              save_path_data=None, save_path_video=None, 
+              le=64,li=32, stim_dura=1000, 
               w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
@@ -606,11 +616,37 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
         syn_LFP2.connect(i=i_LFP2,j=j_LFP2)
         syn_LFP2.w[:] = w_LFP2[:]
-                                                
+
+    '''change adaptation'''
+    if adapt:
+        new_delta_gk_2 = new_delta_gk_2
+        chg_adapt_range = chg_adapt_range
+        chg_adapt_loca = [0, 0]
+        if adapt_type == 'Gaussian':
+            adapt_value = adapt_gaussian.get_adaptation(base_amp=delta_gk_2, 
+                                                        max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                        sig=[chg_adapt_range],
+                                                        position=[chg_adapt_loca],
+                                                        n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        elif adapt_type == 'Logistic':
+            adapt_value = adapt_logistic.get_adaptation(base_amp=delta_gk_2, 
+                                                        max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                        sig=[chg_adapt_range],
+                                                        position=[chg_adapt_loca],
+                                                        n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        elif adapt_type == 'Uniform':
+            adapt_value = adapt_uniform.get_adaptation(base_amp=delta_gk_2, 
+                                                    max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                    sig=[chg_adapt_range],
+                                                    position=[chg_adapt_loca],
+                                                    n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        else:
+            raise ValueError(f"Unknown adapt_type '{adapt_type}'. Supported values: 'Gaussian', 'Logistic', 'Uniform'.")
+
     #%%
     '''stim 1; constant amplitude'''
     '''no attention''' # ?background?
-    stim_dura = 1000 # ms duration of each stimulus presentation
+    stim_dura = stim_dura # ms duration of each stimulus presentation
     transient = 3000 # ms initial transient period; when add stimulus
     inter_time = 2000 # ms interval between trials without and with attention
 
@@ -740,6 +776,9 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     group_e_2.I_extnl_crt = 0*nA # 0.25 0.51*nA
     group_i_2.I_extnl_crt = 0*nA # 0.25 0.60*nA
 
+    if adapt:
+        group_e_2.delta_gk[:] = adapt_value*nS
+
     #%%
     spk_e_1 = SpikeMonitor(group_e_1, record = True)
     spk_i_1 = SpikeMonitor(group_i_1, record = True)
@@ -758,11 +797,12 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
     tic = time.perf_counter()
 
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time2 = simu_time_tot - simu_time1
+    # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
-    net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
     spk_tstep_e1 = np.round(spk_e_1.t/(0.1*ms)).astype(int)
@@ -774,6 +814,7 @@ def compute_2(comb, seed=10, index=1, sti=False, maxrate=2000, sig=2,
 
     param_all = {'delta_gk_1':delta_gk_1,
                  'delta_gk_2':delta_gk_2,
+                 'new_delta_gk_2':new_delta_gk_2,
                  'tau_k': tau_k_,
                  'tau_s_di':tau_s_di_,
                  'tau_s_de':tau_s_de_,
@@ -930,7 +971,7 @@ def compute_1_general(comb, seed=10, index=1,
                       sig=2, sti_type='Gaussian', 
                       video=False, save_load=False, 
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32,
+                      le=64,li=32, stim_dura=1000, 
                       num_ee_1 = 270, num_ei_1 = 350,
                       num_ie_1 = 130, num_ii_1 = 180,
                       w_ee_1 = 11, w_ii_1 = 50,
@@ -1054,7 +1095,7 @@ def compute_1_general(comb, seed=10, index=1,
                                                 
     #%%
     # --- 刺激参数设置与时序生成 ---
-    stim_dura = 1000      # 每次刺激持续时间（ms）
+    stim_dura = stim_dura # 每次刺激持续时间（ms）
     transient = 3000      # 仿真初始预热期（ms），用于网络稳定
     inter_time = 2000     # 两次刺激间隔（ms）
 
@@ -1169,11 +1210,12 @@ def compute_1_general(comb, seed=10, index=1,
     tic = time.perf_counter()
 
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time2 = simu_time_tot - simu_time1
+    # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
-    net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
     spk_tstep_e1 = np.round(spk_e_1.t/(0.1*ms)).astype(int)
@@ -1291,21 +1333,19 @@ def compute_1_general(comb, seed=10, index=1,
     }
 
 def compute_2_general(comb, seed=10, index=1, 
-                      sti=False, maxrate=2000, 
-                      sig=2, sti_type='Gaussian', 
+                      sti=False, maxrate=2000, adapt=False, top_sti=False,
+                      sig=2, sti_type='Gaussian', adapt_type= 'Gaussian',
                       video=False, save_load=False,
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32,
+                      le=64,li=32, stim_dura=1000, 
                       num_ee_1=270, num_ei_1=350,
                       num_ie_1=130, num_ii_1=180,
                       num_ee_2=270, num_ei_2=350,
                       num_ie_2=130, num_ii_2=180,
                       w_ee_1=11, w_ii_1=50,
                       w_ee_2=11, w_ii_2=50,
-                      scale_w_12_e=3,
-                      scale_w_12_i=3,
-                      scale_w_21_e=3,
-                      scale_w_21_i=3,
+                      w_12_e=None,w_12_i=None,
+                      w_21_e=None,w_21_i=None,
                       tau_p_d_e1_e2=8,
                       tau_p_d_e1_i2=8,
                       tau_p_d_e2_e1=8,
@@ -1321,7 +1361,11 @@ def compute_2_general(comb, seed=10, index=1,
                       decay_p_ee_2=7.5,
                       decay_p_ei_2=9.5,
                       decay_p_ie_2=19,
-                      decay_p_ii_2=19):
+                      decay_p_ii_2=19,
+                      d_gk_1=1.9,
+                      d_gk_2=6.5,
+                      new_delta_gk_2=0.5,
+                      chg_adapt_range=7):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -1343,8 +1387,8 @@ def compute_2_general(comb, seed=10, index=1,
     g_l_I = 25*nS
     v_k = -85*mV
     tau_k_ = 60   # ms
-    delta_gk_1 = 1.9
-    delta_gk_2 = 6.5
+    delta_gk_1 = d_gk_1
+    delta_gk_2 = d_gk_2
     v_rev_E = 0*mV
     v_rev_I = -80*mV
     tau_s_de_ = 5
@@ -1365,10 +1409,22 @@ def compute_2_general(comb, seed=10, index=1,
 
     #%% INTER PARAMETERS
     # inter mean weight
-    scale_w_12_e = scale_w_12_e # 3.656
-    scale_w_12_i = scale_w_12_i # scale_w_12_e
-    scale_w_21_e = scale_w_21_e # 0.578
-    scale_w_21_i = scale_w_21_i # scale_w_21_e
+    if w_12_e is None:
+        scale_w_12_e = 3 # 3.656
+    else:
+        scale_w_12_e = w_12_e
+    if w_12_i is None:
+        scale_w_12_i = 3 # scale_w_12_e
+    else:
+        scale_w_12_i = w_12_i
+    if w_21_e is None:
+        scale_w_21_e = 3 # 0.578
+    else:
+        scale_w_21_e = w_21_e
+    if w_21_i is None:
+        scale_w_21_i = 3 # scale_w_21_e
+    else:
+        scale_w_21_i = w_21_i
 
     # inter decay
     tau_p_d_e1_e2 = tau_p_d_e1_e2
@@ -1523,11 +1579,37 @@ def compute_2_general(comb, seed=10, index=1,
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
         syn_LFP2.connect(i=i_LFP2,j=j_LFP2)
         syn_LFP2.w[:] = w_LFP2[:]
-                                                
+
+    '''change adaptation'''
+    if adapt:
+        new_delta_gk_2 = new_delta_gk_2
+        chg_adapt_range = chg_adapt_range
+        chg_adapt_loca = [0, 0]
+        if adapt_type == 'Gaussian':
+            adapt_value = adapt_gaussian.get_adaptation(base_amp=delta_gk_2, 
+                                                        max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                        sig=[chg_adapt_range],
+                                                        position=[chg_adapt_loca],
+                                                        n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        elif adapt_type == 'Logistic':
+            adapt_value = adapt_logistic.get_adaptation(base_amp=delta_gk_2, 
+                                                        max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                        sig=[chg_adapt_range],
+                                                        position=[chg_adapt_loca],
+                                                        n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        elif adapt_type == 'Uniform':
+            adapt_value = adapt_uniform.get_adaptation(base_amp=delta_gk_2, 
+                                                    max_decrease=[delta_gk_2 - new_delta_gk_2],
+                                                    sig=[chg_adapt_range],
+                                                    position=[chg_adapt_loca],
+                                                    n_side=int(round((ijwd2.Ne)**0.5)),width=ijwd2.width)
+        else:
+            raise ValueError(f"Unknown adapt_type '{adapt_type}'. Supported values: 'Gaussian', 'Logistic', 'Uniform'.")
+
     #%%
     '''stim 1; constant amplitude'''
     '''no attention''' # ?background?
-    stim_dura = 1000 # ms duration of each stimulus presentation
+    stim_dura = stim_dura # ms duration of each stimulus presentation
     transient = 3000 # ms initial transient period; when add stimulus
     inter_time = 2000 # ms interval between trials without and with attention
 
@@ -1581,15 +1663,15 @@ def compute_2_general(comb, seed=10, index=1,
                                 weight=5*nS)
 
     #%% Stimulus (Gaussian/Uniform/Annulus)
-    if sti == True:
+    if sti:
         posi_stim_e1 = NeuronGroup(ijwd1.Ne, \
                                 '''rates =  bkg_rates + stim_1*scale_1(t) : Hz
                                 bkg_rates : Hz
                                 stim_1 : Hz
                                 ''', threshold='rand()<rates*dt')
-
+        stim_loca1 = [[0, 0]]
         posi_stim_e1.bkg_rates = 0*Hz
-        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=[[0, 0]], 
+        posi_stim_e1.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=stim_loca1, 
                                                  sti_type=sti_type, n_side=le, width=le)*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
@@ -1598,6 +1680,24 @@ def compute_2_general(comb, seed=10, index=1,
                                 model=synapse_e_extnl, on_pre='x_E_extnl_post += w')
         syn_extnl_e1.connect('i==j')
         syn_extnl_e1.w = w_extnl_*nS#*tau_s_de_*nS
+
+    if top_sti:
+        posi_stim_e2 = NeuronGroup(ijwd2.Ne, \
+                                '''rates =  bkg_rates + stim_1*scale_1(t) : Hz
+                                bkg_rates : Hz
+                                stim_1 : Hz
+                                ''', threshold='rand()<rates*dt')
+        stim_loca2 = [[0, 0]]
+        posi_stim_e2.bkg_rates = 0*Hz
+        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=stim_loca2, 
+                                                 sti_type=sti_type, n_side=le, width=le)*Hz
+        #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
+
+        synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD
+        syn_extnl_e2 = Synapses(posi_stim_e2, group_e_2, 
+                                model=synapse_e_extnl, on_pre='x_E_extnl_post += w')
+        syn_extnl_e2.connect('i==j')
+        syn_extnl_e2.w = w_extnl_*nS#*tau_s_de_*nS
 
     #%% group 1
     group_e_1.tau_s_de = tau_s_de_*ms; 
@@ -1657,6 +1757,9 @@ def compute_2_general(comb, seed=10, index=1,
     group_e_2.I_extnl_crt = 0*nA # 0.25 0.51*nA
     group_i_2.I_extnl_crt = 0*nA # 0.25 0.60*nA
 
+    if adapt:
+        group_e_2.delta_gk[:] = adapt_value*nS
+
     #%%
     spk_e_1 = SpikeMonitor(group_e_1, record = True)
     spk_i_1 = SpikeMonitor(group_i_1, record = True)
@@ -1675,11 +1778,12 @@ def compute_2_general(comb, seed=10, index=1,
     tic = time.perf_counter()
 
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time2 = simu_time_tot - simu_time1
+    # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
-    net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
     spk_tstep_e1 = np.round(spk_e_1.t/(0.1*ms)).astype(int)
@@ -1691,6 +1795,7 @@ def compute_2_general(comb, seed=10, index=1,
 
     param_all = {'delta_gk_1':delta_gk_1,
                  'delta_gk_2':delta_gk_2,
+                 'new_delta_gk_2':new_delta_gk_2,
                  'tau_k': tau_k_,
                  'tau_s_di':tau_s_di_,
                  'tau_s_de':tau_s_de_,
@@ -1812,10 +1917,39 @@ def compute_2_general(comb, seed=10, index=1,
 
     stim = None
     if sti:
-        stim = [[[[(le-1)/2,(le-1)/2]], 
-                [stim_on_off], 
-                [[sig]*stim_on_off.shape[0]]],None]
-        
+        if not top_sti:
+            stim = [[[[(le-1)/2,(le-1)/2]], 
+                    [stim_on_off], 
+                    [[sig]*stim_on_off.shape[0]]], None]
+        else:
+            stim = [[[[(le-1)/2,(le-1)/2]], 
+                    [stim_on_off], 
+                    [[sig]*stim_on_off.shape[0]]], 
+                    [[[(le-1)/2,(le-1)/2]], 
+                    [stim_on_off], 
+                    [[sig]*stim_on_off.shape[0]]]]
+    else:
+        if top_sti:
+            stim = [None, 
+                    [[[(le-1)/2,(le-1)/2]], 
+                    [stim_on_off], 
+                    [[sig]*stim_on_off.shape[0]]]]
+
+    adpt = None
+    if adapt:
+        adpt = [None, [[[(le-1)/2,(le-1)/2]], 
+                       [stim_on_off], 
+                       [[chg_adapt_range]]]]
+    
+    if adapt:
+        topdown='adapt'
+    elif top_sti:
+        topdown='stim2'
+    else:
+        topdown='silnc'
+    if adapt and top_sti:
+        topdown='adapt_stim2'
+    
     if video:
         # Animation
         title = f'Animation \n {common_title}'
@@ -1826,9 +1960,9 @@ def compute_2_general(comb, seed=10, index=1,
                                interval_movie=15,
                                anititle=title,
                                stim=stim,
-                               adpt=None)
+                               adpt=adpt)
         if save_path_video is None:
-            ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+            ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_{topdown}.mp4',writer='ffmpeg',fps=60,dpi=100)
         else:
             ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
