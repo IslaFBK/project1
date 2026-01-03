@@ -1941,14 +1941,14 @@ def compute_2_general(comb, seed=10, index=1,
                        [stim_on_off], 
                        [[chg_adapt_range]]]]
     
-    if adapt:
-        topdown='adapt'
-    elif top_sti:
-        topdown='stim2'
-    else:
-        topdown='silnc'
     if adapt and top_sti:
-        topdown='adapt_stim2'
+        topdown = 'adapt_stim2'
+    elif adapt:
+        topdown = 'adapt'
+    elif top_sti:
+        topdown = 'stim2'
+    else:
+        topdown = 'silnc'
     
     if video:
         # Animation
