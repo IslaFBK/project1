@@ -28,6 +28,7 @@ from joblib import Parallel, delayed
 from pathlib import Path
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
 import myscript.ie_search.utils as utils
+from myscript.ie_search.batch_repeat import draw_statistical_MSD_pdx
 from myscript.ie_search.batch_repeat import batch_repeat
 from myscript.ie_search.batch_repeat import batch_repeat2
 import myscript.ie_search.load_repeat as load_repeat
@@ -164,6 +165,257 @@ def pick_parameters_and_repeat_load(param=None, n_repeat=128):
         save_path_pdx=save_path_pdx,
         save_path_combined=save_path_combined
     )
+
+def msd_pdx_1(param,n_repeat=64,stim_dura=1000,window=15,
+              video=False,save_load=False,delta_gk=1,
+              data_root=None,root_path=None,
+              cmpt=True,save_data=True,plot=True,
+              msd_path=None,pdx_path=None,msd_pdx_path=None):
+    '''
+    重复计算单层, 画MSD和PDX
+    
+    :param param: ie_ratio
+    :param n_repeat: 重复计算数
+    :param stim_dura: 稳态时长
+    :param window: firing rate 时间窗宽度(ms)
+    :param video: 是否画图
+    :param save_load: 每组计算是否存元数据
+    :param delta_gk: 使用1层delta_gk还是2层delta_gk
+    :param data_root: MSD_PDX数据的保存根路径
+    :param root_path: MSD_PDX图的保存根路径
+    :param cmpt: 是否计算
+    :param save_data: 是否保存MSD_PDX数据
+    :param plot: 是否画图
+    :param msd_path: MSD图路径
+    :param pdx_path: PDX图路径
+    :param msd_pdx_path: MSD_PDX结合图路径
+    '''
+    ie_r_e1, ie_r_i1 = param
+    # common title & path
+    common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    # create data root path:
+    if data_root is None:
+        data_root = state_dir
+    # create graph root path:
+    if root_path is None:
+        root_path = f'{graph_dir}/MSD_PDX/'
+    
+    Path(data_root).mkdir(parents=True, exist_ok=True)
+    Path(root_path).mkdir(parents=True, exist_ok=True)
+    data_path = f'{data_root}/1MSDPDX_{common_path}_{n_repeat}_{delta_gk}.file'
+    if cmpt:
+        # compute 1:
+        if video:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_1_general)(
+                    comb=param,seed=i,index=i,sti=False,video=(i==0),save_load=save_load,
+                    window=window,stim_dura=stim_dura,delta_gk=delta_gk
+                )
+                for i in range(n_repeat)
+            )
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_1_general)(
+                    comb=param,seed=i,index=i,sti=False,video=False,save_load=save_load,
+                    window=window,stim_dura=stim_dura,delta_gk=delta_gk
+                )
+                for i in range(n_repeat)
+            )
+        # 合并msd
+        msds = np.stack([r['msd'] for r in results])
+        jump_interval = results[0]['jump_interval']
+        msd_mean = np.mean(msds, axis=0)
+        msd_std = np.std(msds, axis=0)
+        # 合并pdx
+        all_pdx = np.concatenate([r['pdx'] for r in results])
+        if save_data:
+            # 存msd & pdx
+            msd_pdx_info = {
+                'results':results,
+                'msds':msds,
+                'jump_interval':jump_interval,
+                'msd_mean':msd_mean,
+                'msd_std':msd_std,
+                'all_pdx':all_pdx
+            }
+            with open(data_path, 'wb') as file:
+                pickle.dump(msd_pdx_info,file)
+    else:
+        if os.path.exists(data_path):
+            with open(data_path,'rb') as file:
+                msd_pdx_info = pickle.load(file)
+            results = msd_pdx_info['results']
+            msds = msd_pdx_info['msds']
+            jump_interval = msd_pdx_info['jump_interval']
+            msd_mean = msd_pdx_info['msd_mean']
+            msd_std = msd_pdx_info['msd_std']
+            all_pdx = msd_pdx_info['all_pdx']
+        else:
+            msg = (
+                f"Required data file not found: {data_path}. "
+                "Run with cmpt=True to generate it or provide a valid data_path."
+            )
+            send_email.send_email('Required path missing', msg)
+            raise FileNotFoundError(msg)
+    if plot:
+        # 画图
+        if msd_path is None:
+            msd_path = f'{root_path}/1MSD_{common_path}_{n_repeat}_{delta_gk}.eps'
+        if pdx_path is None:
+            pdx_path = f'{root_path}/1PDX_{common_path}_{n_repeat}_{delta_gk}.eps'
+        if msd_pdx_path is None:
+            msd_pdx_path = f'{root_path}/1MSDPDX_{common_path}_{n_repeat}_{delta_gk}.eps'
+
+        draw_statistical_MSD_pdx(jump_interval=jump_interval,
+                                 msd_mean=msd_mean,
+                                 msd_std=msd_std,
+                                 all_pdx=all_pdx,
+                                 save_path_MSD=msd_path,
+                                 save_path_pdx=pdx_path,
+                                 save_path_combined=msd_pdx_path)
+
+def msd_pdx_2(param,n_repeat=64,stim_dura=1000,window=15,
+              video=False,save_load=False,
+              data_root=None,root_path=None,
+              cmpt=True,save_data=True,plot=True,
+              msd_path=None,pdx_path=None,msd_pdx_path=None,
+              w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4):
+    '''
+    重复计算双层, 画MSD和PDX
+    
+    :param param: ie_ratio
+    :param n_repeat: 重复计算数
+    :param stim_dura: 稳态时长
+    :param window: firing rate 时间窗宽度(ms)
+    :param video: 是否画图
+    :param save_load: 每组计算是否存元数据
+    :param data_root: MSD_PDX数据的保存根路径
+    :param root_path: MSD_PDX图的保存根路径
+    :param cmpt: 是否计算
+    :param save_data: 是否保存MSD_PDX数据
+    :param plot: 是否画图
+    :param msd_path: MSD图路径
+    :param pdx_path: PDX图路径
+    :param msd_pdx_path: MSD_PDX结合图路径
+    '''
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    # common title & path
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    # create data root path:
+    if data_root is None:
+        data_root = state_dir
+    # create graph root path:
+    if root_path is None:
+        root_path = f'{graph_dir}/MSD_PDX/'
+    
+    Path(data_root).mkdir(parents=True, exist_ok=True)
+    Path(root_path).mkdir(parents=True, exist_ok=True)
+    data_path = f'{data_root}/2MSDPDX_{common_path}_{n_repeat}.file'
+    if cmpt:
+        # compute 2:
+        if video:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_2_general)(
+                    comb=param,seed=i,index=i,sti=False,video=(i==0),save_load=save_load,
+                    window=window,stim_dura=stim_dura,
+                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i
+                )
+                for i in range(n_repeat)
+            )
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_2_general)(
+                    comb=param,seed=i,index=i,sti=False,video=False,save_load=save_load,
+                    window=window,stim_dura=stim_dura,
+                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i
+                )
+                for i in range(n_repeat)
+            )
+        # Area 1
+        # 合并msd
+        msds1 = np.stack([r['msd1'] for r in results])
+        jump_interval1 = results[0]['jump_interval1']
+        msd_mean1 = np.mean(msds1, axis=0)
+        msd_std1 = np.std(msds1, axis=0)
+        # 合并pdx
+        all_pdx1 = np.concatenate([r['pdx1'] for r in results])
+
+        # Area 2
+        # 合并msd
+        msds2 = np.stack([r['msd2'] for r in results])
+        jump_interval2 = results[0]['jump_interval2']
+        msd_mean2 = np.mean(msds2, axis=0)
+        msd_std2 = np.std(msds2, axis=0)
+        # 合并pdx
+        all_pdx2 = np.concatenate([r['pdx2'] for r in results])
+        
+        if save_data:
+            # 存msd & pdx
+            msd_pdx_info = {
+                'results':results,
+                'msds1':msds1,
+                'jump_interval1':jump_interval1,
+                'msd_mean1':msd_mean1,
+                'msd_std1':msd_std1,
+                'all_pdx1':all_pdx1,
+                'msds2':msds2,
+                'jump_interval2':jump_interval2,
+                'msd_mean2':msd_mean2,
+                'msd_std2':msd_std2,
+                'all_pdx2':all_pdx2
+            }
+            with open(data_path, 'wb') as file:
+                pickle.dump(msd_pdx_info,file)
+    else:
+        if os.path.exists(data_path):
+            with open(data_path,'rb') as file:
+                msd_pdx_info = pickle.load(file)
+            results = msd_pdx_info['results']
+            # Area 1
+            msds1 = msd_pdx_info['msds1']
+            jump_interval1 = msd_pdx_info['jump_interval1']
+            msd_mean1 = msd_pdx_info['msd_mean1']
+            msd_std1 = msd_pdx_info['msd_std1']
+            all_pdx1 = msd_pdx_info['all_pdx1']
+            # Area 2
+            msds2 = msd_pdx_info['msds2']
+            jump_interval2 = msd_pdx_info['jump_interval2']
+            msd_mean2 = msd_pdx_info['msd_mean2']
+            msd_std2 = msd_pdx_info['msd_std2']
+            all_pdx2 = msd_pdx_info['all_pdx2']
+        else:
+            msg = (
+                f"Required data file not found: {data_path}. "
+                "Run with cmpt=True to generate it or provide a valid data_path."
+            )
+            send_email.send_email('Required path missing', msg)
+            raise FileNotFoundError(msg)
+    if plot:
+        # 画图
+        if msd_path is None:
+            msd_path = f'{root_path}/2MSD_{common_path}_{n_repeat}'
+        if pdx_path is None:
+            pdx_path = f'{root_path}/2PDX_{common_path}_{n_repeat}'
+        if msd_pdx_path is None:
+            msd_pdx_path = f'{root_path}/2MSDPDX_{common_path}_{n_repeat}'
+
+        # Area 1
+        draw_statistical_MSD_pdx(jump_interval=jump_interval1,
+                                 msd_mean=msd_mean1,
+                                 msd_std=msd_std1,
+                                 all_pdx=all_pdx1,
+                                 save_path_MSD=f'{msd_path}_1.eps',
+                                 save_path_pdx=f'{pdx_path}_1.eps',
+                                 save_path_combined=f'{msd_pdx_path}_1.eps')
+        # Area 2
+        draw_statistical_MSD_pdx(jump_interval=jump_interval2,
+                                 msd_mean=msd_mean2,
+                                 msd_std=msd_std2,
+                                 all_pdx=all_pdx2,
+                                 save_path_MSD=f'{msd_path}_2.eps',
+                                 save_path_pdx=f'{pdx_path}_2.eps',
+                                 save_path_combined=f'{msd_pdx_path}_2.eps')
+
 #%% find packets
 def find_packets(comb, index=1):
     result = compute_MSD_pdx(comb=comb, index=index, video=False)
@@ -420,30 +672,37 @@ def receptive_field(param):
 # exam different distance firing rate
 def receptive_field_repeat(param, n_repeat, plot=False, 
                            video0=False, video1=False, maxrate=5000,
-                           save_load0=False, save_load1=False):
+                           save_load0=False, save_load1=False,
+                           delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=(i==0), save_load=save_load0)
+            delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
+                                               video=(i==0),save_load=save_load0,
+                                               delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                    video=False, save_load=save_load0)
+            delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
+                                               video=False,save_load=save_load0,
+                                               delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     if video1:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
-                                    video=(i==0), save_load=save_load1)
+            delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
+                                               maxrate=maxrate,
+                                               video=(i==0),save_load=save_load1,
+                                               delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, maxrate=maxrate,
-                                    video=False, save_load=save_load1)
+            delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
+                                               maxrate=maxrate,
+                                               video=False,save_load=save_load1,
+                                               delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -457,8 +716,8 @@ def receptive_field_repeat(param, n_repeat, plot=False,
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}.png'
-    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}.file'
+    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}_{delta_gk}.eps'
+    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}_{delta_gk}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
                                save_path=save_path,
@@ -993,36 +1252,36 @@ def check_r_rf_maxrate(param=None,
 # exam middle 4 point firing rate (receptive field)
 def receptive_field_repeat2(param, n_repeat, plot=False, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
-                            save_load0=False, save_load1=False, le=64, li=32):
+                            save_load0=False, save_load1=False, le=64, li=32,delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                       video=(i==0), save_load=save_load0, 
-                                       le=le, li=li)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
+                                               video=(i==0), save_load=save_load0,
+                                               le=le, li=li,delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=False, 
-                                       video=False, save_load=save_load0, 
-                                       le=le, li=li)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
+                                               video=False, save_load=save_load0,
+                                               le=le, li=li,delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     if video1:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, 
-                                       maxrate=maxrate, sig=sig, sti_type=sti_type, 
-                                       video=(i==0), save_load=save_load1, 
-                                       le=le, li=li)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
+                                               maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                               video=(i==0), save_load=save_load1,
+                                               le=le, li=li,delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     else:
         result1 = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1)(comb=param, seed=i, index=i, sti=True, 
-                                       maxrate=maxrate, sig=sig, sti_type=sti_type, 
-                                       video=False, save_load=save_load1, 
-                                       le=le, li=li)
+            delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
+                                               maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                               video=False, save_load=save_load1,
+                                               le=le, li=li,delta_gk=delta_gk)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -1887,7 +2146,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25],
     # whole
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.semilogx(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum difference')
@@ -1909,7 +2168,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25],
     # beta
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.semilogx(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (beta) difference')
@@ -1931,7 +2190,7 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, sigs=[0,5,10,15,20,25],
     # gamma
         plt.figure(figsize=(6,4))
         for sig, freqs, power in results_diff:
-            plt.plot(freqs, power, label=f'sig={sig}')
+            plt.semilogx(freqs, power, label=f'sig={sig}')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power')
         plt.title('Mean LFP FFT Spectrum (gamma) difference')
@@ -2526,28 +2785,37 @@ try:
     # send_email.send_email('set 2 executed', 'set 2 executed')
 
     #%% plot trajectory
+    # # area 1 parameter
     # param = vary_ie_ratio(dx=0,dy=1)
-    # # param = (1.899,1.6314)
-    # result = compute.compute_1(comb=param,video=True,stim_dura=10000)
-    # data = result['data']
-    # centre = data.a1.ge.centre_mass.centre
-    # save_path_trajectory = f"{graph_dir}/Levy_trajecotry.eps"
-    # conti = mya.unwrap_periodic_path(centre=centre)
-    # mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
+    # # 忘了是啥
+    # param = (1.899,1.6314)
+    # area 2 parameter
+    param= (1.84138, 1.57448)
+    result = compute.compute_1_general(comb=param,video=True,window=1,stim_dura=1000,delta_gk=2)
+    data = result['data']
+    centre = data.a1.ge.centre_mass.centre
+    save_path_trajectory = f"{graph_dir}/Levy_trajecotry2.eps"
+    conti = mya.unwrap_periodic_path(centre=centre)
+    mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
-    #%% new comparable lfp fft
+    #%% new comparable lfp fft (vary weight and check fft)
     # param1=vary_ie_ratio(dx=0,dy=1)
     # param2=(1.84138, 1.57448)
     # param12=param1+param2
     # maxrate=1000
-    # w=2.4
+    # # w=2.4
+    # w_12_e=0.0
+    # w_12_i=0.0
+    # w_21_e=3.0
+    # w_21_i=3.0
+    # # w=(w_12_e,w_12_i,w_21_e,w_21_i)
     # n_repeat=128
 
     # ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
     # common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
     # common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-    # temp_dir=f'./{LFP_dir}/bottomup_rate{maxrate}_w{w}_re{n_repeat}'
+    # temp_dir=f'./{LFP_dir}/bottomup_rate{maxrate}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_re{n_repeat}'
     # Path(temp_dir).mkdir(parents=True, exist_ok=True)
 
     # path_beta1=f'./{temp_dir}/beta_1_{common_path1}_{n_repeat}.eps'
@@ -2561,7 +2829,7 @@ try:
     # path_fulld=f'./{temp_dir}/full_d_{common_path2}_{n_repeat}.eps'
 
     # draw_LFP_FFT_compare(param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
-    #                      w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
+    #                      w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
     #                      save_path_beta1=path_beta1,save_path_gamma1=path_gama1,save_path1=path_full1,
     #                      save_path_beta2=path_beta2,save_path_gamma2=path_gama2,save_path2=path_full2,
     #                      save_path_betad=path_betad,save_path_gammad=path_gamad,save_pathd=path_fulld)
@@ -2674,8 +2942,36 @@ try:
     #                             adapt=False,adapt_type='Uniform',
     #                             new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
 
-
-
+    #%% repeat 2 area computation recetive field
+    # param1=vary_ie_ratio(dx=0,dy=1)
+    # param2=(1.84138, 1.57448)
+    # param=param1+param2
+    # n_repeat=128
+    # stim_dura=1000
+    # root_path=None
+    # # 单层 area 1
+    # msd_pdx_1(param=param1,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+    #           video=True,save_load=False,delta_gk=1,
+    #           data_root=None,root_path=root_path,
+    #           cmpt=True,save_data=True,plot=True,
+    #           msd_path=None,pdx_path=None,msd_pdx_path=None)
+    # # 单层 area 2
+    # msd_pdx_1(param=param2,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+    #           video=True,save_load=False,delta_gk=2,
+    #           data_root=None,root_path=root_path,
+    #           cmpt=True,save_data=True,plot=True,
+    #           msd_path=None,pdx_path=None,msd_pdx_path=None)
+    # # 双层
+    # w_12_e=2.4
+    # w_12_i=2.4
+    # w_21_e=2.4
+    # w_21_i=2.4
+    # msd_pdx_2(param=param,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+    #           video=True,save_load=False,
+    #           data_root=None,root_path=root_path,
+    #           cmpt=True,save_data=True,plot=True,
+    #           msd_path=None,pdx_path=None,msd_pdx_path=None,
+    #           w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')

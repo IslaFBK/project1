@@ -67,7 +67,7 @@ def plot_trajectory(
         save_path: str = None,
         cmap: str = "viridis",
         linewidth: float = 2.0,
-        show_colorbar: bool = True
+        show_colorbar: bool = False
 ):
     """
     绘制二维轨迹，线条随时间呈现渐变色。

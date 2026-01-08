@@ -353,7 +353,7 @@ def compute_1(comb, seed=10, index=1,
                 [stim_on_off], 
                 [[sig]*stim_on_off.shape[0]]]]
         
-    jump_interval = np.linspace(1, 1000, 100)
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
     data_load.a1.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
                             sample_interval=1,
@@ -910,7 +910,7 @@ def compute_2(comb, seed=10, index=1,
 
     data_load.a2.ge.overlap_centreandspike()
 
-    jump_interval = np.linspace(1, 1000, 100)
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
     data_load.a2.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
                             sample_interval=1,
@@ -969,7 +969,7 @@ def compute_2(comb, seed=10, index=1,
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 
                       sig=2, sti_type='Gaussian', 
-                      video=False, save_load=False, 
+                      video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
                       le=64,li=32, stim_dura=1000, 
                       num_ee_1 = 270, num_ei_1 = 350,
@@ -1271,7 +1271,7 @@ def compute_1_general(comb, seed=10, index=1,
     #%% analysis
     start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
-    window = 15
+    # window = window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
                                    end_time=end_time,
                                    sample_interval=1,
@@ -1294,7 +1294,7 @@ def compute_1_general(comb, seed=10, index=1,
                 [stim_on_off], 
                 [[sig]*stim_on_off.shape[0]]]]
         
-    jump_interval = np.linspace(1, 1000, 100)
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
     data_load.a1.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
                             sample_interval=1,
@@ -1315,7 +1315,7 @@ def compute_1_general(comb, seed=10, index=1,
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
                                frames = frames,
                                start_time = start_time,
-                               interval_movie=15,
+                               interval_movie=window,
                                anititle=title,
                                stim=stim,
                                adpt=None)
@@ -1335,7 +1335,7 @@ def compute_1_general(comb, seed=10, index=1,
 def compute_2_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, adapt=False, top_sti=False,
                       sig=2, sti_type='Gaussian', adapt_type= 'Gaussian',
-                      video=False, save_load=False,
+                      video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
                       le=64,li=32, stim_dura=1000, 
                       num_ee_1=270, num_ei_1=350,
@@ -1410,19 +1410,19 @@ def compute_2_general(comb, seed=10, index=1,
     #%% INTER PARAMETERS
     # inter mean weight
     if w_12_e is None:
-        scale_w_12_e = 3 # 3.656
+        scale_w_12_e =2.4 # 3.656
     else:
         scale_w_12_e = w_12_e
     if w_12_i is None:
-        scale_w_12_i = 3 # scale_w_12_e
+        scale_w_12_i = 2.4 # scale_w_12_e
     else:
         scale_w_12_i = w_12_i
     if w_21_e is None:
-        scale_w_21_e = 3 # 0.578
+        scale_w_21_e = 2.4 # 0.578
     else:
         scale_w_21_e = w_21_e
     if w_21_i is None:
-        scale_w_21_i = 3 # scale_w_21_e
+        scale_w_21_i = 2.4 # scale_w_21_e
     else:
         scale_w_21_i = w_21_i
 
@@ -1853,7 +1853,7 @@ def compute_2_general(comb, seed=10, index=1,
     #%% analysis
     start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
-    window = 15
+    window = window
     # area 1
     data_load.a1.ge.get_spike_rate(start_time=start_time,
                                    end_time=end_time,
@@ -1895,7 +1895,7 @@ def compute_2_general(comb, seed=10, index=1,
 
     data_load.a2.ge.overlap_centreandspike()
 
-    jump_interval = np.linspace(1, 1000, 100)
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
     data_load.a2.ge.get_MSD(start_time=start_time,
                             end_time=end_time,
                             sample_interval=1,
