@@ -582,7 +582,7 @@ def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
     fft_vals = np.fft.rfft(LFP)
     power = np.abs(fft_vals)**2
 
-    if plot:
+    if plot and save_path is not None:
         plt.figure(figsize=(6,4))
         plt.plot(freqs, power)
         plt.xlabel('Frequency (Hz)')

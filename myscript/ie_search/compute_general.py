@@ -1086,7 +1086,7 @@ def compute_1_general(comb, seed=10, index=1,
         # LFP_elec = np.array([[0,0]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
-                                            LFP_sigma=8,LFP_effect_range=2.5)
+                                            LFP_sigma=6,LFP_effect_range=2.5)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                     model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1209,7 +1209,7 @@ def compute_1_general(comb, seed=10, index=1,
     #%%
     tic = time.perf_counter()
 
-    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
+    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + window)*ms # transient + stim_dura + window
     # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
     # simu_time2 = simu_time_tot - simu_time1
@@ -1270,7 +1270,7 @@ def compute_1_general(comb, seed=10, index=1,
 
     #%% analysis
     start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
-    end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
+    end_time = int(round(simu_time_tot/ms))   # transient + stim_dura + window
     # window = window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
                                    end_time=end_time,
@@ -1284,6 +1284,10 @@ def compute_1_general(comb, seed=10, index=1,
     centre = data_load.a1.ge.centre_mass.centre
 
     data_load.a1.ge.overlap_centreandspike()
+
+    times_ms = (lfp_moni.t / ms)  # 转为 ms
+    mask = (times_ms >= start_time) & (times_ms <= end_time)
+    lfp_segment = lfp_moni.lfp[:, mask] / nA  # (n_electrodes, n_timepoints)
     
     stim_on_off = data_load.a1.param.stim1.stim_on-start_time
     stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
@@ -1309,6 +1313,11 @@ def compute_1_general(comb, seed=10, index=1,
 
     pdx = data_load.a1.ge.centre_mass.jump_size[:,1]
 
+    if sti:
+        input=f'on{maxrate}_{sti_type}_{sig}'
+    else:
+        input='off'
+
     if video:
         # Animation
         title = f'Animation \n {common_title}'
@@ -1320,7 +1329,8 @@ def compute_1_general(comb, seed=10, index=1,
                                stim=stim,
                                adpt=None)
         if save_path_video is None:
-            ani.save(f'./{video_dir}/1area_{index}_{common_path}_{sig}_pattern.mp4',writer='ffmpeg',fps=60,dpi=100)
+            ani.save(f'./{video_dir}/1area_{common_path}_{input}_{delta_gk}_win{window}.mp4',
+                     writer='ffmpeg',fps=60,dpi=100)
         else:
             ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
@@ -1329,7 +1339,8 @@ def compute_1_general(comb, seed=10, index=1,
         'jump_interval': jump_interval,
         'pdx': pdx,
         'spk_rate': spk_rate,
-        'centre': centre
+        'centre': centre,
+        'LFP_cut': lfp_segment
     }
 
 def compute_2_general(comb, seed=10, index=1, 
@@ -1563,7 +1574,7 @@ def compute_2_general(comb, seed=10, index=1,
         LFP_elec = np.array([[0,0],[-le/2,-le/2]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
-                                            LFP_sigma=8,LFP_effect_range=2.5)
+                                            LFP_sigma=6,LFP_effect_range=2.5)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                        model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1573,7 +1584,7 @@ def compute_2_general(comb, seed=10, index=1,
         LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
         i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
                                                width=ijwd2.width,
-                                               LFP_sigma=8,LFP_effect_range=2.5)
+                                               LFP_sigma=6,LFP_effect_range=2.5)
         group_LFP_record2 = NeuronGroup(len(LFP_elec2),
                                         model=get_LFP.LFP_recordneuron)
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
@@ -1642,25 +1653,25 @@ def compute_2_general(comb, seed=10, index=1,
     N_e_ext = 1600
     N_i_ext = 1600
     pois_bkgExt_e1 = PoissonInput(target=group_e_1,
-                                target_var='x_E_extnl',
-                                N=N_e_ext,
-                                rate=1*Hz,
-                                weight=5*nS)
+                                  target_var='x_E_extnl',
+                                  N=N_e_ext,
+                                  rate=1*Hz,
+                                  weight=5*nS)
     pois_bkgExt_e2 = PoissonInput(target=group_e_2,
-                                target_var='x_E_extnl',
-                                N=N_e_ext,
-                                rate=1*Hz,
-                                weight=5*nS)
+                                  target_var='x_E_extnl',
+                                  N=N_e_ext,
+                                  rate=1*Hz,
+                                  weight=5*nS)
     pois_bkgExt_i1 = PoissonInput(target=group_i_1,
-                                target_var='x_E_extnl',
-                                N=N_i_ext,
-                                rate=1*Hz,
-                                weight=5*nS)
+                                  target_var='x_E_extnl',
+                                  N=N_i_ext,
+                                  rate=1*Hz,
+                                  weight=5*nS)
     pois_bkgExt_i2 = PoissonInput(target=group_i_2,
-                                target_var='x_E_extnl',
-                                N=N_i_ext,
-                                rate=1*Hz,
-                                weight=5*nS)
+                                  target_var='x_E_extnl',
+                                  N=N_i_ext,
+                                  rate=1*Hz,
+                                  weight=5*nS)
 
     #%% Stimulus (Gaussian/Uniform/Annulus)
     if sti:
@@ -1777,7 +1788,7 @@ def compute_2_general(comb, seed=10, index=1,
     #%%
     tic = time.perf_counter()
 
-    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + 15)*ms
+    simu_time_tot = (stim_scale_cls.stim_on[-1,1] + window)*ms # transient + stim_dura + window
     # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
     # simu_time2 = simu_time_tot - simu_time1
@@ -1909,6 +1920,12 @@ def compute_2_general(comb, seed=10, index=1,
     jump_interval2 = data_load.a2.ge.MSD.jump_interval
 
     pdx2 = data_load.a2.ge.centre_mass.jump_size[:,1]
+
+    times_ms = (lfp_moni.t / ms)  # 转为 ms
+    mask = (times_ms >= start_time) & (times_ms <= end_time)
+    lfp_segment1 = lfp_moni.lfp[:, mask] / nA  # (n_electrodes, n_timepoints)
+    lfp_segment2 = lfp_moni2.lfp[:, mask] / nA  # (n_electrodes, n_timepoints)
+
     
     # video prepare
     frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
@@ -1949,6 +1966,11 @@ def compute_2_general(comb, seed=10, index=1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
+
+    if sti:
+        input=f'on{maxrate}_{sti_type}_{sig}'
+    else:
+        input='off'
     
     if video:
         # Animation
@@ -1962,7 +1984,8 @@ def compute_2_general(comb, seed=10, index=1,
                                stim=stim,
                                adpt=adpt)
         if save_path_video is None:
-            ani.save(f'./{video_dir}/2area_{index}_{common_path}_{sig}_{topdown}.mp4',writer='ffmpeg',fps=60,dpi=100)
+            ani.save(f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}.mp4',
+                     writer='ffmpeg',fps=60,dpi=100)
         else:
             ani.save(save_path_video,writer='ffmpeg',fps=60,dpi=100)
     return {
@@ -1976,5 +1999,7 @@ def compute_2_general(comb, seed=10, index=1,
         'spk_rate1': spk_rate1,
         'spk_rate2': spk_rate2,
         'centre1': centre1,
-        'centre2': centre2
+        'centre2': centre2,
+        'LFP1_cut': lfp_segment1,
+        'LFP2_cut': lfp_segment2
     }

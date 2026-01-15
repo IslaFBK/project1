@@ -10,7 +10,7 @@ from coordination import lattice_dist
 import numpy as np
 #%%
 
-def get_LFP(lattice, LFP_elec, width = 64, LFP_sigma = 8, LFP_effect_range = 2.5):
+def get_LFP(lattice, LFP_elec, width = 64, LFP_sigma = 6, LFP_effect_range = 2.5):
     #w = np.zeros((len(LFP_elec),N))
     w, i, j  = [], [], []
     neuron_id = np.arange(lattice.shape[0], dtype = int)
