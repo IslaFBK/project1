@@ -56,17 +56,30 @@ def set_journal_style():
         "mathtext.bf": "Arial:bold",
         
         # Font sizes
-        "axes.labelsize": 8,
-        "axes.titlesize": 10,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "legend.fontsize": 7,
-        "figure.titlesize": 10,
+        # "axes.labelsize": 8,
+        # "axes.titlesize": 10,
+        # "xtick.labelsize": 7,
+        # "ytick.labelsize": 7,
+        # "legend.fontsize": 7,
+        # "figure.titlesize": 10,
+        "axes.labelsize": 9,
+        "axes.titlesize": 9,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,
+        "figure.titlesize": 9,
         
         # Axes & ticks
-        "axes.linewidth": 0.8,
-        "xtick.major.width": 0.8,
-        "ytick.major.width": 0.8,
+        # "axes.linewidth": 0.8,
+        # "xtick.major.width": 0.8,
+        # "ytick.major.width": 0.8,
+        # "xtick.major.size": 3,
+        # "ytick.major.size": 3,
+        # "xtick.direction": "in",
+        # "ytick.direction": "in",
+        "axes.linewidth": 1,
+        "xtick.major.width": 1,
+        "ytick.major.width": 1,
         "xtick.major.size": 3,
         "ytick.major.size": 3,
         "xtick.direction": "in",
@@ -1463,7 +1476,7 @@ fft_r = 100
 # 画单组LFP FFT, 可mean可单算例
 def draw_LFP_FFT(freqs, power_mean, power_std, 
                  save_path, save_path_beta, save_path_gama, 
-                 plotlog='loglog'):
+                 plotlog='loglog', std_plot=False):
     '''
     draw_LFP_FFT 的 Docstring
     
@@ -1476,9 +1489,10 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
     :param plotlog: 可以取'loglog','semilogx','semilogy','linear'
     '''
     def _plot_specturm(freqs, power_mean, power_std, plotlog, 
-                       x_lim, title, save_file, figsize=(1,1)):
+                       x_lim, title, save_file, figsize=(2,2), std_plot=False):
         plt.figure(figsize=figsize)
         # plot specturm:
+        power_mean=power_mean*1e-9
         if plotlog=='loglog':
             line = plt.loglog(freqs, power_mean, label='Mean Power')[0]
         elif plotlog=='semilogx':
@@ -1488,7 +1502,7 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         else:
             line = plt.plot(freqs, power_mean, label='Mean Power')[0]
         
-        if power_std is not None:
+        if power_std is not None and std_plot:
             line_color = line.get_color()
             # cut upper lower boundary
             if plotlog=='loglog' or 'semilogy':
@@ -1500,20 +1514,26 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
 
         # 图表样式
         plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Power')
-        plt.title(title)
+        plt.ylabel('PSD (a.u.)')
+        plt.xticks(family='Arial')
+        plt.yticks(family='Arial')
+        # plt.title(title)
         # 网格样式
         plt.grid(True, which='both', ls='-', alpha=0.2)
         plt.xlim(x_lim)
-        plt.legend()
+        # plt.legend()
         # y轴范围
         x_min, x_max = plt.xlim()
         mask = (freqs >= x_min) & (freqs <= x_max)
         if np.any(mask):
-            y_min_data = np.min(power_mean[mask])
-            y_max_data = np.max(power_mean[mask])
+            if std_plot:
+                y_min_data = np.min(power_mean[mask]-power_std[mask])
+                y_max_data = np.max(power_mean[mask]+power_std[mask])
+            else:
+                y_min_data = np.min(power_mean[mask])
+                y_max_data = np.max(power_mean[mask])
             # 5% margin
-            y_margin = (y_max_data-y_min_data)*0.05/2
+            y_margin = (y_max_data-y_min_data)*0.05/2*0
             plt.ylim(y_min_data-y_margin, y_max_data+y_margin)
         # save
         if save_file:
@@ -1528,7 +1548,8 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         ((30, 80), 'Mean LFP FFT Spectrum (gamma)', save_path_gama)
     ]
     for x_lim, title, save_file in fft_bands:
-        _plot_specturm(freqs, power_mean, power_std, plotlog, x_lim, title, save_file)
+        _plot_specturm(freqs, power_mean, power_std, plotlog, 
+                       x_lim, title, save_file, std_plot=std_plot)
 
 # 多组数据compare在一个图里，LFPs代表多组LFP对比图
 def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama, 
@@ -1542,10 +1563,12 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
     :param save_path_gama: gamma波段集合图保存路径
     :param plotlog: 可以取'loglog','semilogx','semilogy','linear'
     '''
-    def _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, figsize=(1,1)):
+    def _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, figsize=(2,2)):
         plt.figure(figsize=figsize)
+        # figsize原来是(6,4)
         # loop plot multiple spectra
         for sig, freqs, power_mean, power_std in results:
+            power_mean=power_mean*1e-9
             if plotlog == 'loglog':
                 line = plt.loglog(freqs, power_mean, label=f'sig={sig}')[0]
             elif plotlog == 'semilogx':
@@ -1567,27 +1590,38 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
         
         # 图表样式设置
         plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Power')
-        plt.title(title)
+        plt.ylabel('PSD (a.u.)')
+        plt.xticks(family='Arial')
+        plt.yticks(family='Arial')
+        # plt.title(title)
         # 对数坐标适配的网格（显示主次网格，提升可读性）
         plt.grid(True, which="both", ls="-", alpha=0.2)
         plt.xlim(x_lim)
-        plt.legend()
+        # plt.legend()
         
         # 计算所有数据在x轴范围内的y值，统一设置y轴范围（添加边距）
         x_min, x_max = plt.xlim()
         all_masked_power = []
-        for sig, freqs, power in results:
+        all_masked_std = []
+        for sig, freqs, power, std in results:
+            power=power*1e-9
             mask = (freqs >= x_min) & (freqs <= x_max)
             if np.any(mask):
                 all_masked_power.append(power[mask])
+                if std is not None and std_plot:
+                    all_masked_std.append(std[mask])
         
         if all_masked_power:
             all_masked_power = np.concatenate(all_masked_power)
-            y_min_data = np.min(all_masked_power)
-            y_max_data = np.max(all_masked_power)
+            if all_masked_std is not None and std_plot:
+                all_masked_std = np.concatenate(all_masked_std)
+                y_min_data = np.min(all_masked_power-all_masked_std)
+                y_max_data = np.max(all_masked_power+all_masked_std)
+            else:
+                y_min_data = np.min(all_masked_power)
+                y_max_data = np.max(all_masked_power)
             # 添加5%边距，避免图线紧贴坐标轴
-            y_margin = (y_max_data - y_min_data) * 0.05/2
+            y_margin = (y_max_data - y_min_data) * 0.05/2*0
             plt.ylim(y_min_data - y_margin, y_max_data + y_margin)
         
         # 保存图片（仅当save_file有效时）
@@ -1633,10 +1667,10 @@ def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
 
 # repeat computing 1 area FFT of LFP, output beta band and gamma band spectrum
 def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1, 
-                     plot=True, video=True,stim_dura=10000,
+                     plot=True, video=True,stim_dura=10000,std_plot=False,
                      save_load=False,save_path_video=None,save_lfp=True,
                      save_path_beta=None,save_path_gama=None,save_path=None,
-                     save_path_root=LFP_dir,lfp_data_path=None,
+                     save_path_root=LFP_dir,lfp_data_path=None,cmpt=True,
                      sti=True,sti_type='Uniform',delta_gk=1):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
@@ -1646,110 +1680,64 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         save_path_gama = f'{save_path_root}/gama_1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.svg'
     if save_path is None:
         save_path =      f'{save_path_root}/full_1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.svg'
-    if video:
-        results = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1_general)(
-                comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
-                sti_type=sti_type,video=(i==0),save_load=save_load,stim_dura=stim_dura,
-                save_path_video=save_path_video
-                )
-            for i in range(n_repeat)
-        )
-    else:
-        results = Parallel(n_jobs=-1)(
-            delayed(compute.compute_1_general)(
-                comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
-                sti_type=sti_type,video=False,save_load=save_load,stim_dura=stim_dura,
-                save_path_video=save_path_video
-                )
-            for i in range(n_repeat)
-        )
-    # 提取所有LFP
-    # LFP_list = [r['data'].a1.ge.LFP for r in results]
-    LFP_list = [r['LFP_cut'] for r in results]
-    # 计算所有频谱
-    fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
-    freqs = fft_results[0][0]
-    powers = np.array([fr[1] for fr in fft_results])
-    power_mean = np.mean(powers, axis=0)
-    power_std = np.std(powers, axis=0)
-    
+    if cmpt:
+        if video:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_1_general)(
+                    comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
+                    sti_type=sti_type,video=(i==0),save_load=save_load,stim_dura=stim_dura,
+                    save_path_video=save_path_video
+                    )
+                for i in range(n_repeat)
+            )
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_1_general)(
+                    comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
+                    sti_type=sti_type,video=False,save_load=save_load,stim_dura=stim_dura,
+                    save_path_video=save_path_video
+                    )
+                for i in range(n_repeat)
+            )
+        # 提取所有LFP
+        LFP_list = [r['data'].a1.ge.LFP for r in results]
+        # LFP_list = [r['LFP_cut'] for r in results]
+        # 计算所有频谱
+        fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
+        freqs = fft_results[0][0]
+        powers = np.array([fr[1] for fr in fft_results])
+        power_mean = np.mean(powers, axis=0)
+        power_std = np.std(powers, axis=0)
+        
+        LFP_results = {
+            'freqs': freqs,
+            'powers': powers,
+            'power_mean': power_mean,
+            'power_std': power_std
+        }
+        if lfp_data_path is None:
+            lfp_data_path = f'{state_dir}/1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.file'
+        
+        if save_lfp:
+            with open(lfp_data_path, 'wb') as file:
+                pickle.dump(LFP_results,file)
+
+    else: # load data
+        if lfp_data_path is None:
+            lfp_data_path = f'{state_dir}/1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.file'
+        with open(lfp_data_path, 'rb') as file:
+            LFP_results = pickle.load(file)
+        freqs = LFP_results['freqs']
+        powers = LFP_results['powers']
+        power_mean = LFP_results['power_mean']
+        power_std = LFP_results['power_std']
+        
     # 画平均频谱
     if plot:
         draw_LFP_FFT(freqs, power_mean, power_std, 
                     save_path, save_path_beta, save_path_gama, 
-                    plotlog='loglog')
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     line = plt.loglog(freqs, power_mean, label='Mean Power')[0]
-    #     line_color = line.get_color()
-    #     plt.fill_between(freqs, power_mean-power_std, power_mean+power_std, 
-    #                      color=line_color, alpha=0.3)
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs >= x_min) & (freqs <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean[mask]), np.max(power_mean[mask]))
-    #     if save_path:
-    #         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     line = plt.loglog(freqs, power_mean, label='Mean Power')[0]
-    #     line_color = line.get_color()
-    #     plt.fill_between(freqs, power_mean-power_std, power_mean+power_std, 
-    #                      color=line_color, alpha=0.3)
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs >= x_min) & (freqs <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean[mask]), np.max(power_mean[mask]))
-    #     if save_path_beta:
-    #         plt.savefig(save_path_beta, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     line = plt.loglog(freqs, power_mean, label='Mean Power')[0]
-    #     line_color = line.get_color()
-    #     plt.fill_between(freqs, power_mean-power_std, power_mean+power_std, 
-    #                      color=line_color, alpha=0.3)
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs >= x_min) & (freqs <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean[mask]), np.max(power_mean[mask]))
-    #     if save_path_gama:
-    #         plt.savefig(save_path_gama, dpi=300, bbox_inches='tight')
-    #     plt.close()
-
-    LFP_results = {
-        'freqs': freqs,
-        'powers': powers,
-        'power_mean': power_mean,
-        'power_std': power_std
-    }
-    if lfp_data_path is None:
-        lfp_data_path = f'{state_dir}/1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.file'
-    
-    if save_lfp:
-        with open(lfp_data_path, 'wb') as file:
-            pickle.dump(LFP_results,file)
-        
+                    plotlog='loglog',std_plot=std_plot)
+   
     return LFP_results
 
 # repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum(已修改，添加第二份LFP)
@@ -1758,9 +1746,9 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                      save_load=False, save_path_video=None,save_lfp=True,
                      w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                      save_path_beta=None,save_path_gama=None,save_path=None,
-                     save_path_root=LFP_dir,lfp_data_path=None,
+                     save_path_root=LFP_dir,lfp_data_path=None,cmpt=True,
                      sti=True, top_sti=False, sti_type='Uniform', 
-                     adapt=False, adapt_type='Gaussian', 
+                     adapt=False, adapt_type='Gaussian', std_plot=False,
                      new_delta_gk_2=0.5, chg_adapt_range=7):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -1778,190 +1766,107 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         save_path_gama = f'{save_path_root}/gama_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
     if save_path is None:
         save_path =      f'{save_path_root}/full_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
-    if video:
-        results = Parallel(n_jobs=-1)(
-            delayed(compute.compute_2_general)(
-                comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
-                sig=sig, sti_type=sti_type, video=(i==0), save_load=save_load,
-                save_path_video=save_path_video,stim_dura=stim_dura,
-                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
-                new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
-                )
-            for i in range(n_repeat)
-        )
-    else:
-        results = Parallel(n_jobs=-1)(
-            delayed(compute.compute_2_general)(
-                comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
-                sig=sig, sti_type=sti_type, video=False, save_load=save_load,
-                save_path_video=save_path_video,stim_dura=stim_dura,
-                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
-                new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
-                )
-            for i in range(n_repeat)
-        )
-    # 提取所有LFP
-    # LFP1_list = [r['data'].a1.ge.LFP for r in results]
-    # LFP2_list = [r['data'].a2.ge.LFP for r in results]
-    LFP1_list = [r['LFP1_cut'] for r in results]
-    LFP2_list = [r['LFP2_cut'] for r in results]
-    # 计算所有频谱
-    fft1_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP1_list]
-    freqs1 = fft1_results[0][0]
-    powers1 = np.array([fr[1] for fr in fft1_results])
-    power_mean1 = np.mean(powers1, axis=0)
-    power_std1 = np.std(powers1, axis=0)
+    if cmpt:
+        if video:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_2_general)(
+                    comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
+                    sig=sig, sti_type=sti_type, video=(i==0), save_load=save_load,
+                    save_path_video=save_path_video,stim_dura=stim_dura,
+                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                    top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
+                    new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
+                    )
+                for i in range(n_repeat)
+            )
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(compute.compute_2_general)(
+                    comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
+                    sig=sig, sti_type=sti_type, video=False, save_load=save_load,
+                    save_path_video=save_path_video,stim_dura=stim_dura,
+                    w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                    top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
+                    new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
+                    )
+                for i in range(n_repeat)
+            )
+        # 提取所有LFP
+        LFP1_list = [r['data'].a1.ge.LFP for r in results]
+        LFP2_list = [r['data'].a2.ge.LFP for r in results]
+        # LFP1_list = [r['LFP1_cut'] for r in results]
+        # LFP2_list = [r['LFP2_cut'] for r in results]
+        # 计算所有频谱
+        fft1_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP1_list]
+        freqs1 = fft1_results[0][0]
+        powers1 = np.array([fr[1] for fr in fft1_results])
+        power_mean1 = np.mean(powers1, axis=0)
+        power_std1 = np.std(powers1, axis=0)
 
-    fft2_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP2_list]
-    freqs2 = fft2_results[0][0]
-    powers2 = np.array([fr[1] for fr in fft2_results])
-    power_mean2 = np.mean(powers2, axis=0)
-    power_std2 = np.std(powers2, axis=0)
+        fft2_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP2_list]
+        freqs2 = fft2_results[0][0]
+        powers2 = np.array([fr[1] for fr in fft2_results])
+        power_mean2 = np.mean(powers2, axis=0)
+        power_std2 = np.std(powers2, axis=0)
 
-    ## 第一层LFP
+        LFP_results = {
+            'freqs1': freqs1,
+            'powers1': powers1,
+            'power_mean1': power_mean1,
+            'power_std1': power_std1,
+            'freqs2': freqs2,
+            'powers2': powers2,
+            'power_mean2': power_mean2,
+            'power_std2': power_std2,
+        }
+        if lfp_data_path is None:
+            lfp_data_path = f'{state_dir}/2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
+        
+        if save_lfp:
+            with open(lfp_data_path, 'wb') as file:
+                pickle.dump(LFP_results,file)
+    else: # load data
+        if lfp_data_path is None:
+            lfp_data_path = f'{state_dir}/2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
+        with open(lfp_data_path, 'rb') as file:
+            LFP_results = pickle.load(file)
+        freqs1 = LFP_results['freqs1']
+        powers1 = LFP_results['powers1']
+        power_mean1 = LFP_results['power_mean1']
+        power_std1 = LFP_results['power_std1']
+        freqs2 = LFP_results['freqs2']
+        powers2 = LFP_results['powers2']
+        power_mean2 = LFP_results['power_mean2']
+        power_std2 = LFP_results['power_std2']
+
     # 画平均频谱
     if plot:
         draw_LFP_FFT(freqs1, power_mean1, power_std1, 
-                     save_path=f'{save_path}_1.svg',
-                     save_path_beta=f'{save_path_beta}_1.svg',
-                     save_path_gama=f'{save_path_gama}_1.svg',
-                     plotlog='loglog')
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs1, power_mean1, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs1 >= x_min) & (freqs1 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean1[mask]), np.max(power_mean1[mask]))
-    #     if save_path:
-    #         plt.savefig(f'{save_path}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs1, power_mean1, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs1 >= x_min) & (freqs1 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean1[mask]), np.max(power_mean1[mask]))
-    #     if save_path_beta:
-    #         plt.savefig(f'{save_path_beta}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs1, power_mean1, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs1 >= x_min) & (freqs1 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean1[mask]), np.max(power_mean1[mask]))
-    #     if save_path_gama:
-    #         plt.savefig(f'{save_path_gama}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
+                    save_path=f'{save_path}_1.svg',
+                    save_path_beta=f'{save_path_beta}_1.svg',
+                    save_path_gama=f'{save_path_gama}_1.svg',
+                    plotlog='loglog',std_plot=std_plot)
 
     ## 第二层LFP
     # 画平均频谱
     if plot12:
         draw_LFP_FFT(freqs2, power_mean2, power_std2, 
-                     save_path=f'{save_path}_2.svg',
-                     save_path_beta=f'{save_path_beta}_2.svg',
-                     save_path_gama=f'{save_path_gama}_2.svg',
-                     plotlog='loglog')
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs2, power_mean2, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs2 >= x_min) & (freqs2 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean2[mask]), np.max(power_mean2[mask]))
-    #     if save_path:
-    #         plt.savefig(f'{save_path}_2.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs2, power_mean2, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs2 >= x_min) & (freqs2 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean2[mask]), np.max(power_mean2[mask]))
-    #     if save_path_beta:
-    #         plt.savefig(f'{save_path_beta}_2.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     plt.loglog(freqs2, power_mean2, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs2 >= x_min) & (freqs2 <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean2[mask]), np.max(power_mean2[mask]))
-    #     if save_path_gama:
-    #         plt.savefig(f'{save_path_gama}_2.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-
-    LFP_results = {
-        'freqs1': freqs1,
-        'powers1': powers1,
-        'power_mean1': power_mean1,
-        'power_std1': power_std1,
-        'freqs2': freqs2,
-        'powers2': powers2,
-        'power_mean2': power_mean2,
-        'power_std2': power_std2,
-    }
-    if lfp_data_path is None:
-        lfp_data_path = f'{state_dir}/2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
-    
-    if save_lfp:
-        with open(lfp_data_path, 'wb') as file:
-            pickle.dump(LFP_results,file)
+                    save_path=f'{save_path}_2.svg',
+                    save_path_beta=f'{save_path_beta}_2.svg',
+                    save_path_gama=f'{save_path_gama}_2.svg',
+                    plotlog='loglog')
         
     return LFP_results
 
 # exam middle point LFP (FFT) (如果画出diff，强制画出1，2的FFT) 有topdown的 - 没topdown的
 def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
-                    plot=True, video=True,stim_dura=10000,
+                    plot=True, video=True,stim_dura=10000,cmpt=True,
                     save_load=False,save_path_video=None,save_lfp=True,
                     w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                     save_path_beta=None,save_path_gama=None,save_path=None,
                     save_path_root=LFP_dir,lfp_data_path=None,
                     sti=True, top_sti=False, sti_type='Uniform',
-                    adapt=False, adapt_type='Gaussian', 
+                    adapt=False, adapt_type='Gaussian', std_plot=False,
                     new_delta_gk_2=0.5,chg_adapt_range=7,delta_gk=1):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -1974,28 +1879,28 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
     else:
         topdown = 'silnc'
     if save_path_beta is None:
-        save_path_beta = f'{save_path_root}/beta_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+        save_path_beta = f'{save_path_root}/beta_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}.svg'
     if save_path_gama is None:
-        save_path_gama = f'{save_path_root}/gama_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+        save_path_gama = f'{save_path_root}/gama_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}.svg'
     if save_path is None:
-        save_path =      f'{save_path_root}/full_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+        save_path =      f'{save_path_root}/full_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}.svg'
     fft1 = LFP_1area_repeat(
         param=param1,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-        plot=plot,video=video,stim_dura=stim_dura,
+        plot=plot,video=video,stim_dura=stim_dura,cmpt=cmpt,
         save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
         save_path_beta=None,save_path_gama=None,save_path=None,
         save_path_root=save_path_root,lfp_data_path=lfp_data_path,
-        sti=sti,sti_type=sti_type,delta_gk=delta_gk
+        sti=sti,sti_type=sti_type,delta_gk=delta_gk,std_plot=std_plot
         )
     fft2 = LFP_2area_repeat(
         param=param2,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-        plot=plot,video=video,stim_dura=stim_dura,
+        plot=plot,video=video,stim_dura=stim_dura,cmpt=cmpt,
         save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
         w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
         save_path_beta=None,save_path_gama=None,save_path=None,
         save_path_root=save_path_root,lfp_data_path=lfp_data_path,
         sti=sti,top_sti=top_sti,sti_type=sti_type,
-        adapt=adapt,adapt_type=adapt_type,
+        adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
         new_delta_gk_2=new_delta_gk_2,
         chg_adapt_range=chg_adapt_range
         )
@@ -2005,65 +1910,18 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
     power_std1 = fft1['power_std']
     freqs2 = fft2['freqs1']
     powers2 = fft2['powers1']
-    power_mean2 = fft1['power_mean2']
-    power_std2 = fft2['power_std2']
+    power_mean2 = fft2['power_mean1']
+    power_std2 = fft2['power_std1']
     powers_diff = powers2 - powers1
     freqs_diff = freqs2
-    power_mean_diff = np.mean(powers_diff)
-    power_std_diff = np.std(powers_diff)
+    power_mean_diff = np.mean(powers_diff, axis=0)
+    power_std_diff = np.std(powers_diff, axis=0)
 
     if plot:
         draw_LFP_FFT(freqs_diff, power_mean_diff, power_std_diff, 
                      save_path, save_path_beta, save_path_gama,
-                     plotlog='semilogx')
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     plt.plot(freqs_diff, power_mean_diff, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum difference')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean_diff[mask]), np.max(power_mean_diff[mask]))
-    #     if save_path:
-    #         plt.savefig(f'{save_path}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     plt.plot(freqs_diff, power_mean_diff, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) difference')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean_diff[mask]), np.max(power_mean_diff[mask]))
-    #     if save_path_beta:
-    #         plt.savefig(f'{save_path_beta}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     plt.plot(freqs_diff, power_mean_diff, label='Mean Power')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) difference')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     mask = (freqs_diff >= x_min) & (freqs_diff <= x_max)
-    #     if np.any(mask):
-    #         plt.ylim(np.min(power_mean_diff[mask]), np.max(power_mean_diff[mask]))
-    #     if save_path_gama:
-    #         plt.savefig(f'{save_path_gama}_1.svg', dpi=300, bbox_inches='tight')
-    #     plt.close()
+                     plotlog='semilogx',std_plot=std_plot)
+        
     LFP_results = {
         'freqs1': freqs1,
         'powers1': powers1,
@@ -2081,17 +1939,17 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
     return LFP_results
 
 # 1,2area and diff, compare different sig (used for bottom-up)
-def draw_LFP_FFT_compare(param1, param2, n_repeat=64, maxrate=500, 
-                         sigs=[0,5,10,15,20,25], dt=0.1,
-                         plot=True, plot_sub=False,video=False,stim_dura=10000,
+def draw_LFP_FFT_compare(param1, param2, n_repeat=64, maxrate=500,cmpt=True,
+                         sigs=[0,5,10,15,20,25], dt=0.1,std_plot=False,
+                         plot=True, plot_sub=True,video=False,stim_dura=10000,
                          save_load=False,save_path_video=None,save_lfp=True,
                          w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                          save_path_beta1=None,save_path_gama1=None,save_path1=None,
                          save_path_beta2=None,save_path_gama2=None,save_path2=None,
                          save_path_betad=None,save_path_gamad=None,save_pathd=None,
-                         save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
+                         save_path_root=LFP_dir,lfp_data_path=None,
                          sti=True, top_sti=False, sti_type='Uniform', 
-                         adapt=False, adapt_type='Gaussian',lfp_data_path=None,
+                         adapt=False, adapt_type='Gaussian',
                          new_delta_gk_2=0.5):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
@@ -2124,13 +1982,13 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, maxrate=500,
     for sig in sigs:
         results = LFP_diff_repeat(
             param1=param1,param2=param2,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt, 
-            plot=plot_sub,video=video,stim_dura=stim_dura,
+            plot=plot_sub,video=video,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=sub_path_root,lfp_data_path=lfp_data_path,
+            save_path_root=f'{save_path_root}/sub',lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,
-            adapt=adapt, adapt_type=adapt_type, 
-            new_delta_gk_2=new_delta_gk_2, chg_adapt_range=sig
+            adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
+            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig
             )
         freqs1 = results['freqs1']
         power_mean1 = results['power_mean1']
@@ -2150,235 +2008,31 @@ def draw_LFP_FFT_compare(param1, param2, n_repeat=64, maxrate=500,
                       save_path_beta=save_path_beta1,
                       save_path_gama=save_path_gama1,
                       plotlog='loglog',
-                      std_plot=True)
+                      std_plot=std_plot)
         # 2 area:
         draw_LFP_FFTs(results=results_2area,
                       save_path=save_path2,
                       save_path_beta=save_path_beta2,
                       save_path_gama=save_path_gama2,
                       plotlog='loglog',
-                      std_plot=True)
+                      std_plot=std_plot)
         # difference:
         draw_LFP_FFTs(results=results_diff,
                       save_path=save_pathd,
                       save_path_beta=save_path_betad,
                       save_path_gama=save_path_gamad,
                       plotlog='semilogx',
-                      std_plot=True)
-    # # 1area
-    # if plot:
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_1area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_1area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path1:
-    #         plt.savefig(save_path1, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_1area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_1area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_beta1:
-    #         plt.savefig(save_path_beta1, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_1area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) without feedback')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_1area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_gama1:
-    #         plt.savefig(save_path_gama1, dpi=300, bbox_inches='tight')
-    #     plt.close()
-
-    # # 2area
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_2area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_2area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path2:
-    #         plt.savefig(save_path2, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_2area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_2area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_beta2:
-    #         plt.savefig(save_path_beta2, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_2area:
-    #         plt.loglog(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) with feedback')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_2area:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_gama2:
-    #         plt.savefig(save_path_gama2, dpi=300, bbox_inches='tight')
-    #     plt.close()
-
-    # # diff
-    # # whole
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_diff:
-    #         plt.semilogx(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum difference')
-    #     plt.grid(True)
-    #     plt.xlim(fft_l, fft_r)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_diff:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_pathd:
-    #         plt.savefig(save_pathd, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # beta
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_diff:
-    #         plt.semilogx(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (beta) difference')
-    #     plt.grid(True)
-    #     plt.xlim(15, 30)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_diff:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_betad:
-    #         plt.savefig(save_path_betad, dpi=300, bbox_inches='tight')
-    #     plt.close()
-    # # gamma
-    #     plt.figure(figsize=(6,4))
-    #     for sig, freqs, power in results_diff:
-    #         plt.semilogx(freqs, power, label=f'sig={sig}')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('Power')
-    #     plt.title('Mean LFP FFT Spectrum (gamma) difference')
-    #     plt.grid(True)
-    #     plt.xlim(30, 80)
-    #     plt.legend()
-    #     x_min, x_max = plt.xlim()
-    #     all_masked_power = []
-    #     for sig, freqs, power in results_diff:
-    #         mask = (freqs >= x_min) & (freqs <= x_max)
-    #         if np.any(mask):
-    #             all_masked_power.append(power[mask])
-    #     if all_masked_power:
-    #         all_masked_power = np.concatenate(all_masked_power)
-    #         plt.ylim(np.min(all_masked_power), np.max(all_masked_power))
-    #     if save_path_gamad:
-    #         plt.savefig(save_path_gamad, dpi=300, bbox_inches='tight')
-    #     plt.close()
+                      std_plot=std_plot)
 
 # prediction interaction compare with spontaneous LFP
 def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
-                          plot=True,video=True,stim_dura=10000,
+                          plot=True,video=True,stim_dura=10000,cmpt=True,
                           save_load=False,save_path_video=None,save_lfp=True,
                           w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                           save_path=None,save_path_beta=None,save_path_gama=None,
                           save_path_root=LFP_dir,lfp_data_path=None,
                           sti=True,top_sti=False,sti_type='Uniform',
-                          adapt=False,adapt_type='Gaussian',
+                          adapt=False,adapt_type='Gaussian',std_plot=False,
                           new_delta_gk_2=0.5,chg_adapt_range=7):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
@@ -2405,10 +2059,10 @@ def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
                            w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                            save_path_beta=save_path_beta,
                            save_path_gama=save_path_gama,
-                           save_path=save_path,
+                           save_path=save_path,cmpt=cmpt,
                            save_path_root=save_path_root,lfp_data_path=lfp_data_path,
                            sti=sti,top_sti=top_sti,sti_type=sti_type,
-                           adapt=adapt, adapt_type=adapt_type,
+                           adapt=adapt, adapt_type=adapt_type,std_plot=std_plot,
                            new_delta_gk_2=new_delta_gk_2,
                            chg_adapt_range=chg_adapt_range)
 
@@ -2419,7 +2073,7 @@ def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
 # different prediction interaction compare with spontaneous LFP
 # 因为要算spon的而被取代, sig=0时就是spon, 所以用上面那个就好
 def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
-                               plot=True,video=True,stim_dura=10000,
+                               plot=True,video=True,stim_dura=10000,cmpt=True,
                                save_load=False,save_path_video=None,save_lfp=True,
                                w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                save_path_betas=None,save_path_gamas=None,save_paths=None,
@@ -2427,7 +2081,7 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                                save_path_betad=None,save_path_gamad=None,save_pathd=None,
                                save_path_root=LFP_dir,lfp_data_path=None,
                                sti=True,top_sti=False,sti_type='Uniform',
-                               adapt=False,adapt_type='Gaussian',
+                               adapt=False,adapt_type='Gaussian',std_plot=False,
                                new_delta_gk_2=0.5,chg_adapt_range=7):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
@@ -2466,10 +2120,10 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                             save_path_beta=save_path_betas,
                             save_path_gama=save_path_gamas,
-                            save_path=save_paths,
+                            save_path=save_paths,cmpt=cmpt,
                             save_path_root=save_path_root,lfp_data_path=lfp_data_path,
                             sti=False,top_sti=False,sti_type=sti_type,
-                            adapt=False,adapt_type=adapt_type,
+                            adapt=False,adapt_type=adapt_type,std_plot=std_plot,
                             new_delta_gk_2=new_delta_gk_2,
                             chg_adapt_range=chg_adapt_range)
     # prediction type depends on function input
@@ -2479,9 +2133,9 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                             save_path_beta=save_path_betap,
                             save_path_gama=save_path_gamap,
-                            save_path=save_pathp,
+                            save_path=save_pathp,cmpt=cmpt,
                             sti=sti,top_sti=top_sti,sti_type=sti_type,
-                            adapt=adapt,adapt_type=adapt_type,
+                            adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
                             new_delta_gk_2=new_delta_gk_2,
                             chg_adapt_range=chg_adapt_range)
     freqs1 = fft1['freqs1']
@@ -2503,7 +2157,8 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                      power_std=power_stdd,
                      save_path=save_pathd,
                      save_path_beta=save_path_betad,
-                     save_path_gama=save_path_gamad)
+                     save_path_gama=save_path_gamad,
+                     std_plot=std_plot,)
     
     LFP_results = {
         'freqs1': freqs1,
@@ -2522,13 +2177,13 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
 # predicted LFPs under different prediction interaction
 # sub_plot控制每个sig的子图，sub_path系列表示每个sig子图的path
 def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,20,25],
-                           plot=True,plot_sub=False,video=True,stim_dura=10000,
+                           plot=True,plot_sub=False,video=True,stim_dura=10000,cmpt=True,
                            save_load=False,save_path_video=None,save_lfp=True,
                            w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                            save_path_beta=None,save_path_gama=None,save_path=None,
                            sub_path_beta=None,sub_path_gamma=None,sub_path=None,
                            save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
-                           sti=True,top_sti=False,sti_type='Uniform',
+                           sti=True,top_sti=False,sti_type='Uniform',std_plot=False,
                            adapt=False,adapt_type='Gaussian',lfp_data_path=None,
                            new_delta_gk_2=0.5, save_LFPs=True):
         
@@ -2536,24 +2191,24 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
     if save_path_beta is None:
-        save_path_beta = f'{save_path_root}/beta_pred_Compr_{common_path}_{n_repeat}.svg'
+        save_path_beta = f'{save_path_root}/beta_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
     if save_path_gama is None:
-        save_path_gama = f'{save_path_root}/gama_pred_Compr_{common_path}_{n_repeat}.svg'
+        save_path_gama = f'{save_path_root}/gama_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
     if save_path is None:
-        save_path      = f'{save_path_root}/full_pred_Compr_{common_path}_{n_repeat}.svg'
+        save_path      = f'{save_path_root}/full_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
 
     results = []
 
     for sig in sigs:
         fft=LFP_prediction_repeat(
             param=param, n_repeat=n_repeat,maxrate=maxrate,dt=dt, 
-            plot=plot_sub, video=video,stim_dura=stim_dura,
+            plot=plot_sub, video=video,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
             save_path=sub_path,save_path_beta=sub_path_beta,save_path_gama=sub_path_gamma,
             save_path_root=sub_path_root,lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,sig=sig,
-            adapt=adapt,adapt_type=adapt_type, 
+            adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
             new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig
             )
         freqs = fft['freqs1']
@@ -2576,7 +2231,7 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
             'results': results
         }
         LFPs_path = (
-            f'{data_dir}/LFPs_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
+            f'{data_dir}/LFPs_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
             )
         with open(LFPs_path, 'wb') as file:
             pickle.dump(LFPs_results, file)
@@ -2586,13 +2241,13 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
         draw_LFP_FFTs(results=results,save_path=save_path,
                       save_path_beta=save_path_beta,
                       save_path_gama=save_path_gama,
-                      plotlog='loglog')
+                      plotlog='loglog',std_plot=std_plot,)
 
 # spontaneous, predicted, and thier difference LFPs under different prediction interaction
 # sub_plot控制每个sig的子图，sub_path系列表示每个sig子图的path
 # 对比topdown和spontanous需要算spon所以无用, 上面那个是算不同sig的, 可替代(有时间改成所有sig-sig(0)的)
 def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,20,25],
-                                plot=True,plot_sub=False,video=True,stim_dura=10000,
+                                plot=True,plot_sub=False,video=True,stim_dura=10000,cmpt=True,
                                 save_load=False,save_path_video=None,save_lfp=True,
                                 w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                 save_path_betas=None,save_path_gamas=None,save_paths=None,
@@ -2602,7 +2257,7 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
                                 sub_path_betap=None,sub_path_gammap=None,sub_pathp=None,
                                 sub_path_betad=None,sub_path_gammad=None,sub_pathd=None,
                                 save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
-                                sti=True,top_sti=False,sti_type='Uniform',
+                                sti=True,top_sti=False,sti_type='Uniform',std_plot=False,
                                 adapt=False,adapt_type='Gaussian',lfp_data_path=None,
                                 new_delta_gk_2=0.5, save_LFPs=True):
         
@@ -2642,7 +2297,7 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
     for sig in sigs:
         fft = LFP_diff_prediction_repeat(
             param=param,n_repeat=n_repeat,maxrate=maxrate,dt=dt, 
-            plot=plot_sub,video=video,stim_dura=stim_dura,
+            plot=plot_sub,video=video,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
             save_paths=sub_paths,save_path_betas=sub_path_betas,save_path_gamas=sub_path_gammas,
@@ -2650,7 +2305,7 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
             save_pathd=sub_pathd,save_path_betad=sub_path_betad,save_path_gamad=sub_path_gammad,
             save_path_root=sub_path_root,lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,sig=sig,
-            adapt=adapt,adapt_type=adapt_type, 
+            adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
             new_delta_gk_2=new_delta_gk_2, chg_adapt_range=sig
             )
         freqs1 = fft['freqs1']
@@ -2684,17 +2339,17 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
         draw_LFP_FFTs(results=results_spon,save_path=save_paths,
                       save_path_beta=save_path_betas,
                       save_path_gama=save_path_gamas,
-                      plotlog='loglog')
+                      plotlog='loglog',std_plot=std_plot,)
         # prediction
         draw_LFP_FFTs(results=results_pred,save_path=save_pathp,
                       save_path_beta=save_path_betap,
                       save_path_gama=save_path_gamap,
-                      plotlog='loglog')
+                      plotlog='loglog',std_plot=std_plot,)
         # difference
         draw_LFP_FFTs(results=results_diff,save_path=save_pathd,
                       save_path_beta=save_path_betad,
                       save_path_gama=save_path_gamad,
-                      plotlog='semilogx')
+                      plotlog='semilogx',std_plot=std_plot,)
 
 #%% Execution area
 try:
@@ -2992,7 +2647,7 @@ try:
                                   save_path=None):
         param=vary_ie_ratio(dx=dx1,dy=dy1)
         LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
-                         plot=True,video=True,save_load=False,
+                         plot=True,video=True,save_load=False,cmpt=True,
                          save_path=save_path,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
@@ -3008,7 +2663,7 @@ try:
         LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
                          plot=True,video=True,save_load=False,
                          w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                         save_path=save_path,
+                         save_path=save_path,cmpt=True,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
 
@@ -3024,7 +2679,7 @@ try:
         LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
                          plot=True,plot12=True,video=True,save_load=False,
                          w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                         save_path=save_path,
+                         save_path=save_path,cmpt=True,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算
@@ -3122,20 +2777,26 @@ try:
         maxrate=1000
         sti_type = 'Uniform'
         # w=2.4
-        w_12_e=0.0
-        w_12_i=0.0
-        w_21_e=3.0
-        w_21_i=3.0
+        w_12_e=2.4
+        w_12_i=2.4
+        w_21_e=2.4
+        w_21_i=2.4
+        # w_12_e=0.0
+        # w_12_i=0.0
+        # w_21_e=3.0
+        # w_21_i=3.0
         # w=(w_12_e,w_12_i,w_21_e,w_21_i)
-        n_repeat=128
+        n_repeat=64
+        stim_dura=1000
 
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
         common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
         # bottom_up表示只有前馈，top_down表示只有反馈
-        temp_dir=f'./{LFP_dir}/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}'
+        temp_dir=f'./{LFP_dir}/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
+        Path(f'{temp_dir}/sub').mkdir(parents=True, exist_ok=True)
 
         # path_beta1=f'./{temp_dir}/beta_1_{common_path1}_{n_repeat}.svg'
         # path_gama1=f'./{temp_dir}/gama_1_{common_path1}_{n_repeat}.svg'
@@ -3151,8 +2812,8 @@ try:
         draw_LFP_FFT_compare(
             param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=temp_dir,sub_path_root=f'{temp_dir}/sub',
-            sti=True,top_sti=False,sti_type=sti_type
+            save_path_root=temp_dir,std_plot=False,cmpt=True,
+            sti=True,top_sti=False,sti_type=sti_type,stim_dura=stim_dura
             # save_path_beta1=path_beta1,save_path_gama1=path_gama1,save_path1=path_full1,
             # save_path_beta2=path_beta2,save_path_gama2=path_gama2,save_path2=path_full2,
             # save_path_betad=path_betad,save_path_gamad=path_gamad,save_pathd=path_fulld
@@ -3233,8 +2894,15 @@ try:
         param12=param1+param2
         maxrate=1000
         new_delta_gk_2=0.5
+        adapt_type = 'Uniform'
+        sti_type = 'Uniform'
         n_repeat=128
         w=2.8
+        w_12_e=2.4
+        w_12_i=2.4
+        w_21_e=2.4
+        w_21_i=2.4
+        
         
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -3244,27 +2912,27 @@ try:
         temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_w{w}_re{n_repeat}'
         Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
-        sub_temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_w{w}_re{n_repeat}/sub'
+        sub_temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_re{n_repeat}/sub'
         Path(sub_temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        sub_temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_w{w}_re{n_repeat}/sub'
+        sub_temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_re{n_repeat}/sub'
         Path(sub_temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
         # adaptation
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
                                plot=True,plot_sub=True,video=True,save_load=False,
-                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
+                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,cmpt=True,
                                save_path_root=temp_dir_adapt,sub_path_root=sub_temp_dir_adapt,
-                               sti=False,top_sti=False,sti_type='Uniform',
-                               adapt=True,adapt_type='Uniform',
+                               sti=False,top_sti=False,sti_type=sti_type,
+                               adapt=True,adapt_type=adapt_type,
                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
         
         # stimulus
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
                                plot=True,plot_sub=True,video=True,save_load=False,
-                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
+                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,cmpt=True,
                                save_path_root=temp_dir_stim2,sub_path_root=sub_temp_dir_stim2,
-                               sti=False,top_sti=True,sti_type='Uniform',
-                               adapt=False,adapt_type='Uniform',
+                               sti=False,top_sti=True,sti_type=sti_type,
+                               adapt=False,adapt_type=adapt_type,
                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
 
     #%% repeat 2 area computation recetive field
