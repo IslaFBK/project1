@@ -1515,8 +1515,20 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         # 图表样式
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('PSD (a.u.)')
-        plt.xticks(family='Arial')
-        plt.yticks(family='Arial')
+        ax = plt.gca()
+        # 1. 设置x轴主刻度字体
+        for label in ax.get_xticklabels():
+            label.set_family('Arial')  # 仅修改字体，不触碰标签文本和刻度位置
+
+        # 2. 设置y轴主刻度字体（消除你遇到的警告）
+        for label in ax.get_yticklabels():
+            label.set_family('Arial')  # 替代原有的ax.set_yticklabels()
+
+        # 可选：设置次刻度字体（若有对数刻度，避免遗漏）
+        for label in ax.get_xminorticklabels():
+            label.set_family('Arial')
+        for label in ax.get_yminorticklabels():
+            label.set_family('Arial')
         # plt.title(title)
         # 网格样式
         plt.grid(True, which='both', ls='-', alpha=0.2)
@@ -1591,8 +1603,20 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
         # 图表样式设置
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('PSD (a.u.)')
-        plt.xticks(family='Arial')
-        plt.yticks(family='Arial')
+        ax = plt.gca()
+        # 1. 设置x轴主刻度字体
+        for label in ax.get_xticklabels():
+            label.set_family('Arial')  # 仅修改字体，不触碰标签文本和刻度位置
+
+        # 2. 设置y轴主刻度字体（消除你遇到的警告）
+        for label in ax.get_yticklabels():
+            label.set_family('Arial')  # 替代原有的ax.set_yticklabels()
+
+        # 可选：设置次刻度字体（若有对数刻度，避免遗漏）
+        for label in ax.get_xminorticklabels():
+            label.set_family('Arial')
+        for label in ax.get_yminorticklabels():
+            label.set_family('Arial')
         # plt.title(title)
         # 对数坐标适配的网格（显示主次网格，提升可读性）
         plt.grid(True, which="both", ls="-", alpha=0.2)
@@ -2786,8 +2810,8 @@ try:
         # w_21_e=3.0
         # w_21_i=3.0
         # w=(w_12_e,w_12_i,w_21_e,w_21_i)
-        n_repeat=64
-        stim_dura=1000
+        n_repeat=128
+        stim_dura=10000
 
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
@@ -2812,7 +2836,7 @@ try:
         draw_LFP_FFT_compare(
             param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=temp_dir,std_plot=False,cmpt=True,
+            save_path_root=temp_dir,std_plot=False,cmpt=False,
             sti=True,top_sti=False,sti_type=sti_type,stim_dura=stim_dura
             # save_path_beta1=path_beta1,save_path_gama1=path_gama1,save_path1=path_full1,
             # save_path_beta2=path_beta2,save_path_gama2=path_gama2,save_path2=path_full2,
