@@ -47,7 +47,7 @@ logging.getLogger('brian2').setLevel(logging.WARNING)
 def set_journal_style():
     plt.rcParams.update({
         # Font
-        "text.usetex": True,  # 启用 LaTeX 渲染
+        "text.usetex": False,  # 启用 LaTeX 渲染
         "font.family": "sans-serif",
         "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
         "mathtext.fontset": "custom",
@@ -64,6 +64,9 @@ def set_journal_style():
         # "figure.titlesize": 10,
         "axes.labelsize": 9,
         "axes.titlesize": 9,
+        # 强制ticks字体继承无衬线
+        "xtick.labelbottom": True,
+        "ytick.labelleft": True,
         "xtick.labelsize": 9,
         "ytick.labelsize": 9,
         "legend.fontsize": 9,
@@ -2801,14 +2804,14 @@ try:
         maxrate=1000
         sti_type = 'Uniform'
         # w=2.4
-        w_12_e=2.4
-        w_12_i=2.4
-        w_21_e=2.4
-        w_21_i=2.4
-        # w_12_e=0.0
-        # w_12_i=0.0
-        # w_21_e=3.0
-        # w_21_i=3.0
+        # w_12_e=2.4
+        # w_12_i=2.4
+        # w_21_e=2.4
+        # w_21_i=2.4
+        w_12_e=0.0
+        w_12_i=0.0
+        w_21_e=3.0
+        w_21_i=3.0
         # w=(w_12_e,w_12_i,w_21_e,w_21_i)
         n_repeat=128
         stim_dura=10000
