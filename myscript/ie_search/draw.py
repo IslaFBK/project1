@@ -12,8 +12,9 @@ import matplotlib.animation as animation
 from matplotlib.patches import Ellipse
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
+from matplotlib.ticker import MaxNLocator
 from pathlib import Path
-from scipy.spatial import ConvexHull, Delaunay
+from scipy.spatial import ConvexHull, Delaunay, KDTree
 from scipy.stats import chi2
 from scipy.stats import linregress
 from typing import Optional, Tuple, Union, List, Dict
@@ -23,6 +24,7 @@ from analysis import mydata
 from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from myscript.ie_search.batch_repeat import draw_statistical_MSD_pdx
+import myscript.ie_search.critical_states_search as search
 
 # plt.rcParams.update({
 #     "text.usetex": True,  # 启用 LaTeX 渲染
@@ -32,26 +34,37 @@ from myscript.ie_search.batch_repeat import draw_statistical_MSD_pdx
 def set_journal_style():
     plt.rcParams.update({
         # Font
-        "text.usetex": True,  # 启用 LaTeX 渲染
+        "text.usetex": True,  # 启用 LaTeX 渲染, 启用后ticks没法使用Arial
         "font.family": "sans-serif",
         "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
         "mathtext.fontset": "custom",
         "mathtext.rm": "Arial",
         "mathtext.it": "Arial:italic",
         "mathtext.bf": "Arial:bold",
+        # 关键：LaTeX预编译指令，强制无衬线+加载Arial
+        "text.latex.preamble": r"""
+            \usepackage[utf8]{inputenc}
+            \usepackage[T1]{fontenc}
+            \usepackage{arevmath}  % 无衬线数学字体 (兼容Aria)
+            \usepackage{sfmath}   % 强制数学符号用无衬线
+            \renewcommand{\familydefault}{\sfdefault}  % 全局无衬线
+            \usepackage{helvet}   % LaTeX的Arial兼容包 (helvet对应Helvetica/Arial)
+            \renewcommand{\sfdefault}{phv}  % 指定helvet的字体族为phv (Arial/Helvetica)
+        """,
         
-        # Font sizes
-        "axes.labelsize": 8,
-        "axes.titlesize": 10,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "legend.fontsize": 7,
-        "figure.titlesize": 10,
+        "axes.labelsize": 9,
+        "axes.titlesize": 9,
+        # 强制ticks字体继承无衬线
+        "xtick.labelbottom": True,
+        "ytick.labelleft": True,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,
+        "figure.titlesize": 9,
         
-        # Axes & ticks
-        "axes.linewidth": 0.8,
-        "xtick.major.width": 0.8,
-        "ytick.major.width": 0.8,
+        "axes.linewidth": 1,
+        "xtick.major.width": 1,
+        "ytick.major.width": 1,
         "xtick.major.size": 3,
         "ytick.major.size": 3,
         "xtick.direction": "in",
@@ -274,7 +287,7 @@ def plot_trajectory(
         title: str = None,
         axis: bool = False,
         save_path: str = None,
-        cmap: str = "viridis",
+        cmap: str = "plasma",
         linewidth: float = 2.0,
         show_colorbar: bool = False,
         scalebar_len: float = None,
@@ -294,7 +307,7 @@ def plot_trajectory(
     if data.ndim != 2 or data.shape[1] != 2:
         raise ValueError("data must be an (N,2) array")
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(2, 2))
 
     # 构造线段并按时间着色
     points = data.reshape(-1, 1, 2)
@@ -317,7 +330,7 @@ def plot_trajectory(
     # ax.spines["right"].set_visible(False)
 
     if axis:
-        ax.set_title(title, fontsize=14, pad=20)
+        # ax.set_title(title, pad=20) # , fontsize=14
         ax.set_xlabel('Horizontal Position')
         ax.set_ylabel('Vertical Position')
     else:
@@ -329,29 +342,11 @@ def plot_trajectory(
     if show_colorbar:
         sm = plt.cm.ScalarMappable(cmap=plt.get_cmap(cmap), norm=norm)
         sm.set_array([])
-        fig.colorbar(sm, ax=ax, label='Normalized Time')
+        cbar = fig.colorbar(sm, ax=ax, label='Normalized Time', shrink=0.8)
+        cbar.ax.tick_params(labelsize=8)
 
     # ---------- 标度尺（scale bar） ----------
     if scalebar_len is not None:
-        # # 在图的右下角绘制标度尺（数据坐标）
-        # x0, x1 = ax.get_xlim()
-        # y0, y1 = ax.get_ylim()
-        # xrange = x1 - x0
-        # yrange = y1 - y0
-        # pad_frac = 0.05  # 留白比例
-        # # 标度尺起点（稍离边界）
-        # sb_x = x1 - pad_frac * xrange - scalebar_len
-        # sb_y = y0 + pad_frac * yrange
-        # # 画横线
-        # ax.plot([sb_x, sb_x + scalebar_len], [sb_y, sb_y], color='k', lw=2)
-        # # 两端短刻度
-        # tick_h = 0.02 * yrange
-        # ax.plot([sb_x, sb_x], [sb_y - tick_h/2, sb_y + tick_h/2], color='k', lw=2)
-        # ax.plot([sb_x + scalebar_len, sb_x + scalebar_len], [sb_y - tick_h/2, sb_y + tick_h/2], color='k', lw=2)
-        # # 文本标签（在刻度上方）
-        # label = scalebar_label if scalebar_label is not None else f'{scalebar_len}'
-        # ax.text(sb_x + scalebar_len/2, sb_y + 1.5*tick_h, label,
-        #         ha='center', va='bottom', fontsize=10, color='k', backgroundcolor='white')
         # 自动在四个角落候选区域中选择点最少的地方绘制标度尺
         x0, x1 = ax.get_xlim()
         y0, y1 = ax.get_ylim()
@@ -387,13 +382,21 @@ def plot_trajectory(
                                         (pts[:, 1] >= ylo) & (pts[:, 1] <= yhi)))
         best = min(counts, key=counts.get)
         sb_x, sb_y = candidates[best]
+        shiftx = 0.5
         # 绘制标度尺
-        ax.plot([sb_x, sb_x + sbw], [sb_y, sb_y], color='k', lw=2)
-        ax.plot([sb_x, sb_x], [sb_y - tick_h/2, sb_y + tick_h/2], color='k', lw=2)
-        ax.plot([sb_x + sbw, sb_x + sbw], [sb_y - tick_h/2, sb_y + tick_h/2], color='k', lw=2)
+        ax.plot([sb_x + shiftx, sb_x + sbw + shiftx], [sb_y, sb_y], color='k', lw=2)
+        ax.plot([sb_x + shiftx, sb_x + shiftx], [sb_y - tick_h/2, sb_y + tick_h/2], color='k', lw=2)
+        ax.plot([sb_x + sbw + shiftx, sb_x + sbw + shiftx], [sb_y - tick_h/2, sb_y + tick_h/2], 
+                color='k', lw=2)
         label = scalebar_label if scalebar_label is not None else f'{scalebar_len}'
-        ax.text(sb_x + sbw/2, sb_y + 1.5 * tick_h, label,
-                ha='center', va='bottom', fontsize=10, color='k', backgroundcolor='white')
+        ax.text(
+            sb_x + sbw/2 + shiftx, sb_y + 1.5 * tick_h, 
+            label,
+            ha='center', va='bottom', 
+            # fontsize=10, 
+            color='k',
+            bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+            )
 
     if save_path:
         plt.savefig(save_path, dpi=600, bbox_inches='tight')
@@ -405,7 +408,7 @@ def plot_torus_trajectory(
         title: str = None,
         axis: bool = False,
         save_path: str = None,
-        cmap: str = "viridis",
+        cmap: str = "plasma",
         linewidth: float = 2.0,
         show_colorbar: bool = False
 ):
@@ -426,13 +429,12 @@ def plot_torus_trajectory(
     segments, segment_times = split_path(centre=data, width=width)
 
     # 初始化画布
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(2, 2))
 
     # 环面边界正方形
     # ax.add_patch(plt.Rectangle((0, 0), width, width, 
     #                           fill=False, color='black', linewidth=1.5, label='Torus Boundary'))
     
-
     # 构造线段并按时间着色
     norm = matplotlib.colors.Normalize(vmin=0.0, vmax=1.0)
     lc = LineCollection(segments, array=segment_times, cmap=plt.get_cmap(cmap), 
@@ -451,7 +453,7 @@ def plot_torus_trajectory(
     ax.set_ylim(0, width)
 
     if axis:
-        ax.set_title(title, fontsize=14, pad=20)
+        # ax.set_title(title, pad=20) # , fontsize=14
         ax.set_xlabel('Horizontal Position')
         ax.set_ylabel('Vertical Position')
     else:
@@ -463,7 +465,8 @@ def plot_torus_trajectory(
     if show_colorbar:
         sm = plt.cm.ScalarMappable(cmap=plt.get_cmap(cmap), norm=norm)
         sm.set_array([])
-        fig.colorbar(sm, ax=ax, label='Normalized Time')
+        cbar = fig.colorbar(sm, ax=ax, label='Normalized Time', shrink=0.8)
+        cbar.ax.tick_params(labelsize=8)
 
     if save_path:
         plt.savefig(save_path, dpi=600, bbox_inches='tight')
@@ -637,8 +640,352 @@ def stack_msd_pdx(results):
         'all_pdx': all_pdx
     }
 
+def remove_outliers_critical(points, k=3, distance_percentile=99.99):
+    """
+    仅对critical点剔除离群点（近邻数≤2判定为离群）
+    参数：
+        points: critical点集 (N, 2)
+        k: 近邻数阈值（统计前k个近邻）
+        distance_percentile: 距离阈值分位数（过滤过远的近邻）
+    返回：
+        filtered_points: 清洗后的critical点集
+        outlier_mask: 离群点掩码（True=离群，False=保留）
+    """
+    if len(points) <= k:
+        return points, np.zeros(len(points), dtype=bool)  # 点数过少，不剔除
+    
+    # 构建KD树计算近邻
+    kd_tree = KDTree(points)
+    distances, _ = kd_tree.query(points, k=k+1)  # 前k+1个（含自身）
+    
+    # 排除自身，统计有效近邻数
+    neighbor_distances = distances[:, 1:]  # 去掉自身的距离
+    dist_threshold = np.percentile(neighbor_distances, distance_percentile)
+    neighbor_counts = np.sum(neighbor_distances <= dist_threshold, axis=1)
+    
+    # 离群点：近邻数≤2
+    outlier_mask = neighbor_counts <= 2
+    filtered_points = points[~outlier_mask]
+    
+    return filtered_points, outlier_mask
 
-#%% Execution part
+def evolution_plot(delta_gk=1,remove_outlier=True,
+                   plot_hull=True,plot_ellipse=True,conf_level=0.99):
+    # load
+    with open(f'{state_dir}/evolution{delta_gk}.file', 'rb') as file:
+        history = pickle.load(file)
+
+    # 1. 提取所有点数据
+    all_x, all_y, all_alpha, all_gen, all_critical = [], [], [], [], []
+    for gen, gen_info in enumerate(history):
+        for entry in gen_info:
+            ie_r_e1, ie_r_i1 = entry['param']
+            all_x.append(ie_r_e1)
+            all_y.append(ie_r_i1)
+            all_alpha.append(entry['alpha'])
+            all_gen.append(gen)
+            all_critical.append(entry['critical'])
+
+    # 转为numpy数组
+    all_x = np.array(all_x)
+    all_y = np.array(all_y)
+    all_alpha = np.array(all_alpha)
+    all_gen = np.array(all_gen)
+    all_critical = np.array(all_critical, dtype=bool)
+
+    # 2. 筛选critical点（核心分析对象）
+    mask_critical = all_critical == True
+    critical_points_original = np.column_stack([all_x[mask_critical], all_y[mask_critical]])
+
+    # 3. 剔除critical点中的离群点
+    if remove_outlier and len(critical_points_original) >= 3:
+        critical_points, outlier_mask = remove_outliers_critical(critical_points_original)
+        # 同步更新all_*系列数组的mask（用于可视化离群点）
+        critical_idx = np.where(mask_critical)[0]  # critical点的全局索引
+        outlier_global_idx = critical_idx[outlier_mask]  # 离群点的全局索引
+        # 构建全局离群点掩码（仅critical中的离群点）
+        global_outlier_mask = np.zeros_like(all_critical, dtype=bool)
+        global_outlier_mask[outlier_global_idx] = True
+    else:
+        critical_points = critical_points_original
+        global_outlier_mask = np.zeros_like(all_critical, dtype=bool)
+    
+    # 4. 初始化凸包/椭圆参数
+    boundary_closed = None
+    hull = None  # 保存凸包对象
+    hull_vertices = None  # 凸包顶点坐标
+    hull_area = None  # 凸包面积
+    hull_vertex_indices = None  # 凸包顶点在filtered_critical_points中的索引
+    mean = None
+    cov = None
+    theta = None
+    width = None
+    height = None
+
+    # 5. 计算凸包（基于清洗后的critical点）
+    if plot_hull and len(critical_points) >= 3:
+        hull = ConvexHull(critical_points)
+        hull_vertices = critical_points[hull.vertices]  # 凸包顶点坐标 (n, 2)
+        hull_vertex_indices = hull.vertices  # 凸包顶点在critical_points中的索引
+        hull_area = hull.area  # 凸包面积（二维）
+        boundary = critical_points[hull.vertices]
+        boundary_closed = np.vstack([boundary, boundary[0]])  # 闭合凸包
+
+    # 6. 计算鲁棒椭圆（基于清洗后的critical点）
+    if plot_ellipse and len(critical_points) >= 3:
+        ## 鲁棒椭圆
+        # 步骤1：初始均值和协方差
+        mean_x = np.mean(critical_points[:, 0])
+        mean_y = np.mean(critical_points[:, 1])
+        cov = np.cov(critical_points, rowvar=False)
+
+        # 步骤2：计算马氏距离
+        inv_cov = np.linalg.inv(cov)
+        centered = critical_points - [mean_x, mean_y]
+        mahalanobis_dist = np.sqrt(np.sum(centered @ inv_cov * centered, axis=1))
+
+        # 步骤3：去除离群点
+        threshold = np.sqrt(chi2.ppf(conf_level, 2))
+        inlier_mask = mahalanobis_dist <= threshold
+        inlier_points = critical_points[inlier_mask]
+
+        # 如果去除离群点后点数不足，则使用所有点
+        if len(inlier_points) < 3:
+            inlier_points = critical_points
+
+        # 步骤4：重新计算均值和协方差
+        mean = np.mean(inlier_points, axis=0)
+        cov = np.cov(inlier_points, rowvar=False)
+
+        # 步骤5：计算椭圆参数
+        vals, vecs = np.linalg.eigh(cov)
+        order = vals.argsort()[::-1]
+        vals, vecs = vals[order], vecs[:, order]
+
+        # 旋转角度（以度为单位）
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        # 半轴长度乘以缩放因子s（根据置信水平）
+        s = np.sqrt(chi2.ppf(conf_level, 2))
+        width, height = 2 * np.sqrt(vals) * s
+
+    generations = len(history)
+    # 7. 子图1：颜色表示代数
+    fig1, ax1 = plt.subplots(figsize=(2, 2))
+    cmap_gen = plt.get_cmap('viridis', generations)
+    
+    # 绘制非critical点（浅灰色）
+    ax1.scatter(
+        all_x[~mask_critical], all_y[~mask_critical],
+        c='lightgray', s=20, alpha=0.5, label='Non-critical', zorder=1
+    )
+    
+    # 绘制critical中的离群点（红色叉号，突出显示）
+    if remove_outlier and np.any(global_outlier_mask):
+        ax1.scatter(
+            all_x[global_outlier_mask], all_y[global_outlier_mask],
+            c='red', s=30, alpha=0.8, marker='x', label='Critical Outliers', zorder=3
+        )
+    
+    # 绘制清洗后的critical点（按代数着色）
+    norm_gen = plt.Normalize(vmin=0, vmax=generations-1)
+    sc1 = ax1.scatter(
+        all_x[mask_critical], all_y[mask_critical],
+        c=all_gen[mask_critical],
+        cmap=cmap_gen,
+        norm=norm_gen,
+        s=20, edgecolors='k', label='Critical', zorder=2
+    )
+
+    # 画凸包边界
+    if plot_hull and np.sum(mask_critical) >= 3:
+        ax1.plot(boundary_closed[:,0], boundary_closed[:,1], 'r-', linewidth=2, 
+                 label='Critical Region Boundary', zorder=4)
+    
+    # 画椭圆边界
+    if plot_ellipse and np.sum(mask_critical) >= 3:
+        ellipse = Ellipse(xy=mean, width=width, height=height, angle=theta, 
+                          edgecolor='blue', facecolor='none', lw=2, 
+                          label='Ellipse Boundary', zorder=5)
+        ax1.add_patch(ellipse)
+    
+    ax1.set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+    ax1.set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+    # ax1.set_title('Generation (Critical States)', fontsize=11)
+    ax1.tick_params(axis='both') # , labelsize=10
+    
+    # 颜色条（代数）
+    cbar1 = plt.colorbar(sc1, ax=ax1, ticks=range(generations))
+    cbar1.set_label('Generation') # , fontsize=10
+    cbar1.ax.tick_params(labelsize=8)
+    cbar1.set_ticks(range(generations))
+    cbar1.set_ticklabels([str(i) for i in range(generations)])
+
+    # draw
+    save_path = f'{elite_graph_dir}/evaluation_gen{delta_gk}.svg'
+    plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    plt.close()
+
+    # 8. 子图2：颜色表示alpha
+    fig2, ax2 = plt.subplots(figsize=(2, 2))
+    
+    # 绘制非critical点
+    ax2.scatter(all_x[~mask_critical], all_y[~mask_critical], 
+                c='lightgray', s=20, alpha=0.5, label='Non-critical', zorder=1)
+    
+    # 绘制critical中的离群点
+    if remove_outlier and np.any(global_outlier_mask):
+        ax2.scatter(
+            all_x[global_outlier_mask], all_y[global_outlier_mask],
+            c='red', s=30, alpha=0.8, marker='x', label='Critical Outliers', zorder=3
+        )
+    
+    # 绘制清洗后的critical点（按alpha着色）
+    if np.any(mask_critical):
+        norm_alpha = plt.Normalize(vmin=np.nanmin(all_alpha[mask_critical]), 
+                                   vmax=np.nanmax(all_alpha[mask_critical]))
+        cmap_alpha = plt.get_cmap('plasma')
+        sc2 = ax2.scatter(all_x[mask_critical], all_y[mask_critical], 
+                          c=all_alpha[mask_critical], cmap=cmap_alpha, norm=norm_alpha, 
+                          s=20, edgecolors='k', label='Critical', zorder=2)
+        
+        # 颜色条（alpha）
+        cbar2 = plt.colorbar(sc2, ax=ax2)
+        cbar2.set_label(r'$\alpha$') # , fontsize=10
+        cbar2.ax.tick_params(labelsize=8)
+
+        # 画凸包边界
+        if plot_hull and np.sum(mask_critical) >= 3:
+            ax2.plot(boundary_closed[:,0], boundary_closed[:,1], 'r-', linewidth=2, 
+                     label='Critical Region Boundary', zorder=4)
+            
+        # 画椭圆边界
+        if plot_ellipse and np.sum(mask_critical) >= 3:
+            ellipse2 = Ellipse(xy=mean, width=width, height=height, angle=theta, 
+                               edgecolor='blue', facecolor='none', lw=2, 
+                               label='Ellipse Boundary', zorder=5)
+            ax2.add_patch(ellipse2)
+    
+    ax2.set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+    ax2.set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+    # ax2.set_title('Alpha (Critical States)') # , fontsize=11
+    ax2.tick_params(axis='both') # , labelsize=10
+
+    # draw
+    save_path = f'{elite_graph_dir}/evaluation_alpha{delta_gk}.svg'
+    plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    plt.close()
+
+def rf_alpha_distribution_plot(maxrate=1000, delta_gk=1, sample_type='Ellipse'):
+    '''
+    :maxrate: 1000 or 2000
+    :delta_gk: 1 or 2
+    :sample_type: Ellipse or Hull
+    '''
+    # 读取椭圆参数
+    range_path = f'{state_dir}/critical_ellipse{delta_gk}.file'
+    with open(range_path, 'rb') as file:
+        ellipse_info = pickle.load(file)
+    mean = ellipse_info['mean']
+    cov = ellipse_info['cov']
+    conf_level = ellipse_info.get('conf_level', 0.99)
+
+    # 转换椭圆坐标(绘图用)
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+    theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+    width, height = 2 * np.sqrt(vals * chi2.ppf(conf_level, df=2))
+
+    # 提取凸包核心信息
+    hull_vertices = ellipse_info['hull_vertices']
+    hull_boundary_closed = ellipse_info['hull_boundary_closed']
+
+    # 尝试读取已有历史
+    rf_history_path = f'{state_dir}/rf_landscape_{maxrate}_{delta_gk}.file'
+    r_rf_history = []
+    computed_params = set()
+    if os.path.exists(rf_history_path):
+        with open(rf_history_path, 'rb') as file:
+            r_rf_history = pickle.load(file)
+
+    # 画地形图
+    x = [info['param'][0] for info in r_rf_history]
+    y = [info['param'][1] for info in r_rf_history]
+    z_rf = [info['r_rf'] for info in r_rf_history]
+    z_alpha = [info['alpha'] for info in r_rf_history]
+    if sample_type == 'Ellipse':
+        # 创建椭圆对象
+        ellipse1 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
+                            edgecolor='blue', facecolor='none', lw=2, 
+                            label='Ellipse Boundary', zorder=4)
+        ellipse2 = Ellipse(xy=(mean[0], mean[1]), width=width, height=height, angle=theta, 
+                            edgecolor='blue', facecolor='none', lw=2, 
+                            label='Ellipse Boundary', zorder=4)
+        
+    # r_rf
+    fig1, ax1 = plt.subplots(figsize=(2, 2))
+    # 1. 打包x、y、z_rf为元组列表
+    rf_data_pack = list(zip(x, y, z_rf))
+    # 2. 按z_rf（第3个元素，索引=2）进行升序排序
+    rf_data_pack_sorted = sorted(rf_data_pack, key=lambda item: item[2])
+    # 3. 解包排序后的数据，还原为单独的列表
+    x_rf_sorted, y_rf_sorted, z_rf_sorted = zip(*rf_data_pack_sorted)
+    # scattering
+    sc1 = ax1.scatter(x_rf_sorted, y_rf_sorted, c=z_rf_sorted, cmap='viridis', s=20)
+    if sample_type == 'Ellipse':
+        ax1.add_patch(ellipse1)
+    elif sample_type == 'Hull':
+        ax1.plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
+                    'r-', linewidth=2, label='Convex Hull')
+    ax1.set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+    ax1.set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+    # ax1.set_title('Receptive Field Radius') # , fontsize=11
+    ax1.tick_params(axis='both') # , labelsize=10
+    cbar1 = plt.colorbar(sc1, ax=ax1)
+    # 使用MaxNLocator，指定整数刻度（推荐，自动适配数据范围，保证宽度统一）
+    cbar1.ax.xaxis.set_major_locator(MaxNLocator(integer=True))  # 水平色条用xaxis
+    cbar1.ax.yaxis.set_major_locator(MaxNLocator(integer=True))  # 垂直色条用yaxis（你的场景是垂直，核心生效）
+    cbar1.set_label('Receptive Field') # , fontsize=10
+    cbar1.ax.tick_params(labelsize=8)
+    plt.savefig(
+        f'{elite_graph_dir}/rf_landscape_rf_{maxrate}_{delta_gk}.svg',
+        dpi=600,bbox_inches='tight'
+        )
+    plt.close(fig1)
+
+    # alpha
+    fig2, ax2 = plt.subplots(figsize=(2, 2))
+    # 1. 打包x、y、z_alpha为元组列表
+    alpha_data_pack = list(zip(x, y, z_alpha))
+    # 2. 按z_alpha（第3个元素，索引=2）进行升序排序
+    alpha_data_pack_sorted = sorted(alpha_data_pack, key=lambda item: item[2])
+    # 3. 解包排序后的数据，还原为单独的列表
+    x_alpha_sorted, y_alpha_sorted, z_alpha_sorted = zip(*alpha_data_pack_sorted)
+    # scattering
+    sc2 = ax2.scatter(x_alpha_sorted, y_alpha_sorted, c=z_alpha_sorted, cmap='plasma', s=20)
+    if sample_type == 'Ellipse':
+        ax2.add_patch(ellipse2)
+    elif sample_type == 'Hull':
+        ax2.plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
+                    'r-', linewidth=2, label='Convex Hull')
+    ax2.set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+    ax2.set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+    # ax2.set_title(r'$\alpha$') # , fontsize=11
+    ax2.tick_params(axis='both') # , labelsize=10
+    cbar2 = plt.colorbar(sc2, ax=ax2)
+    # 使用MaxNLocator，指定整数刻度（推荐，自动适配数据范围，保证宽度统一）
+    cbar2.ax.xaxis.set_major_locator(MaxNLocator(integer=True))  # 水平色条用xaxis
+    cbar2.ax.yaxis.set_major_locator(MaxNLocator(integer=True))  # 垂直色条用yaxis（你的场景是垂直，核心生效）
+    cbar2.set_label(r'$\alpha$') # , fontsize=10
+    cbar2.ax.tick_params(labelsize=8)
+    plt.savefig(
+        f'{elite_graph_dir}/rf_landscape_alpha_{maxrate}_{delta_gk}.svg',
+        dpi=600,bbox_inches='tight'
+        )
+    plt.close(fig2)
+
+#%% Execution part ########################################################
 def draw_trajectory():
     # 载入数据
     # 第一层参数:
@@ -649,7 +996,7 @@ def draw_trajectory():
     param_area12 = param_area1 + param_area2
     ## 单层读数据,输出轨迹
     # 哪一层
-    delta_gk=1
+    delta_gk=2
     if delta_gk == 1:
         param=param_area1
     elif delta_gk == 2:
@@ -685,29 +1032,29 @@ def draw_trajectory():
     # 解缠绕轨迹
     unwrapped_trajectory = unwrap_periodic_path(centre=centre, width=width)
 
-    save_path1=f'{elite_graph_dir}/trajectory_ctnu_win{window}_{delta_gk}.tiff'
-    save_path2=f'{elite_graph_dir}/trajectory_toru_win{window}_{delta_gk}.tiff'
+    save_path1=f'{elite_graph_dir}/trajectory_ctnu_win{window}_{delta_gk}.svg'
+    save_path2=f'{elite_graph_dir}/trajectory_toru_win{window}_{delta_gk}.svg'
     # 绘制普通轨迹
     plot_trajectory(
         data=unwrapped_trajectory,
         save_path=save_path1,
-        axis=False,
+        axis=True,
         cmap='plasma',
         linewidth=2.0,
-        show_colorbar=True,
-        scalebar_len=100,
-        scalebar_label='100 grid unit'
+        # scalebar_len=100,
+        # scalebar_label='100 unit',
+        show_colorbar=False
     )
 
     # 绘制轨迹（带环面接续效果）
     plot_torus_trajectory(
         data=centre,
         width=width,
-        axis=False,
+        axis=True,
         save_path=save_path2,
         cmap='plasma',
         linewidth=2.0,
-        show_colorbar=True
+        show_colorbar=False
     )
 
 def draw_spk_rate_distribution_spon():
@@ -758,4 +1105,17 @@ def draw_spk_rate_distribution_spon():
     save_path = f'{root_path}/spk_rate_distribution_{delta_gk}.pdf'
     plt.savefig(save_path, dpi=600, bbox_inches='tight')  # dpi=300高清分辨率
 
-draw_spk_rate_distribution_spon()
+#%% draw spk rate distribution in spontaneous condition
+# draw_spk_rate_distribution_spon()
+#%% draw trajectory
+# draw_trajectory()
+#%% draw rf and alpha distribution
+# 第一层
+# maxrate = 1000
+# delta_gk = 1
+# 第二层
+# maxrate = 2000
+# delta_gk = 2
+# rf_alpha_distribution_plot(maxrate=2000, delta_gk=2, sample_type='Hull')
+#%% evolution plot
+evolution_plot(delta_gk=2,remove_outlier=False)

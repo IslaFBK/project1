@@ -66,12 +66,6 @@ def set_journal_style():
         """,
         
         # Font sizes
-        # "axes.labelsize": 8,
-        # "axes.titlesize": 10,
-        # "xtick.labelsize": 7,
-        # "ytick.labelsize": 7,
-        # "legend.fontsize": 7,
-        # "figure.titlesize": 10,
         "axes.labelsize": 9,
         "axes.titlesize": 9,
         # 强制ticks字体继承无衬线
@@ -83,13 +77,6 @@ def set_journal_style():
         "figure.titlesize": 9,
         
         # Axes & ticks
-        # "axes.linewidth": 0.8,
-        # "xtick.major.width": 0.8,
-        # "ytick.major.width": 0.8,
-        # "xtick.major.size": 3,
-        # "ytick.major.size": 3,
-        # "xtick.direction": "in",
-        # "ytick.direction": "in",
         "axes.linewidth": 1,
         "xtick.major.width": 1,
         "ytick.major.width": 1,
@@ -1056,13 +1043,13 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         elif sample_type == 'Hull':
             axs[0].plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
                         'r-', linewidth=2, label='Convex Hull')
-        axs[0].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
-        axs[0].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
-        axs[0].set_title('Receptive Field Radius', fontsize=11)
-        axs[0].tick_params(axis='both', labelsize=10)
+        axs[0].set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+        axs[0].set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+        axs[0].set_title('Receptive Field Radius') # , fontsize=11
+        axs[0].tick_params(axis='both') # , labelsize=10
         cbar1 = plt.colorbar(sc1, ax=axs[0])
-        cbar1.set_label('Receptive Field', fontsize=10)
-        cbar1.ax.tick_params(labelsize=10)
+        cbar1.set_label('Receptive Field') # , fontsize=10
+        cbar1.ax.tick_params(labelsize=8)
         # axs[0].legend(fontsize=9)
         # 右：alpha
         sc2 = axs[1].scatter(x, y, c=z_alpha, cmap='plasma', s=60)
@@ -1071,16 +1058,16 @@ def find_receptive_field_distribution_in_range(n_repeat, range_path, maxrate=100
         elif sample_type == 'Hull':
             axs[1].plot(hull_boundary_closed[:, 0], hull_boundary_closed[:, 1], 
                         'r-', linewidth=2, label='Convex Hull')
-        axs[1].set_xlabel(r'$\zeta^{\rm E}$', fontsize=10)
-        axs[1].set_ylabel(r'$\zeta^{\rm I}$', fontsize=10)
-        axs[1].set_title(r'$\alpha$', fontsize=11)
-        axs[1].tick_params(axis='both', labelsize=10)
+        axs[1].set_xlabel(r'$\zeta^{\rm E}$') # , fontsize=10
+        axs[1].set_ylabel(r'$\zeta^{\rm I}$') # , fontsize=10
+        axs[1].set_title(r'$\alpha$') # , fontsize=11
+        axs[1].tick_params(axis='both') # , labelsize=10
         cbar2 = plt.colorbar(sc2, ax=axs[1])
-        cbar2.set_label(r'$\alpha$', fontsize=10)
-        cbar2.ax.tick_params(labelsize=10)
+        cbar2.set_label(r'$\alpha$') # , fontsize=10
+        cbar2.ax.tick_params(labelsize=8)
         # axs[1].legend(fontsize=9)
         plt.tight_layout(pad=1.0)
-        plt.savefig(f'{graph_dir}/rf_landscape_{maxrate}_{delta_gk}.svg', dpi=300)
+        plt.savefig(f'{graph_dir}/rf_landscape_{maxrate}_{delta_gk}.svg',dpi=600,bbox_inches='tight')
         plt.close()
 
         # # 画3维地形图（已淘汰，现在用matlab画3d图）
@@ -2470,7 +2457,7 @@ try:
                                                video=True,save_path_video=video_path,
                                                save_load=True,save_path_data=data_path,
                                                window=window,delta_gk=delta_gk,sig=sig)
-    def conpute_data2():
+    def compute_data2():
         # 第一层参数:
         param_area1 = vary_ie_ratio(dx=0,dy=1)
         # 第二层参数:
@@ -2507,15 +2494,14 @@ try:
         else:
             topdown = 'silnc'
 
-        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}.file"
-        video_path=None
+        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
+        video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}_{stim_dura}_whole.mp4'
         result = compute.compute_2_general(comb=param_area12,stim_dura=stim_dura,
                                            sti=sti,maxrate=maxrate,sti_type=sti_type,
                                            adapt=adapt,adapt_type=adapt_type,top_sti=top_sti,
                                            video=True,save_path_video=video_path,
                                            save_load=True,save_path_data=data_path,
                                            window=window,sig=sig,chg_adapt_range=sig)
-        
 
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
@@ -2769,26 +2755,14 @@ try:
     # mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
     #%% new comparable lfp fft (vary weight and check fft) (bottom up)
-    def bottom_up_LFP_compare():
+    def bottom_up_LFP_compare(cmpt=False,n_repeat=128,stim_dura=10000,
+                              w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4):
         param1=vary_ie_ratio(dx=0,dy=1)
         param2=(1.84138, 1.57448)
         param12=param1+param2
         maxrate=1000
         sti_type = 'Uniform'
-        # w=2.4
-        # w_12_e=2.4
-        # w_12_i=2.4
-        # w_21_e=2.4
-        # w_21_i=2.4
-        w_12_e=0.0
-        w_12_i=0.0
-        w_21_e=3.0
-        w_21_i=3.0
-        # w=(w_12_e,w_12_i,w_21_e,w_21_i)
-        n_repeat=128
-        stim_dura=10000
-        cmpt=False
-
+        
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
         common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -2798,25 +2772,12 @@ try:
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
         Path(f'{temp_dir}/sub').mkdir(parents=True, exist_ok=True)
 
-        # path_beta1=f'./{temp_dir}/beta_1_{common_path1}_{n_repeat}.svg'
-        # path_gama1=f'./{temp_dir}/gama_1_{common_path1}_{n_repeat}.svg'
-        # path_full1=f'./{temp_dir}/full_1_{common_path1}_{n_repeat}.svg'
-        # path_beta2=f'./{temp_dir}/beta_2_{common_path2}_{n_repeat}.svg'
-        # path_gama2=f'./{temp_dir}/gama_2_{common_path2}_{n_repeat}.svg'
-        # path_full2=f'./{temp_dir}/full_2_{common_path2}_{n_repeat}.svg'
-        # path_betad=f'./{temp_dir}/beta_d_{common_path2}_{n_repeat}.svg'
-        # path_gamad=f'./{temp_dir}/gama_d_{common_path2}_{n_repeat}.svg'
-        # path_fulld=f'./{temp_dir}/full_d_{common_path2}_{n_repeat}.svg'
-
         # draw_LFP_FFT_compare这个函数就是默认bottom up的
         draw_LFP_FFT_compare(
             param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
             save_path_root=temp_dir,std_plot=False,cmpt=cmpt,
             sti=True,top_sti=False,sti_type=sti_type,stim_dura=stim_dura
-            # save_path_beta1=path_beta1,save_path_gama1=path_gama1,save_path1=path_full1,
-            # save_path_beta2=path_beta2,save_path_gama2=path_gama2,save_path2=path_full2,
-            # save_path_betad=path_betad,save_path_gamad=path_gamad,save_pathd=path_fulld
             )
 
     #%% test adaptation and stimulus 2
@@ -2830,62 +2791,6 @@ try:
     #                           sig=5, sti_type='Uniform', adapt_type='Gaussian',
     #                           video=True, stim_dura=2000, new_delta_gk_2=0.5,
     #                           chg_adapt_range=5)
-
-    #%% LFP FFT under top-down interaction
-    # param1=vary_ie_ratio(dx=0,dy=1)
-    # param2=(1.84138, 1.57448)
-    # param12=param1+param2
-    # maxrate=1000
-    # n_repeat=128
-    # w=2.6
-    
-    # ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
-    # common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
-    # common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-
-    # temp_dir_adapt=f'./{LFP_dir}/adapt_rate{maxrate}_w{w}_re{n_repeat}'
-    # Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-    # temp_dir_stim2=f'./{LFP_dir}/stim2_rate{maxrate}_w{w}_re{n_repeat}'
-    # Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
-    # temp_dir_spont=f'./{LFP_dir}/spont_rate{maxrate}_w{w}_re{n_repeat}'
-    # Path(temp_dir_spont).mkdir(parents=True, exist_ok=True)
-
-    # path_beta_adapt=f'./{temp_dir_adapt}/beta_{common_path2}_{n_repeat}.svg'
-    # path_gama_adapt=f'./{temp_dir_adapt}/gama_{common_path2}_{n_repeat}.svg'
-    # path_full_adapt=f'./{temp_dir_adapt}/full_{common_path2}_{n_repeat}.svg'
-    # path_beta_stim2=f'./{temp_dir_stim2}/beta_{common_path2}_{n_repeat}.svg'
-    # path_gama_stim2=f'./{temp_dir_stim2}/gama_{common_path2}_{n_repeat}.svg'
-    # path_full_stim2=f'./{temp_dir_stim2}/full_{common_path2}_{n_repeat}.svg'
-    # path_beta_spont=f'./{temp_dir_spont}/beta_{common_path2}_{n_repeat}.svg'
-    # path_gama_spont=f'./{temp_dir_spont}/gama_{common_path2}_{n_repeat}.svg'
-    # path_full_spont=f'./{temp_dir_spont}/full_{common_path2}_{n_repeat}.svg'
-    # # adaptation
-    # LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
-    #                  sti=False,top_sti=False,sti_type='Uniform',
-    #                  adapt=True,adapt_type='Gaussian',
-    #                  new_delta_gk_2=0.5,chg_adapt_range=5,
-    #                  w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
-    #                  save_path=path_full_adapt,
-    #                  save_path_beta=path_beta_adapt,
-    #                  save_path_gama=path_gama_adapt)
-    # # stimulus
-    # LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
-    #                  sti=False,top_sti=True,sti_type='Uniform',
-    #                  adapt=False,adapt_type='Gaussian',
-    #                  new_delta_gk_2=0.5,chg_adapt_range=5,
-    #                  w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
-    #                  save_path=path_full_stim2,
-    #                  save_path_beta=path_beta_stim2,
-    #                  save_path_gama=path_gama_stim2)
-    # # spontaneous
-    # LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
-    #                  sti=False,top_sti=False,sti_type='Uniform',
-    #                  adapt=False,adapt_type='Gaussian',
-    #                  new_delta_gk_2=0.5,chg_adapt_range=5,
-    #                  w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,
-    #                  save_path=path_full_spont,
-    #                  save_path_beta=path_beta_spont,
-    #                  save_path_gama=path_gama_spont)
 
     #%% LFP FFT under different type and different size top-down interaction
     def top_down_LFP_compare():
@@ -2938,39 +2843,43 @@ try:
                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
 
     #%% repeat 2 area computation recetive field
-    # param1=vary_ie_ratio(dx=0,dy=1)
-    # param2=(1.84138, 1.57448)
-    # param=param1+param2
-    # n_repeat=128
-    # stim_dura=1000
-    # root_path=None
-    # # 单层 area 1
-    # msd_pdx_1(param=param1,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
-    #           video=True,save_load=False,delta_gk=1,
-    #           data_root=None,root_path=root_path,
-    #           cmpt=True,save_data=True,plot=True,
-    #           msd_path=None,pdx_path=None,msd_pdx_path=None)
-    # # 单层 area 2
-    # msd_pdx_1(param=param2,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
-    #           video=True,save_load=False,delta_gk=2,
-    #           data_root=None,root_path=root_path,
-    #           cmpt=True,save_data=True,plot=True,
-    #           msd_path=None,pdx_path=None,msd_pdx_path=None)
-    # # 双层
-    # w_12_e=2.4
-    # w_12_i=2.4
-    # w_21_e=2.4
-    # w_21_i=2.4
-    # msd_pdx_2(param=param,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
-    #           video=True,save_load=False,
-    #           data_root=None,root_path=root_path,
-    #           cmpt=True,save_data=True,plot=True,
-    #           msd_path=None,pdx_path=None,msd_pdx_path=None,
-    #           w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
+    def msd_plot(cmpt=False):
+        param1=vary_ie_ratio(dx=0,dy=1)
+        param2=(1.84138, 1.57448)
+        param=param1+param2
+        n_repeat=128
+        stim_dura=1000
+        root_path=None
+        
+        # 单层 area 1
+        msd_pdx_1(param=param1,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+                  video=True,save_load=False,delta_gk=1,
+                  data_root=None,root_path=root_path,
+                  cmpt=cmpt,save_data=True,plot=True,
+                  msd_path=None,pdx_path=None,msd_pdx_path=None)
+        # 单层 area 2
+        msd_pdx_1(param=param2,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+                  video=True,save_load=False,delta_gk=2,
+                  data_root=None,root_path=root_path,
+                  cmpt=cmpt,save_data=True,plot=True,
+                  msd_path=None,pdx_path=None,msd_pdx_path=None)
+        # 双层
+        w_12_e=2.4
+        w_12_i=2.4
+        w_21_e=2.4
+        w_21_i=2.4
+        msd_pdx_2(param=param,n_repeat=n_repeat,stim_dura=stim_dura,window=15,
+                  video=True,save_load=False,
+                  data_root=None,root_path=root_path,
+                  cmpt=cmpt,save_data=True,plot=True,
+                  msd_path=None,pdx_path=None,msd_pdx_path=None,
+                  w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
     # bottom_up_LFP_compare()
     # draw_LFP_FFT_2area_repeat(n_repeat=64,w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True)
-    top_down_LFP_compare()
+    # top_down_LFP_compare()
+    # msd_plot()
+    compute_data2()
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:

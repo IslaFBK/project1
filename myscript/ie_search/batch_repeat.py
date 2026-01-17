@@ -57,38 +57,41 @@ def draw_statistical_MSD_pdx(jump_interval,
     slope = model.coef_[0]
     slope_str = f'{slope:.2f}'
     r2_str = f'{r2:.2f}'
-    plt.figure(figsize=(6, 6))
+    # plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(2, 2))
     plt.plot(jump_interval, msd_mean, color="#000000")
     n = int(len(x_fit) * 0.7)
-    plt.plot(10**x_fit[:n], 2*10**y_pred[:n], 'r--', label='Linear Fit')
+    plt.plot(2*10**x_fit[:n], 10**y_pred[:n], 'r--', label='Linear Fit')
     plt.fill_between(jump_interval, msd_mean-msd_std, msd_mean+msd_std, color='gray', alpha=0.3)
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel(r'$\tau$ (ms)', fontsize=16)
-    plt.ylabel('MSD (gridpoint$^2$)', fontsize=16)
+    plt.xlabel(r'$\tau$ (ms)') # , fontsize=16
+    plt.ylabel('MSD (gridpoint$^2$)') # , fontsize=16
     plt.text(
-        0.1, 0.95,
+        # 0.1, 0.95,
+        0.6, 0.3,
         rf'$\tau^{{{slope_str}}}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none') # alpha=0.7
     )
     plt.text(
-        0.1, 0.90,
+        # 0.1, 0.90,
+        0.6, 0.2,
         rf'$R^2:{{{r2_str}}}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
     )
-    plt.savefig(save_path_MSD, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path_MSD, dpi=600, bbox_inches='tight')
     plt.close()
 
     # pdx
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(2, 2))
     bins = get_flexible_bins(all_pdx, bin_width=2)
     plt.hist(
         all_pdx,
@@ -104,62 +107,141 @@ def draw_statistical_MSD_pdx(jump_interval,
     x = np.linspace(all_pdx.min(), all_pdx.max(), 200)
     pdx_fit = levy(x, alpha, beta, mu, sigma)
     plt.plot(x, pdx_fit, 'r-', label='Levy fit')
-    plt.xlabel(r'$\Delta$ x (gridpoint)', fontsize=16)
-    plt.ylabel('Probability density', fontsize=16)
+    plt.xlabel(r'$\Delta$ x (gridpoint)') # , fontsize=16
+    plt.ylabel('Probability density') # , fontsize=16
     plt.text(
-        0.75, 0.95,
+        # 0.75, 0.95,
+        0.6, 0.9,
         rf'$\alpha: {alpha:.2f}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
     )
     plt.text(
-        0.75, 0.90,
+        # 0.75, 0.90,
+        0.6, 0.8,
         rf'$\beta:{beta:.2f}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
     )
     plt.text(
-        0.75, 0.85,
+        # 0.75, 0.85,
+        0.6, 0.7,
         rf'$\mu: {mu:.2f}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
     )
     plt.text(
-        0.75, 0.80,
+        # 0.75, 0.80,
+        0.6, 0.6,
         rf'$\sigma: {sigma:.2f}$',
         transform=plt.gca().transAxes,
-        fontsize=14,
+        # fontsize=14,
         verticalalignment='top',
         horizontalalignment='left',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
+        bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
     )
     plt.xlim(-45, 45)
-    plt.legend()
-    plt.savefig(save_path_pdx, dpi=300, bbox_inches='tight')
+    # plt.legend()
+    plt.savefig(save_path_pdx, dpi=600, bbox_inches='tight')
     plt.close()
 
-    # combined graph
-    fig, ax = plt.subplots(1,2, figsize=(12, 6))
-    # MSD
-    img_msd = mpimg.imread(save_path_MSD)
-    ax[0].imshow(img_msd)
-    ax[0].axis('off')
-    # pdx
-    img_pdx = mpimg.imread(save_path_pdx)
-    ax[1].imshow(img_pdx)
-    ax[1].axis('off')
-    plt.tight_layout()
-    plt.savefig(save_path_combined, dpi=300, bbox_inches='tight')
-    plt.close()
+    # # combined graph
+    # fig, ax = plt.subplots(1,2, figsize=(4, 2))
+    # # MSD
+    # ax[0].plot(jump_interval, msd_mean, color="#000000")
+    # n = int(len(x_fit) * 0.7)
+    # ax[0].plot(10**x_fit[:n], 2*10**y_pred[:n], 'r--', label='Linear Fit')
+    # ax[0].fill_between(jump_interval, msd_mean-msd_std, msd_mean+msd_std, color='gray', alpha=0.3)
+    # ax[0].set_xscale('log')
+    # ax[0].set_yscale('log')
+    # ax[0].set_xlabel(r'$\tau$ (ms)')
+    # ax[0].set_ylabel('MSD (gridpoint$^2$)')
+    # # 添加文本（slope 和 r2）
+    # ax[0].text(
+    #     # 0.1, 0.95,
+    #     0.6, 0.3,
+    #     rf'$\tau^{{{slope_str}}}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none') # alpha=0.7
+    # )
+    # ax[0].text(
+    #     # 0.1, 0.90,
+    #     0.6, 0.2,
+    #     rf'$R^2:{{{r2_str}}}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+    # )
+
+    # # pdx
+    # bins = get_flexible_bins(all_pdx, bin_width=2)
+    # ax[1].hist(all_pdx, bins=bins, density=True, alpha=0.5, 
+    #            label='histogram', rwidth=0.8, color="#000000")
+    # # Levy fit
+    # params, nll = fit_levy(all_pdx)
+    # alpha, beta, mu, sigma = params.get()
+    # x = np.linspace(all_pdx.min(), all_pdx.max(), 200)
+    # pdx_fit = levy(x, alpha, beta, mu, sigma)
+    # ax[1].plot(x, pdx_fit, 'r-', label='Levy fit')
+    # ax[1].set_xlabel(r'$\Delta$ x (gridpoint)') # , fontsize=16
+    # ax[1].set_ylabel('Probability density') # , fontsize=16
+    # # ax[1].legend()
+    # # 添加文本（alpha, beta, mu, sigma）
+    # ax[1].text(
+    #     0.6, 0.9,
+    #     rf'$\alpha: {alpha:.2f}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+    # )
+    # ax[1].text(
+    #     0.6, 0.8,
+    #     rf'$\beta:{beta:.2f}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+    # )
+    # ax[1].text(
+    #     0.6, 0.7,
+    #     rf'$\mu: {mu:.2f}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+    # )
+    # ax[1].text(
+    #     0.6, 0.6,
+    #     rf'$\sigma: {sigma:.2f}$',
+    #     transform=plt.gca().transAxes,
+    #     # fontsize=14,
+    #     verticalalignment='top',
+    #     horizontalalignment='left',
+    #     bbox=dict(facecolor='white', alpha=0.0, edgecolor='none')
+    # )
+    # ax[1].set_xlim(-45, 45)
+
+    # plt.tight_layout()
+    # plt.savefig(save_path_combined, dpi=600, bbox_inches='tight')
+    # plt.close()
 
 def batch_repeat(param, 
                  n_repeat=64, 
