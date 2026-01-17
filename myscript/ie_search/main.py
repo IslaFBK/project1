@@ -47,13 +47,23 @@ logging.getLogger('brian2').setLevel(logging.WARNING)
 def set_journal_style():
     plt.rcParams.update({
         # Font
-        "text.usetex": False,  # 启用 LaTeX 渲染
+        "text.usetex": True,  # 启用 LaTeX 渲染, 启用后ticks没法使用Arial
         "font.family": "sans-serif",
         "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
         "mathtext.fontset": "custom",
         "mathtext.rm": "Arial",
         "mathtext.it": "Arial:italic",
         "mathtext.bf": "Arial:bold",
+        # 关键：LaTeX预编译指令，强制无衬线+加载Arial
+        "text.latex.preamble": r"""
+            \usepackage[utf8]{inputenc}
+            \usepackage[T1]{fontenc}
+            \usepackage{arevmath}  % 无衬线数学字体 (兼容Aria)
+            \usepackage{sfmath}   % 强制数学符号用无衬线
+            \renewcommand{\familydefault}{\sfdefault}  % 全局无衬线
+            \usepackage{helvet}   % LaTeX的Arial兼容包 (helvet对应Helvetica/Arial)
+            \renewcommand{\sfdefault}{phv}  % 指定helvet的字体族为phv (Arial/Helvetica)
+        """,
         
         # Font sizes
         # "axes.labelsize": 8,
@@ -2216,7 +2226,14 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
         
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-
+    if adapt and top_sti:
+        topdown = 'adapt_stim2'
+    elif adapt:
+        topdown = 'adapt'
+    elif top_sti:
+        topdown = 'stim2'
+    else:
+        topdown = 'silnc'
     if save_path_beta is None:
         save_path_beta = f'{save_path_root}/beta_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
     if save_path_gama is None:
@@ -2243,15 +2260,6 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
         power_mean = fft['power_mean1']
         power_std = fft['power_std1']
         results.append((sig, freqs, power_mean, power_std))
-    
-    if adapt and top_sti:
-        topdown = 'adapt_stim2'
-    elif adapt:
-        topdown = 'adapt'
-    elif top_sti:
-        topdown = 'stim2'
-    else:
-        topdown = 'silnc'
 
     if save_LFPs:
         LFPs_results = {
@@ -2419,6 +2427,10 @@ try:
         # dx朝右下, dy朝左下
         param = tuple(param_c0 + param_vec_hrz*dx + param_vec_vtc*dy)
         return param
+        
+    param_area1 = vary_ie_ratio(dx=0,dy=1)
+    param_area2 = (1.84138, 1.57448)
+    param_area12 = param_area1 + param_area2
     
     #%% 单层挑参数算数据、视频
     def compute_data():
@@ -2668,93 +2680,53 @@ try:
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
 
-    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,
+    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=1.0,
                                   save_path_beta=None,
                                   save_path_gama=None,
-                                  save_path=None):
+                                  save_path=None,cmpt=True):
         param=vary_ie_ratio(dx=dx1,dy=dy1)
-        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
-                         plot=True,video=True,save_load=False,cmpt=True,
-                         save_path=save_path,
-                         save_path_beta=save_path_beta,
-                         save_path_gama=save_path_gama)
-    # 这个还是认为第二层可以用第一层参数空间，已被淘汰
-    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=0.0,dx2=0.0,dy2=0.0,
-                                  w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
-                                  save_path_beta=None,
-                                  save_path_gama=None,
-                                  save_path=None):
-        param1=vary_ie_ratio(dx=dx1,dy=dy1)
-        param2=vary_ie_ratio(dx=dx2,dy=dy2)
-        param12=param1+param2
-        LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
+        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=1000,sig=sig,dt=0.1,
                          plot=True,video=True,save_load=False,
-                         w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                         save_path=save_path,cmpt=True,
+                         save_path=save_path,cmpt=cmpt,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
 
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算，且画出第二层LFP
-    def draw_LFP_FFT_2area_repeat2(n_repeat=64,sig=0,dx=0.0,dy=0.0,param2=None,
+    def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0,dx=0.0,dy=1.0,param2=param_area2,
                                   w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                   save_path_beta=None,
                                   save_path_gama=None,
-                                  save_path=None):
+                                  save_path=None,cmpt=True):
         param1=vary_ie_ratio(dx=dx,dy=dy)
         param2=param2
         param12=param1+param2
         LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
                          plot=True,plot12=True,video=True,save_load=False,
                          w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                         save_path=save_path,cmpt=True,
+                         save_path=save_path,cmpt=cmpt,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
+        
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算
-    # dx=0
-    # dy=1
-    # # param2 = (1.81273,1.53026)
-    # param2 = (1.84138, 1.57448)
-    # for w in [2.2, 2.3, 2.4, 2.5]:
-    #     w_12_e=w
-    #     w_12_i=w
-    #     w_21_e=w
-    #     w_21_i=w
-    #     temp_dir=f'./{LFP_dir}/r{dx}_{dy}_{param2}w{w}'
-    #     # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
-    #     Path(temp_dir).mkdir(parents=True, exist_ok=True)
-    #     path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
-    #     draw_LFP_FFT_2area_repeat2(dx=dx,dy=dy,param2=param2,
-    #                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-    #                             save_path=f'./{path}_whole.svg',
-    #                             save_path_beta=f'./{path}_beta.svg',
-    #                             save_path_gama=f'./{path}_gamma.svg')
-
-    ## 这里在第一层椭圆临界域内尝试计算特殊点的LFP，就连第二层也在第一层临界域内取值
-    # dx1=0.0
-    # dy1=1.0
-    # dx2=-1.0 # 0,-1,1
-    # dy2=-1.0 # 0,1,-1
-    # w_12_e=2.7
-    # w_12_i=2.7
-    # w_21_e=2.7
-    # w_21_i=2.7
-    # for dy2 in [0.0, 1.0, -1.0]:
-    #     for dx2 in [0.0, -1.0, 1.0]:
-    #         temp_dir1=f'./{LFP_dir}/r{dx1}_{dy1}'
-    #         temp_dir2=f'./{LFP_dir}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
-    #         # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
-    #         Path(temp_dir2).mkdir(parents=True, exist_ok=True)
-    #         path_1=f'./{temp_dir1}/r{dx1}_{dy1}'
-    #         path_2=f'./{temp_dir2}/r{dx1}_{dy1}_{dx2}_{dy2}w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}'
-    #         # draw_LFP_FFT_1area_repeat(dx1=dx1,dy1=dy1,
-    #         #                           save_path=f'./{path_1}_whole.svg',
-    #         #                           save_path_beta=f'./{path_1}_beta.svg',
-    #         #                           save_path_gama=f'./{path_1}_gamma.svg')
-    #         draw_LFP_FFT_2area_repeat(dx1=dx1,dy1=dy1,dx2=dx2,dy2=dy2,
-    #                                 w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-    #                                 save_path=f'./{path_2}_whole.svg',
-    #                                 save_path_beta=f'./{path_2}_beta.svg',
-    #                                 save_path_gama=f'./{path_2}_gamma.svg')
+    def weight_search():
+        dx=0
+        dy=1
+        # param2 = (1.81273,1.53026)
+        param2 = (1.84138, 1.57448)
+        for w in [2.4, 2.5]:
+            w_12_e=w
+            w_12_i=w
+            w_21_e=w
+            w_21_i=w
+            temp_dir=f'./{LFP_dir}/r{dx}_{dy}_{param2}w{w}'
+            # Path(temp_dir1).mkdir(parents=True, exist_ok=True)
+            Path(temp_dir).mkdir(parents=True, exist_ok=True)
+            path=f'./{temp_dir}/r{dx}_{dy}_{param2}w{w}'
+            draw_LFP_FFT_2area_repeat(dx=dx,dy=dy,param2=param2,
+                                      w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                                      save_path=f'./{path}_full.svg',
+                                      save_path_beta=f'./{path}_beta.svg',
+                                      save_path_gama=f'./{path}_gama.svg')
 
     # def draw_LFP_FFT_diff_repeat(n_repeat=128):
     #     param1 = (1.795670364314891, 2.449990451446889)
@@ -2815,6 +2787,7 @@ try:
         # w=(w_12_e,w_12_i,w_21_e,w_21_i)
         n_repeat=128
         stim_dura=10000
+        cmpt=False
 
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
@@ -2839,7 +2812,7 @@ try:
         draw_LFP_FFT_compare(
             param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=temp_dir,std_plot=False,cmpt=False,
+            save_path_root=temp_dir,std_plot=False,cmpt=cmpt,
             sti=True,top_sti=False,sti_type=sti_type,stim_dura=stim_dura
             # save_path_beta1=path_beta1,save_path_gama1=path_gama1,save_path1=path_full1,
             # save_path_beta2=path_beta2,save_path_gama2=path_gama2,save_path2=path_full2,
@@ -2924,7 +2897,9 @@ try:
         adapt_type = 'Uniform'
         sti_type = 'Uniform'
         n_repeat=128
-        w=2.8
+        stim_dura = 10000
+        cmpt=True
+        # w=2.8
         w_12_e=2.4
         w_12_i=2.4
         w_21_e=2.4
@@ -2934,32 +2909,32 @@ try:
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-        temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_w{w}_re{n_repeat}'
+        temp_dir_adapt  =  f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_w{w}_re{n_repeat}'
+        temp_dir_stim2  =  f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
-        sub_temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_re{n_repeat}/sub'
+        sub_temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}/sub'
         Path(sub_temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        sub_temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_re{n_repeat}/sub'
+        sub_temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}/sub'
         Path(sub_temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
         # adaptation
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
                                plot=True,plot_sub=True,video=True,save_load=False,
-                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,cmpt=True,
+                               w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                                save_path_root=temp_dir_adapt,sub_path_root=sub_temp_dir_adapt,
-                               sti=False,top_sti=False,sti_type=sti_type,
-                               adapt=True,adapt_type=adapt_type,
+                               sti=False,top_sti=False,sti_type=sti_type,cmpt=cmpt,
+                               adapt=True,adapt_type=adapt_type,stim_dura=stim_dura,
                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
         
         # stimulus
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
                                plot=True,plot_sub=True,video=True,save_load=False,
-                               w_12_e=w,w_12_i=w,w_21_e=w,w_21_i=w,cmpt=True,
+                               w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                                save_path_root=temp_dir_stim2,sub_path_root=sub_temp_dir_stim2,
-                               sti=False,top_sti=True,sti_type=sti_type,
-                               adapt=False,adapt_type=adapt_type,
+                               sti=False,top_sti=True,sti_type=sti_type,cmpt=cmpt,
+                               adapt=False,adapt_type=adapt_type,stim_dura=stim_dura,
                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
 
     #%% repeat 2 area computation recetive field
@@ -2993,7 +2968,9 @@ try:
     #           msd_path=None,pdx_path=None,msd_pdx_path=None,
     #           w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
-    bottom_up_LFP_compare()
+    # bottom_up_LFP_compare()
+    # draw_LFP_FFT_2area_repeat(n_repeat=64,w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True)
+    top_down_LFP_compare()
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:

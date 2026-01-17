@@ -1790,7 +1790,7 @@ def compute_2_general(comb, seed=10, index=1,
 
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + window)*ms # transient + stim_dura + window
     # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + window)*ms
     # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
