@@ -1727,8 +1727,8 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 for i in range(n_repeat)
             )
         # 提取所有LFP
-        LFP_list = [r['data'].a1.ge.LFP for r in results]
-        # LFP_list = [r['LFP_cut'] for r in results]
+        # LFP_list = [r['data'].a1.ge.LFP for r in results]
+        LFP_list = [r['LFP_cut'] for r in results]
         # 计算所有频谱
         fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
         freqs = fft_results[0][0]
@@ -1819,10 +1819,10 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 for i in range(n_repeat)
             )
         # 提取所有LFP
-        LFP1_list = [r['data'].a1.ge.LFP for r in results]
-        LFP2_list = [r['data'].a2.ge.LFP for r in results]
-        # LFP1_list = [r['LFP1_cut'] for r in results]
-        # LFP2_list = [r['LFP2_cut'] for r in results]
+        # LFP1_list = [r['data'].a1.ge.LFP for r in results]
+        # LFP2_list = [r['data'].a2.ge.LFP for r in results]
+        LFP1_list = [r['LFP1_cut'] for r in results]
+        LFP2_list = [r['LFP2_cut'] for r in results]
         # 计算所有频谱
         fft1_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP1_list]
         freqs1 = fft1_results[0][0]
