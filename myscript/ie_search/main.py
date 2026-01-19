@@ -2877,9 +2877,9 @@ try:
 
     # bottom_up_LFP_compare()
     # draw_LFP_FFT_2area_repeat(n_repeat=64,w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True)
-    # top_down_LFP_compare()
+    top_down_LFP_compare()
     # msd_plot()
-    compute_data2()
+    # compute_data2()
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:

@@ -1862,7 +1862,7 @@ def compute_2_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 0*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = window
     # area 1
