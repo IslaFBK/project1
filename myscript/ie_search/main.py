@@ -1784,12 +1784,20 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
-    if save_path_beta is None:
-        save_path_beta = f'{save_path_root}/beta_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
-    if save_path_gama is None:
-        save_path_gama = f'{save_path_root}/gama_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
-    if save_path is None:
-        save_path =      f'{save_path_root}/full_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+    if w_12_e is None and w_12_i is None and w_21_e is None and w_21_i is None:
+        if save_path_beta is None:
+            save_path_beta = f'{save_path_root}/beta_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+        if save_path_gama is None:
+            save_path_gama = f'{save_path_root}/gama_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+        if save_path is None:
+            save_path =      f'{save_path_root}/full_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+    else:
+        if save_path_beta is None:
+            save_path_beta = f'{save_path_root}/beta_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{n_repeat}_{stim_dura}'
+        if save_path_gama is None:
+            save_path_gama = f'{save_path_root}/gama_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{n_repeat}_{stim_dura}'
+        if save_path is None:
+            save_path =      f'{save_path_root}/full_2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{n_repeat}_{stim_dura}'
     if cmpt:
         if video:
             results = Parallel(n_jobs=-1)(
@@ -2417,6 +2425,13 @@ try:
         
     param_area1 = vary_ie_ratio(dx=0,dy=1)
     param_area2 = (1.84138, 1.57448)
+    # param_test2 = (1.77822, 1.44470)
+    # param_test2 = (2.5989, 2.16633)
+    # param_test2 = (2.25453, 1.78106) # 好使,右下2
+    # param_test2 = (2.17752,1.86132) # 左上, 不好使
+    param_test2 = (2.37461,1.90033) # 右下边刚>rf1, 好使
+    # param_test2 = (2.25462,1.94744) # 左上边偏上, 不好使
+    # param_test2 = (2.3599,2.01044) # 左上边再往上, 不好使
     param_area12 = param_area1 + param_area2
     
     #%% 单层挑参数算数据、视频
@@ -2666,13 +2681,27 @@ try:
     #     LFP_2area(param=param2,maxrate=500,sig=sig,dt=0.1,plot=True)
     # # draw_LFP_FFT_2area()
 
-    def draw_LFP_FFT_1area_repeat(n_repeat=64,sig=0,dx1=0.0,dy1=1.0,
+    def draw_LFP_FFT_1area_repeat(param,n_repeat=64,sig=0,
+                                  maxrate=1000,plot=True,video=True,
+                                  stim_dura=10000,std_plot=False,
+                                  save_load=False,save_path_video=None,
+                                  save_lfp=True,sti=False,
+                                  sti_type='Uniform',
+                                  save_path_root=LFP_dir,
+                                  lfp_data_path=None,
                                   save_path_beta=None,
                                   save_path_gama=None,
-                                  save_path=None,cmpt=True):
-        param=vary_ie_ratio(dx=dx1,dy=dy1)
-        LFP_1area_repeat(param=param,n_repeat=n_repeat,maxrate=1000,sig=sig,dt=0.1,
-                         plot=True,video=True,save_load=False,
+                                  save_path=None,
+                                  cmpt=True,delta_gk=1):
+        LFP_1area_repeat(param=param,n_repeat=n_repeat,
+                         maxrate=maxrate,sig=sig,dt=0.1,
+                         plot=plot,video=video,stim_dura=stim_dura,
+                         std_plot=std_plot,save_load=save_load,
+                         save_path_video=save_path_video,
+                         save_lfp=save_lfp,sti=sti,
+                         sti_type=sti_type,delta_gk=delta_gk,
+                         save_path_root=save_path_root,
+                         lfp_data_path=lfp_data_path,
                          save_path=save_path,cmpt=cmpt,
                          save_path_beta=save_path_beta,
                          save_path_gama=save_path_gama)
@@ -2680,14 +2709,15 @@ try:
     ## 第一层由dxdy指定，第二层直接指定的双层LFP计算，且画出第二层LFP
     def draw_LFP_FFT_2area_repeat(n_repeat=64,sig=0,dx=0.0,dy=1.0,param2=param_area2,
                                   w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
-                                  save_path_beta=None,
-                                  save_path_gama=None,
+                                  save_path_beta=None,stim_dura=10000,
+                                  save_path_gama=None,save_path_root=None,
                                   save_path=None,cmpt=True):
         param1=vary_ie_ratio(dx=dx,dy=dy)
         param2=param2
         param12=param1+param2
         LFP_2area_repeat(param=param12,n_repeat=n_repeat,maxrate=500,sig=sig,dt=0.1,
-                         plot=True,plot12=True,video=True,save_load=False,
+                         plot=True,plot12=True,video=True,save_path_root=save_path_root,
+                         save_load=False,stim_dura=stim_dura,
                          w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                          save_path=save_path,cmpt=cmpt,
                          save_path_beta=save_path_beta,
@@ -2755,10 +2785,11 @@ try:
     # mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
     #%% new comparable lfp fft (vary weight and check fft) (bottom up)
-    def bottom_up_LFP_compare(cmpt=False,n_repeat=128,stim_dura=10000,
+    def bottom_up_LFP_compare(cmpt=True,n_repeat=64,stim_dura=10000,
                               w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4):
         param1=vary_ie_ratio(dx=0,dy=1)
-        param2=(1.84138, 1.57448)
+        # param2=(1.84138, 1.57448)
+        param2=param_test2
         param12=param1+param2
         maxrate=1000
         sti_type = 'Uniform'
@@ -2768,7 +2799,7 @@ try:
         common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
         # bottom_up表示只有前馈，top_down表示只有反馈
-        temp_dir=f'./{LFP_dir}/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir=f'./{LFP_dir}/new_params/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
         Path(f'{temp_dir}/sub').mkdir(parents=True, exist_ok=True)
 
@@ -2793,16 +2824,17 @@ try:
     #                           chg_adapt_range=5)
 
     #%% LFP FFT under different type and different size top-down interaction
-    def top_down_LFP_compare():
+    def top_down_LFP_compare(stim_dura = 1000):
         param1=vary_ie_ratio(dx=0,dy=1)
-        param2=(1.84138, 1.57448)
+        # param2=(1.84138, 1.57448)
+        param2 = param_test2
         param12=param1+param2
         maxrate=1000
         new_delta_gk_2=0.5
         adapt_type = 'Uniform'
         sti_type = 'Uniform'
-        n_repeat=128
-        stim_dura = 10000
+        n_repeat=64
+        
         cmpt=True
         # w=2.8
         w_12_e=2.4
@@ -2814,14 +2846,14 @@ try:
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-        temp_dir_adapt  =  f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_adapt  =  f'./{LFP_dir}/new_params/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        temp_dir_stim2  =  f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_stim2  =  f'./{LFP_dir}/new_params/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
-        sub_temp_dir_adapt=f'./{LFP_dir}/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}/sub'
+        sub_temp_dir_adapt=f'{temp_dir_adapt}/sub'
         Path(sub_temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        sub_temp_dir_stim2=f'./{LFP_dir}/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}/sub'
+        sub_temp_dir_stim2=f'{temp_dir_stim2}/sub'
         Path(sub_temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
         # adaptation
@@ -2875,9 +2907,16 @@ try:
                   msd_path=None,pdx_path=None,msd_pdx_path=None,
                   w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
-    # bottom_up_LFP_compare()
-    # draw_LFP_FFT_2area_repeat(n_repeat=64,w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True)
-    top_down_LFP_compare()
+    # bottom_up_LFP_compare(stim_dura=1000)
+    # draw_LFP_FFT_2area_repeat(
+    #     n_repeat=64,param2=param_test2,stim_dura=10000,
+    #     save_path_root=f'{LFP_dir}/test',
+    #     w_12_e=2.4,w_12_i=2.4,w_21_e=3.0,w_21_i=3.0,cmpt=True
+    #     )
+    # draw_LFP_FFT_1area_repeat(
+    #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2
+    #     )
+    top_down_LFP_compare(stim_dura=10000)
     # msd_plot()
     # compute_data2()
 

@@ -328,7 +328,7 @@ def compute_1(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = 15
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -1211,7 +1211,7 @@ def compute_1_general(comb, seed=10, index=1,
 
     simu_time_tot = (stim_scale_cls.stim_on[-1,1] + window)*ms # transient + stim_dura + window
     # simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + round(inter_time/2))*ms
-    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1])*ms
+    simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + window)*ms
     # simu_time2 = simu_time_tot - simu_time1
 
     net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
@@ -1269,7 +1269,7 @@ def compute_1_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   # transient + stim_dura + window
     # window = window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
