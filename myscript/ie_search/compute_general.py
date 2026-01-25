@@ -328,7 +328,7 @@ def compute_1(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = 15
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -965,6 +965,7 @@ def compute_2(comb, seed=10, index=1,
         'centre2': centre2
     }
 
+start_time_ratio = 0
 #%% computation with all vital parameters input 允许改变其他值，允许使用第二层adaptation
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 
@@ -1269,7 +1270,7 @@ def compute_1_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = start_time_ratio*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   # transient + stim_dura + window
     # window = window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -1862,7 +1863,7 @@ def compute_2_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = start_time_ratio*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = window
     # area 1
