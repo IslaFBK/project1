@@ -965,7 +965,7 @@ def compute_2(comb, seed=10, index=1,
         'centre2': centre2
     }
 
-start_time_ratio = 0
+start_time_ratio = 1.0
 #%% computation with all vital parameters input 允许改变其他值，允许使用第二层adaptation
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 

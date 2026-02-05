@@ -439,20 +439,20 @@ def receptive_field(spk_rate0, spk_rate1,
             break
     # 绘制均值曲线
     if plot:
-        plt.figure(figsize=(5,5))
+        plt.figure(figsize=(2,2))
         plt.plot(bins[1:], fr_ext_mean, 'o-', label='Mean $fr_{ext}$')
         if min_zero is not None:
             plt.axvline(x=min_zero, color='r', linestyle='--', linewidth=1, 
                     label=f'Zero crossing at d={min_zero:.2f}')
             # 在零点处添加文本标注
-            plt.text(min_zero+4, plt.ylim()[1]*0.2, f'd={min_zero:.2f}', 
-                    color='r', ha='center', va='bottom')
-        plt.xlabel('Distance to Center (0,0)')
-        plt.ylabel('fr_ext')
-        plt.title('fr_ext vs Distance')
+            plt.text(min_zero, 0, f'd={min_zero:.2f}', 
+                    color='r', ha='left', va='bottom')
+        plt.xlabel('Distance (gridpoint)')
+        plt.ylabel('Firing rate (Hz)')
+        # plt.title('fr_ext vs Distance')
         plt.grid(True)
-        plt.legend()
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        # plt.legend()
+        plt.savefig(save_path, dpi=600, bbox_inches='tight')
         plt.close()
     
     return {
@@ -589,7 +589,7 @@ def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
         plt.ylabel('Power')
         plt.title('LFP FFT Spectrum')
         plt.grid(True)
-        plt.xlim(1, 90)
+        plt.xlim(1, 100)
         x_min, x_max = plt.xlim()
         mask = (freqs >= x_min) & (freqs <= x_max)
         if np.any(mask):
@@ -598,3 +598,85 @@ def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
     return freqs, power
+
+def analyze_LFP_morlet(LFP, dt=0.1, plot=True, save_path=None):
+    """
+    专门使用Morlet小波进行LFP时频分析（最常用方法）
+    参数:
+        LFP: 一维或二维numpy数组
+        dt: 采样间隔(ms)
+        plot: 是否画图
+        save_path: 保存路径
+    返回:
+        t, freqs, power
+    """
+    if LFP.ndim > 1:
+        LFP = LFP[0]
+    
+    N = len(LFP)
+    fs = 1000 / dt
+    t = np.arange(N) * dt
+    
+    # 定义频率范围 (1-90Hz)
+    freqs = np.logspace(np.log10(1), np.log10(100), 100)
+    
+    # Morlet小波参数
+    # n_cycles = freqs / 2.0  # 频率越高，周期数越少，时间分辨率越好
+    n_cycles = 6  # 固定值，简单有效
+    
+    # 计算时频表示
+    tf_power = np.zeros((len(freqs), N))
+    
+    for i, freq in enumerate(freqs):
+        # 创建Morlet小波
+        # sigma_t = n_cycles[i] / (2 * np.pi * freq)  # 标准差
+        sigma_t = n_cycles / (2 * np.pi * freq)
+        # 限制小波长度不超过500ms
+        max_wavelet_duration = 0.5 # 最大500ms
+        sigma_t = min(sigma_t, max_wavelet_duration/6)
+        # 计算点数，但有限制
+        wavelet_samples = int(6 * sigma_t * fs)
+        wavelet_samples = min(wavelet_samples, 2000)  # 不超过2000点
+        # 确保是奇数
+        if wavelet_samples % 2 == 0:
+            wavelet_samples += 1
+        t_wavelet = np.linspace(-3*sigma_t, 3*sigma_t, wavelet_samples)
+        # 创建小波
+        wavelet = np.exp(2j * np.pi * freq * t_wavelet) * np.exp(-t_wavelet**2 / (2 * sigma_t**2))
+        # 归一化
+        wavelet = wavelet / np.sqrt(np.sum(np.abs(wavelet)**2))
+        # 卷积计算
+        conv_result = np.convolve(LFP, wavelet, mode='same')
+        # tf_power[i, :] = np.abs(conv_result)**2
+        tf_power[i, :] = np.abs(conv_result) # 不平方
+        # 进度提示
+        if i % 10 == 0:
+            print(f"频率 {i+1}/{len(freqs)}: {freq:.1f}Hz, 小波长度={len(wavelet)}点")
+    
+    if plot:
+        fig, ax = plt.subplots(figsize=(6.5, 1))
+        # 功率线性显示
+        # im = ax.pcolormesh(t, freqs, tf_power, shading='gouraud', cmap='plasma')
+        # 对功率取对数显示
+        log_power = np.log10(tf_power + 1e-12)  # 避免log(0)
+        im = ax.pcolormesh(t, freqs, log_power, shading='gouraud', cmap='plasma', 
+                           norm=plt.Normalize(vmin=np.percentile(log_power, 5), 
+                                              vmax=np.percentile(log_power, 95)))
+        ax.set_yscale('log')
+        ax.set_xlabel('Time (ms)')
+        ax.set_ylabel('Frequency (Hz)')
+        ax.set_ylim(1, 100)
+        # 设置对数刻度标签
+        # ax.set_yticks([1, 2, 5, 10, 20, 30, 50, 100])
+        # ax.set_yticklabels(['1', '2', '5', '10', '20', '30', '50', '100'])
+        # 颜色条
+        cbar = plt.colorbar(im, ax=ax)
+        # colorbar线性label
+        # cbar.set_label('Power')
+        # colorbar对数label
+        cbar.set_label('log$_{10}$(Power)')
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        if save_path:
+            plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    
+    return t, freqs, tf_power.T

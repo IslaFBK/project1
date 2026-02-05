@@ -134,7 +134,6 @@ def data_analysis(data_path,transient=3000,stim_dura=1000,window=15,sti=False,si
     '''load data from disk'''
     data_load = mydata.mydata()
     data_load.load(data_path)
-    transient=3000
     start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = transient+stim_dura+window   # transient + stim_dura + window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -178,6 +177,87 @@ def data_analysis(data_path,transient=3000,stim_dura=1000,window=15,sti=False,si
         'jump_interval': jump_interval,
         'msd': msd,
         'pdx': pdx
+    }
+
+def data_analysis2(data_path,transient=3000,stim_dura=1000,window=15,sti=False,sig=5,width=64):
+    '''load data from disk'''
+    data_load = mydata.mydata()
+    data_load.load(data_path)
+    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    end_time = transient+stim_dura+window   # transient + stim_dura + window
+    # area 1
+    data_load.a1.ge.get_spike_rate(start_time=start_time,
+                                   end_time=end_time,
+                                   sample_interval=1,
+                                   n_neuron = data_load.a1.param.Ne,
+                                   window = window)
+    spk_rate1 = data_load.a1.ge.spk_rate.spk_rate
+    data_load.a1.ge.get_centre_mass()
+    centre1 = data_load.a1.ge.centre_mass.centre
+    centre_ind1 = data_load.a1.ge.centre_mass.centre_ind
+    data_load.a1.ge.overlap_centreandspike()
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
+    data_load.a1.ge.get_MSD(start_time=start_time,
+                            end_time=end_time,
+                            sample_interval=1,
+                            n_neuron = data_load.a1.param.Ne,
+                            window = window,
+                            dt = 0.1,
+                            slide_interval=1,
+                            jump_interval=jump_interval,
+                            fit_stableDist='pylevy')
+    msd1 = data_load.a1.ge.MSD.MSD
+    jump_interval1 = data_load.a1.ge.MSD.jump_interval
+    pdx1 = data_load.a1.ge.centre_mass.jump_size[:,1]
+    # area 2
+    data_load.a2.ge.get_spike_rate(start_time=start_time,
+                                   end_time=end_time,
+                                   sample_interval=1,
+                                   n_neuron = data_load.a2.param.Ne,
+                                   window = window)
+    spk_rate2 = data_load.a2.ge.spk_rate.spk_rate
+    data_load.a2.ge.get_centre_mass()
+    centre2 = data_load.a2.ge.centre_mass.centre
+    centre_ind2 = data_load.a2.ge.centre_mass.centre_ind
+    data_load.a2.ge.overlap_centreandspike()
+    jump_interval = np.linspace(1, np.min([stim_dura,1000]), np.min([stim_dura,100]))
+    data_load.a2.ge.get_MSD(start_time=start_time,
+                            end_time=end_time,
+                            sample_interval=1,
+                            n_neuron = data_load.a2.param.Ne,
+                            window = window,
+                            dt = 0.1,
+                            slide_interval=1,
+                            jump_interval=jump_interval,
+                            fit_stableDist='pylevy')
+    msd2 = data_load.a2.ge.MSD.MSD
+    jump_interval2 = data_load.a2.ge.MSD.jump_interval
+    pdx2 = data_load.a2.ge.centre_mass.jump_size[:,1]
+
+    frames = data_load.a1.ge.spk_rate.spk_rate.shape[2]
+    stim_on_off = data_load.a1.param.stim1.stim_on-start_time
+    stim_on_off = stim_on_off[stim_on_off[:,0]>=0]
+    stim = None
+    if sti:
+        stim = [[[[(width-1)/2,(width-1)/2]], 
+                [stim_on_off], 
+                [[sig]*stim_on_off.shape[0]]]]
+    return {
+        'spk_rate1': spk_rate1,
+        'spk_rate2': spk_rate2,
+        'centre1': centre1,
+        'centre2': centre2,
+        'centre_ind1': centre_ind1,
+        'centre_ind2': centre_ind2,
+        'jump_interval1': jump_interval1,
+        'jump_interval2': jump_interval2,
+        'msd1': msd1,
+        'msd2': msd2,
+        'pdx1': pdx1,
+        'pdx2': pdx2,
+        'frames': frames,
+        'stim_on_off': stim_on_off,
+        'stim': stim
     }
 
 # unwrap periodic trajectory
@@ -986,21 +1066,21 @@ def rf_alpha_distribution_plot(maxrate=1000, delta_gk=1, sample_type='Ellipse'):
     plt.close(fig2)
 
 #%% Execution part ########################################################
-def draw_trajectory():
+def draw_trajectory(delta_gk=1):
     # 载入数据
     # 第一层参数:
     param_area1 = vary_ie_ratio(dx=0,dy=1)
     # 第二层参数:
     param_area2 = (1.84138, 1.57448)
+    param_test2 = (2.37461,1.90033)
     # 双层参数组合:
     param_area12 = param_area1 + param_area2
     ## 单层读数据,输出轨迹
     # 哪一层
-    delta_gk=2
     if delta_gk == 1:
         param=param_area1
     elif delta_gk == 2:
-        param=param_area2
+        param=param_test2
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
     # 激励相关
@@ -1015,8 +1095,8 @@ def draw_trajectory():
         input=f'on{maxrate}_{sti_type}_{sig}'
     else:
         input='off'
-
-    data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
+    
+    data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.file"
     video_path=None
 
     results = data_analysis(data_path=data_path,
@@ -1032,8 +1112,8 @@ def draw_trajectory():
     # 解缠绕轨迹
     unwrapped_trajectory = unwrap_periodic_path(centre=centre, width=width)
 
-    save_path1=f'{elite_graph_dir}/trajectory_ctnu_win{window}_{delta_gk}.svg'
-    save_path2=f'{elite_graph_dir}/trajectory_toru_win{window}_{delta_gk}.svg'
+    save_path1=f'{elite_graph_dir}/trajectory_ctnu_{common_path}_win{window}_{delta_gk}.svg'
+    save_path2=f'{elite_graph_dir}/trajectory_toru_{common_path}_win{window}_{delta_gk}.svg'
     # 绘制普通轨迹
     plot_trajectory(
         data=unwrapped_trajectory,
@@ -1052,6 +1132,108 @@ def draw_trajectory():
         width=width,
         axis=True,
         save_path=save_path2,
+        cmap='plasma',
+        linewidth=2.0,
+        show_colorbar=False
+    )
+
+def draw_trajectory2():
+    # 载入数据
+    # 第一层参数:
+    param_area1 = vary_ie_ratio(dx=0,dy=1)
+    # 第二层参数:
+    param_area2 = (1.84138, 1.57448)
+    param_test2 = (2.37461,1.90033)
+    # 双层参数组合:
+    param_area12 = param_area1 + param_test2
+    ## 双层读数据,输出轨迹
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param_area12
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    # 激励相关
+    sti=False
+    sti_type='Uniform'
+    sig=5
+    maxrate=1000
+    stim_dura=1000
+    window=5
+    width=64
+    
+    adapt = False
+    top_sti = False
+    adapt_type = 'Uniform'
+
+    if sti:
+        input=f'on{maxrate}_{sti_type}_{sig}'
+    else:
+        input='off'
+
+    if adapt and top_sti:
+        topdown = 'adapt_stim2'
+    elif adapt:
+        topdown = 'adapt'
+    elif top_sti:
+        topdown = 'stim2'
+    else:
+        topdown = 'silnc'
+    
+    data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
+    video_path=None
+
+    results = data_analysis2(data_path=data_path,
+                             transient=3000,
+                             stim_dura=stim_dura,
+                             window=window,
+                             sti=sti,
+                             sig=sig,
+                             width=width)
+    centre1=results['centre1']
+    centre2=results['centre2']
+
+    # 解缠绕轨迹
+    unwrapped_trajectory1 = unwrap_periodic_path(centre=centre1, width=width)
+    unwrapped_trajectory2 = unwrap_periodic_path(centre=centre2, width=width)
+
+    save_pathc1=f'{elite_graph_dir}/trajectory_ctnu_{common_path}_win{window}_1.svg'
+    save_pathc2=f'{elite_graph_dir}/trajectory_ctnu_{common_path}_win{window}_2.svg'
+    save_patht1=f'{elite_graph_dir}/trajectory_toru_{common_path}_win{window}_1.svg'
+    save_patht2=f'{elite_graph_dir}/trajectory_toru_{common_path}_win{window}_2.svg'
+    # 绘制普通轨迹
+    plot_trajectory(
+        data=unwrapped_trajectory1,
+        save_path=save_pathc1,
+        axis=True,
+        cmap='plasma',
+        linewidth=2.0,
+        # scalebar_len=100,
+        # scalebar_label='100 unit',
+        show_colorbar=False
+    )
+    plot_trajectory(
+        data=unwrapped_trajectory2,
+        save_path=save_pathc2,
+        axis=True,
+        cmap='plasma',
+        linewidth=2.0,
+        # scalebar_len=100,
+        # scalebar_label='100 unit',
+        show_colorbar=False
+    )
+
+    # 绘制轨迹（带环面接续效果）
+    plot_torus_trajectory(
+        data=centre1,
+        width=width,
+        axis=True,
+        save_path=save_patht1,
+        cmap='plasma',
+        linewidth=2.0,
+        show_colorbar=False
+    )
+    plot_torus_trajectory(
+        data=centre2,
+        width=width,
+        axis=True,
+        save_path=save_patht2,
         cmap='plasma',
         linewidth=2.0,
         show_colorbar=False
@@ -1108,7 +1290,9 @@ def draw_spk_rate_distribution_spon():
 #%% draw spk rate distribution in spontaneous condition
 # draw_spk_rate_distribution_spon()
 #%% draw trajectory
-# draw_trajectory()
+# draw_trajectory(delta_gk=1)
+# draw_trajectory(delta_gk=2)
+# draw_trajectory2()
 #%% draw rf and alpha distribution
 # 第一层
 # maxrate = 1000
@@ -1118,4 +1302,4 @@ def draw_spk_rate_distribution_spon():
 # delta_gk = 2
 # rf_alpha_distribution_plot(maxrate=2000, delta_gk=2, sample_type='Hull')
 #%% evolution plot
-evolution_plot(delta_gk=2,remove_outlier=False)
+# evolution_plot(delta_gk=2,remove_outlier=False)

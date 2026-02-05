@@ -129,6 +129,8 @@ recfield_dir = f'./{graph_dir}/recfield'
 Path(recfield_dir).mkdir(parents=True, exist_ok=True)
 LFP_dir = f'./{graph_dir}/LFP'
 Path(LFP_dir).mkdir(parents=True, exist_ok=True)
+elite_graph_dir = f'{graph_dir}/elite_graph/'
+Path(elite_graph_dir).mkdir(parents=True, exist_ok=True)
 
 #%% pick parameters and run `n_repeat` times
 def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
@@ -716,23 +718,23 @@ def receptive_field(param):
     return r_rf
 
 # exam different distance firing rate
-def receptive_field_repeat(param, n_repeat, plot=False, 
+def receptive_field_repeat(param, n_repeat, plot=False, stim_dura=1000,
                            video0=False, video1=False, maxrate=5000,
                            save_load0=False, save_load1=False,
-                           delta_gk=1):
+                           save_path_root = recfield_dir, delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
                                                video=(i==0),save_load=save_load0,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
                                                video=False,save_load=save_load0,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     if video1:
@@ -740,7 +742,7 @@ def receptive_field_repeat(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
                                                maxrate=maxrate,
                                                video=(i==0),save_load=save_load1,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
@@ -748,7 +750,7 @@ def receptive_field_repeat(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
                                                maxrate=maxrate,
                                                video=False,save_load=save_load1,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -762,14 +764,89 @@ def receptive_field_repeat(param, n_repeat, plot=False,
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}_{delta_gk}.svg'
-    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}_{delta_gk}.file'
+    save_path = f'{save_path_root}/rf1_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.svg'
+    data_path = f'{state_dir}/rf1_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
                                save_path=save_path,
                                data_path=data_path,
                                plot=plot)
     return r_rf
+
+def receptive_field_repeat_topdown(param, n_repeat, plot=False, stim_dura=1000,
+                                   video0=False, video1=False, maxrate=5000,
+                                   sig=2, sti_type='Uniform',
+                                   save_load0=False, save_load1=False,
+                                   save_path_root = recfield_dir):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=(i==0), save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=False, save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=(i==0), save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=False, save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all1 = np.stack([r['spk_rate1'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all1 = np.stack([r['spk_rate1'] for r in result1], axis=0)
+    spk_rate0_all2 = np.stack([r['spk_rate2'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all2 = np.stack([r['spk_rate2'] for r in result1], axis=0)
+
+    # 在第一个维度(realization)取平均
+    spk_rate0_mean1 = np.mean(spk_rate0_all1, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean1 = np.mean(spk_rate1_all1, axis=0)
+    spk_rate0_mean2 = np.mean(spk_rate0_all2, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean2 = np.mean(spk_rate1_all2, axis=0)
+
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+    save_path1 = f'{save_path_root}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}_1.svg'
+    save_path2 = f'{save_path_root}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}_2.svg'
+    data_path = f'{state_dir}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}.file'
+
+    # V1
+    r_rf1 = mya.receptive_field(spk_rate0=spk_rate0_mean1,
+                                spk_rate1=spk_rate1_mean1,
+                                save_path=save_path1,
+                                data_path=data_path,
+                                plot=plot)
+    
+    # V2
+    r_rf2 = mya.receptive_field(spk_rate0=spk_rate0_mean2,
+                                spk_rate1=spk_rate1_mean2,
+                                save_path=save_path2,
+                                data_path=data_path,
+                                save_file=False,
+                                plot=plot)
+    return r_rf1, r_rf2
 
 # compute receptive field radius and alpha with repeat realizaiton
 def rf_and_alpha_repeat(param, n_repeat, plot=False,
@@ -1296,22 +1373,22 @@ def check_r_rf_maxrate(param=None,
     plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
 
 # exam middle 4 point firing rate (receptive field)
-def receptive_field_repeat2(param, n_repeat, plot=False, 
+def receptive_field_repeat2(param, n_repeat, plot=False, stim_dura=1000, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
-                            save_load0=False, save_load1=False, le=64, li=32,delta_gk=1):
+                            save_load0=False, save_load1=False, le=64, li=32, delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
                                                video=(i==0), save_load=save_load0,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
                                                video=False, save_load=save_load0,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     if video1:
@@ -1319,7 +1396,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
                                                maxrate=maxrate, sig=sig, sti_type=sti_type,
                                                video=(i==0), save_load=save_load1,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
@@ -1327,7 +1404,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
                                                maxrate=maxrate, sig=sig, sti_type=sti_type,
                                                video=False, save_load=save_load1,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -1354,32 +1431,60 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
+from math import ceil, sqrt
+# middle 4 point different sig scane
+def receptive_field2(param, n_repeat, plot=False, 
+                     video0=False, video1=False, 
+                     maxrate=1000, sti_type='Uniform',
+                     save_load0=False, save_load1=False, 
+                     le=64, li=32, delta_gk=1, stim_dura=1000):
+    # max_sig = ceil(31.5*sqrt(2))
+    max_sig = ceil((le-1)/2)
+    sigs = np.arange(0, max_sig + 1, 1)
+    ratios = []
+    diffs = []
+    for sig in sigs:
+        ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, stim_dura=stim_dura, 
+                                              video0=video0, video1=video1, 
+                                              maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1, 
+                                              le=le, li=li, delta_gk=delta_gk)
+        ratios.append(ratio)
+        diffs.append(diff)
+    return ratios, diffs, sigs
+
 #%% draw receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
-def draw_receptive_field2(param, n_repeat, maxrate=1000, le=64, li=32):
-    ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-                                           video0=False, video1=False, 
-                                           maxrate=maxrate, sti_type='Uniform',
-                                           save_load0=False, save_load1=False, 
-                                           le=le, li=li)
+def draw_receptive_field2(param, n_repeat, maxrate=1000, le=64, li=32, 
+                          delta_gk=1, stim_dura=1000, cmpt=True):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    data_path = f'{state_dir}/rf2_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.file'
+    if cmpt:
+        ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, stim_dura=stim_dura, 
+                                            video0=False, video1=False, 
+                                            maxrate=maxrate, sti_type='Uniform',
+                                            save_load0=False, save_load1=False, 
+                                            le=le, li=li, delta_gk=delta_gk)
+        results = {
+            'sigs': sigs,
+            'diffs': diffs
+        }
+        with open(data_path, 'wb') as file:
+            pickle.dump(results, file)
+    elif os.path.exists(data_path):
+        with open(data_path, 'rb') as file:
+            results = pickle.load(file)
+        sigs = results['sigs']
+        diffs = results['diffs']
 
-    save_pathr = f'{recfield_dir}/middle_zratio{n_repeat}_{maxrate}fr_ext{common_path}.svg'
-    save_pathd = f'{recfield_dir}/middle_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.svg'
-    
-    plt.figure(figsize=(5,5))
-    plt.plot(sigs, ratios, 'o-')
-    plt.xlabel('Stimuli size')
-    plt.ylabel('Centre firing rate ratio')
-    plt.title('Centre firing rate ratio vs. stimuli size')
-    plt.savefig(save_pathr, dpi=600, format='svg')
+    save_path = f'{elite_graph_dir}/rf2_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.svg'
 
-    plt.figure(figsize=(5,5))
+    plt.figure(figsize=(2,2))
     plt.plot(sigs, diffs, 'o-')
-    plt.xlabel('Stimuli size')
-    plt.ylabel('Centre firing rate difference')
-    plt.title('Centre firing rate ratio vs. stimuli size')
-    plt.savefig(save_pathd, dpi=600, format='svg')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    # plt.title('Centre firing rate ratio vs. stimuli size')
+    plt.savefig(save_path, dpi=600, format='svg')
 
 # exam whole field firing rate (receptive field)
 def receptive_field_repeat3(param, n_repeat, plot=False, 
@@ -1430,27 +1535,130 @@ def receptive_field_repeat3(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
-from math import ceil, sqrt
-# middle 4 point different sig scane
-def receptive_field2(param, n_repeat, plot=False, 
-                     video0=False, video1=False, 
-                     maxrate=1000, sti_type='Uniform',
-                     save_load0=False, save_load1=False, 
-                     le=64, li=32):
-    # max_sig = ceil(31.5*sqrt(2))
+# exam middle 4 point firing rate (receptive field)
+def rf_repeat2_topdown(param, n_repeat, video0=False, video1=False, 
+                       maxrate=1000, sig=2, sti_type='Uniform',
+                       save_load0=False, save_load1=False,stim_dura=1000):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=(i==0), save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=False, save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=(i==0), save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=False, save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all1 = np.stack([r['spk_rate1'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all1 = np.stack([r['spk_rate1'] for r in result1], axis=0)
+    spk_rate0_all2 = np.stack([r['spk_rate2'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all2 = np.stack([r['spk_rate2'] for r in result1], axis=0)
+
+    # 在第一个维度(realization)取平均
+    spk_rate0_mean1 = np.mean(spk_rate0_all1, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean1 = np.mean(spk_rate1_all1, axis=0)
+    spk_rate0_mean2 = np.mean(spk_rate0_all2, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean2 = np.mean(spk_rate1_all2, axis=0)
+
+
+    # 取中心最近的四个点
+    center_indices = [(31, 31), (31, 32), (32, 31), (32, 32)]
+    center_spk_rate01 = np.array([spk_rate0_mean1[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate11 = np.array([spk_rate1_mean1[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate02 = np.array([spk_rate0_mean2[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate12 = np.array([spk_rate1_mean2[x, y, :] for x, y in center_indices])  # shape: (4, T)
+
+    # 对这四个点做平均
+    center_spk_rate0_mean1 = np.mean(center_spk_rate01, axis=0)  # shape: (T,)
+    center_spk_rate1_mean1 = np.mean(center_spk_rate11, axis=0)  # shape: (T,)
+    center_spk_rate0_tmean1 = np.mean(center_spk_rate0_mean1, axis=0)
+    center_spk_rate1_tmean1 = np.mean(center_spk_rate1_mean1, axis=0)
+    center_spk_rate0_mean2 = np.mean(center_spk_rate02, axis=0)  # shape: (T,)
+    center_spk_rate1_mean2 = np.mean(center_spk_rate12, axis=0)  # shape: (T,)
+    center_spk_rate0_tmean2 = np.mean(center_spk_rate0_mean2, axis=0)
+    center_spk_rate1_tmean2 = np.mean(center_spk_rate1_mean2, axis=0)
+
+    diff1 = center_spk_rate1_tmean1-center_spk_rate0_tmean1
+    diff2 = center_spk_rate1_tmean2-center_spk_rate0_tmean2
+    return diff1, diff2
+
+def draw_rf_repeat2_topdown(param, n_repeat,video0=False, video1=False, 
+                            maxrate=1000, sti_type='Uniform',cmpt=True,
+                            save_load0=False, save_load1=False,
+                            le=64, li=32, stim_dura=1000):
+    
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+    data_path = f'{state_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}.file'
+    
     max_sig = ceil((le-1)/2)
     sigs = np.arange(0, max_sig + 1, 1)
-    ratios = []
-    diffs = []
-    for sig in sigs:
-        ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, 
-                                              video0=video0, video1=video1, 
-                                              maxrate=maxrate, sig=sig, sti_type=sti_type,
-                                              save_load0=save_load0, save_load1=save_load1, 
-                                              le=le, li=li)
-        ratios.append(ratio)
-        diffs.append(diff)
-    return ratios, diffs, sigs
+    diffs1 = []
+    diffs2 = []
+    if cmpt:
+        for sig in sigs:
+            diff1, diff2 = rf_repeat2_topdown(param, n_repeat,video0=video0, video1=video1,
+                                              stim_dura=stim_dura,maxrate=maxrate, 
+                                              sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1)
+            diffs1.append(diff1)
+            diffs2.append(diff2)
+        results = {
+            'sigs': sigs,
+            'diffs1': diffs1,
+            'diffs2': diffs2
+        }
+        with open(data_path, 'wb') as file:
+            pickle.dump(results, file)
+    elif os.path.exists(data_path):
+        with open(data_path, 'rb') as file:
+            results = pickle.load(file)
+        sigs = results['sigs']
+        diffs1 = results['diffs1']
+        diffs2 = results['diffs2']
+        
+    save_path1 = f'{elite_graph_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_1.svg'
+    save_path2 = f'{elite_graph_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_2.svg'
+
+    plt.figure(figsize=(2,2))
+    plt.plot(sigs, diffs1, 'o-')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    plt.savefig(save_path1, dpi=600, format='svg')
+
+    plt.figure(figsize=(2,2))
+    plt.plot(sigs, diffs2, 'o-')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    plt.savefig(save_path2, dpi=600, format='svg')
+
 
 # exam whole field different sig scane
 def receptive_field3(param, n_repeat, plot=False, 
@@ -1667,7 +1875,7 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
 
     # 循环绘制三个波段的多组对比图（复用辅助函数，消除冗余）
     for x_lim, title, save_file in fft_bands:
-        _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, std_plot)
+        _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, std_plot=std_plot)
 
 # compute 1 area centre point LFP, and output FFT
 def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
@@ -2495,13 +2703,6 @@ try:
     
     #%% 单层挑参数算数据、视频
     def compute_data():
-        # 第一层参数:
-        param_area1 = vary_ie_ratio(dx=0,dy=1)
-        # 第二层参数:
-        param_area2 = (1.84138, 1.57448)
-        # 双层参数组合:
-        param_area12 = param_area1 + param_area2
-
         ## 单层算数据,输出视频
         # 哪一层
         for delta_gk in (1, 2):
@@ -2509,7 +2710,8 @@ try:
             if delta_gk == 1:
                 param=param_area1
             elif delta_gk == 2:
-                param=param_area2
+                # param=param_area2
+                param=param_test2
             ie_r_e1, ie_r_i1 = param
             common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
             # 激励相关
@@ -2518,13 +2720,13 @@ try:
             sig=5
             maxrate=1000
             stim_dura=1000
-            window=10
+            window=5 # 10
             if sti:
                 input=f'on{maxrate}_{sti_type}_{sig}'
             else:
                 input='off'
             
-            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
+            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.file"
             video_path=None
             result = compute.compute_1_general(comb=param,stim_dura=stim_dura,
                                                sti=sti,maxrate=maxrate,sti_type=sti_type,
@@ -2532,12 +2734,9 @@ try:
                                                save_load=True,save_path_data=data_path,
                                                window=window,delta_gk=delta_gk,sig=sig)
     def compute_data2():
-        # 第一层参数:
-        param_area1 = vary_ie_ratio(dx=0,dy=1)
-        # 第二层参数:
-        param_area2 = (1.84138, 1.57448)
         # 双层参数组合:
-        param_area12 = param_area1 + param_area2
+        # param_area12 = param_area1 + param_area2
+        param_area12 = param_area1 + param_test2
 
         ## 双层算数据,输出视频
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param_area12
@@ -2548,7 +2747,7 @@ try:
         sig=5
         maxrate=1000
         stim_dura=1000
-        window=10
+        window=5 # 10
         
         adapt = False
         top_sti = False
@@ -2569,7 +2768,8 @@ try:
             topdown = 'silnc'
 
         data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
-        video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}_{stim_dura}_whole.mp4'
+        # video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}_{stim_dura}_whole.mp4'
+        video_path=None
         result = compute.compute_2_general(comb=param_area12,stim_dura=stim_dura,
                                            sti=sti,maxrate=maxrate,sti_type=sti_type,
                                            adapt=adapt,adapt_type=adapt_type,top_sti=top_sti,
@@ -2821,13 +3021,37 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param12, 
     #                      n_repeat=64, maxrate=500, sti_type='Uniform')
     
-    # print('computing start')
-    # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
-    # print('set 1 executed')
-    # send_email.send_email('set 1 executed', 'set 1 executed')
-    # draw_receptive_field2(param=param2, n_repeat=64, le=le,li=li)
-    # print('set 2 executed')
-    # send_email.send_email('set 2 executed', 'set 2 executed')
+    def draw_rf2():
+        print('computing start')
+        # draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=2000, delta_gk=1)
+        # print('set 1 executed')
+        # send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=1000, delta_gk=1)
+        print('set 1 executed')
+        send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_receptive_field2(param=param_test2, n_repeat=64, maxrate=1000, delta_gk=2)
+        print('set 2 executed')
+        send_email.send_email('set 2 executed', 'set 2 executed')
+        draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=2000, delta_gk=1)
+        print('set 3 executed')
+        send_email.send_email('set 3 executed', 'set 3 executed')
+        draw_receptive_field2(param=param_test2, n_repeat=64, maxrate=2000, delta_gk=2)
+        print('set 4 executed')
+        send_email.send_email('set 4 executed', 'set 4 executed')
+
+    def draw_rf2_topdown():
+        print('computing start')
+        param1 = param_area1
+        param2 = param_test2
+        param = param1 + param2
+        draw_rf_repeat2_topdown(param=param, n_repeat=64, maxrate=1000,sti_type='Uniform',stim_dura=1000)
+        print('set 1 executed')
+        send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_rf_repeat2_topdown(param=param, n_repeat=64, maxrate=2000,sti_type='Uniform',stim_dura=1000)
+        print('set 2 executed')
+        send_email.send_email('set 2 executed', 'set 2 executed')
+
+    #%%
 
     #%% plot trajectory
     # # area 1 parameter
@@ -2844,7 +3068,7 @@ try:
     # mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
     #%% new comparable lfp fft (vary weight and check fft) (bottom up)
-    def bottom_up_LFP_compare(cmpt=True,n_repeat=64,stim_dura=10000,std_plot=True,
+    def bottom_up_LFP_compare(cmpt=True,n_repeat=64,stim_dura=10000,std_plot=False,
                               w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4):
         param1=vary_ie_ratio(dx=0,dy=1)
         # param2=(1.84138, 1.57448)
@@ -2858,7 +3082,7 @@ try:
         common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
         # bottom_up表示只有前馈，top_down表示只有反馈
-        temp_dir=f'./{LFP_dir}/new_params_withstd/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir=f'./{LFP_dir}/new_params/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
         Path(f'{temp_dir}/sub').mkdir(parents=True, exist_ok=True)
 
@@ -2883,7 +3107,7 @@ try:
     #                           chg_adapt_range=5)
 
     #%% LFP FFT under different type and different size top-down interaction
-    def top_down_LFP_compare(stim_dura = 1000,std_plot=True):
+    def top_down_LFP_compare(stim_dura = 1000,std_plot=False):
         param1=vary_ie_ratio(dx=0,dy=1)
         # param2=(1.84138, 1.57448)
         param2 = param_test2
@@ -2905,9 +3129,9 @@ try:
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-        temp_dir_adapt  =  f'./{LFP_dir}/new_params_withstd/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_adapt  =  f'./{LFP_dir}/new_params/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        temp_dir_stim2  =  f'./{LFP_dir}/new_params_withstd/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_stim2  =  f'./{LFP_dir}/new_params/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
         Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
         sub_temp_dir_adapt=f'{temp_dir_adapt}/sub'
@@ -2936,7 +3160,8 @@ try:
     #%% repeat 2 area computation recetive field
     def msd_plot(cmpt=False):
         param1=vary_ie_ratio(dx=0,dy=1)
-        param2=(1.84138, 1.57448)
+        # param2=(1.84138, 1.57448)
+        param2=param_test2
         param=param1+param2
         n_repeat=128
         stim_dura=1000
@@ -2966,18 +3191,128 @@ try:
                   msd_path=None,pdx_path=None,msd_pdx_path=None,
                   w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
+    def no_topdown_and_topdown_rf1():
+        # maxrate == 1000
+        receptive_field_repeat(param=param_area1, n_repeat=64, maxrate=1000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=1)
+        receptive_field_repeat(param=param_test2, n_repeat=64, maxrate=1000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=2)
+        print('mr=1000, no topdown, 1 & 2 executed')
+        send_email.send_email('mr=1000, no topdown, 1 & 2 executed', 'mr=1000, no topdown, 1 & 2 executed')
+        # maxrate == 2000
+        receptive_field_repeat(param=param_area1, n_repeat=64, maxrate=2000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=1)
+        receptive_field_repeat(param=param_test2, n_repeat=64, maxrate=2000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=2)
+        print('mr=2000, no topdown, 1 & 2 executed')
+        send_email.send_email('mr=2000, no topdown, 1 & 2 executed', 'mr=2000, no topdown, 1 & 2 executed')
+        # maxrate == 1000
+        param_comb = param_area1 + param_test2
+        receptive_field_repeat_topdown(
+            param_comb, n_repeat=64, plot=True, stim_dura=10000, 
+            video1=True, maxrate=1000, save_path_root=elite_graph_dir
+        )
+        print('mr=1000, topdown, 1 & 2 executed')
+        send_email.send_email('mr=1000, no topdown, 1 & 2 executed', 'mr=1000, no topdown, 1 & 2 executed')
+        # maxrate == 2000
+        receptive_field_repeat_topdown(
+            param_comb, n_repeat=64, plot=True, stim_dura=10000, 
+            video1=True, maxrate=2000, save_path_root=elite_graph_dir
+        )
+        print('mr=2000, topdown, 1 & 2 executed')
+        send_email.send_email('mr=2000, no topdown, 1 & 2 executed', 'mr=2000, no topdown, 1 & 2 executed')
+
+    def time_frequency_non_topdown():
+        # 哪一层
+        for delta_gk in (1, 2):
+            # delta_gk=1
+            if delta_gk == 1:
+                param=param_area1
+            elif delta_gk == 2:
+                param=param_test2
+            ie_r_e1, ie_r_i1 = param
+            common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+            # 激励相关
+            sti=False
+            sti_type='Uniform'
+            sig=5
+            maxrate=1000
+            stim_dura=1000
+            window=10
+            if sti:
+                input=f'on{maxrate}_{sti_type}_{sig}'
+            else:
+                input='off'
+            
+            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.file"
+            with open(data_path, 'rb') as file:
+                raw_data = pickle.load(file)
+            LFP = raw_data['a1']['ge']['LFP']
+
+            save_path = f'{elite_graph_dir}/non_topdown_timefreq_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.png'
+            t, freqs, tf_power = mya.analyze_LFP_morlet(LFP, save_path=save_path)
+    
+    def time_frequency_topdown():
+        param = param_area1 + param_test2
+        ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+        common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+        # 激励相关
+        sti=False
+        sti_type='Uniform'
+        sig=5
+        maxrate=1000
+        stim_dura=1000
+        window=10
+        
+        adapt = False
+        top_sti = False
+        adapt_type = 'Uniform'
+
+        if sti:
+            input=f'on{maxrate}_{sti_type}_{sig}'
+        else:
+            input='off'
+
+        if adapt and top_sti:
+            topdown = 'adapt_stim2'
+        elif adapt:
+            topdown = 'adapt'
+        elif top_sti:
+            topdown = 'stim2'
+        else:
+            topdown = 'silnc'
+        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
+        with open(data_path, 'rb') as file:
+            raw_data = pickle.load(file)
+        LFP1 = raw_data['a1']['ge']['LFP']
+        LFP2 = raw_data['a2']['ge']['LFP']
+        save_path1 = f'{elite_graph_dir}/topdown_timefreq_{common_path}_{input}_{topdown}_1_win{window}_{stim_dura}.png'
+        save_path2 = f'{elite_graph_dir}/topdown_timefreq_{common_path}_{input}_{topdown}_2_win{window}_{stim_dura}.png'
+        _, _, _ = mya.analyze_LFP_morlet(LFP1, save_path=save_path1)
+        _, _, _ = mya.analyze_LFP_morlet(LFP2, save_path=save_path2)
+
+
     # draw_LFP_FFT_1area_repeat(
-    #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2
+    #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2,stim_dura=1000
     #     )
     # draw_LFP_FFT_2area_repeat(
-    #     n_repeat=64,param2=param_test2,stim_dura=10000,
+    #     n_repeat=64,param2=param_test2,stim_dura=1000,
     #     save_path_root=f'{LFP_dir}/test',
-    #     w_12_e=2.4,w_12_i=2.4,w_21_e=3.0,w_21_i=3.0,cmpt=True
+    #     w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True
     #     )
-    bottom_up_LFP_compare(stim_dura=1000)
+    # bottom_up_LFP_compare(stim_dura=1000)
     # top_down_LFP_compare(stim_dura=10000)
-    # msd_plot()
+    # msd_plot(cmpt=True)
+    # compute_data()
     # compute_data2()
+    draw_rf2()
+    draw_rf2_topdown()
+    no_topdown_and_topdown_rf1()
+    # compute_data()
+    # time_frequency_non_topdown()
+    # compute_data2()
+    # time_frequency_topdown()
+
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:
