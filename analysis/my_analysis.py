@@ -599,7 +599,8 @@ def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
         plt.close()
     return freqs, power
 
-def analyze_LFP_morlet(LFP, dt=0.1, plot=True, save_path=None):
+def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None, 
+                       save_path_log=None):
     """
     专门使用Morlet小波进行LFP时频分析（最常用方法）
     参数:
@@ -653,30 +654,44 @@ def analyze_LFP_morlet(LFP, dt=0.1, plot=True, save_path=None):
         if i % 10 == 0:
             print(f"频率 {i+1}/{len(freqs)}: {freq:.1f}Hz, 小波长度={len(wavelet)}点")
     
-    if plot:
-        fig, ax = plt.subplots(figsize=(6.5, 1))
-        # 功率线性显示
-        # im = ax.pcolormesh(t, freqs, tf_power, shading='gouraud', cmap='plasma')
-        # 对功率取对数显示
-        log_power = np.log10(tf_power + 1e-12)  # 避免log(0)
-        im = ax.pcolormesh(t, freqs, log_power, shading='gouraud', cmap='plasma', 
-                           norm=plt.Normalize(vmin=np.percentile(log_power, 5), 
-                                              vmax=np.percentile(log_power, 95)))
-        ax.set_yscale('log')
-        ax.set_xlabel('Time (ms)')
-        ax.set_ylabel('Frequency (Hz)')
-        ax.set_ylim(1, 100)
-        # 设置对数刻度标签
-        # ax.set_yticks([1, 2, 5, 10, 20, 30, 50, 100])
-        # ax.set_yticklabels(['1', '2', '5', '10', '20', '30', '50', '100'])
-        # 颜色条
-        cbar = plt.colorbar(im, ax=ax)
-        # colorbar线性label
-        # cbar.set_label('Power')
-        # colorbar对数label
-        cbar.set_label('log$_{10}$(Power)')
+    # 功率线性显示
+    if save_path_lp:
+        fig_lp, ax_lp = plt.subplots(figsize=(6.5, 1))
+        im_lp = ax_lp.pcolormesh(
+            t, freqs, tf_power, shading='gouraud', cmap='plasma'
+            )
+        # 在3000ms处添加红色虚线
+        ax_lp.axvline(x=3000, color='red', linestyle='--', 
+                      linewidth=1.5, alpha=0.8)
+        ax_lp.set_yscale('log')
+        ax_lp.set_xlabel('Time (ms)')
+        ax_lp.set_ylabel('Frequency (Hz)')
+        ax_lp.set_ylim(1, 100)
+        cbar_lp = plt.colorbar(im_lp, ax=ax_lp)
+        cbar_lp.set_label('Power')
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
-        if save_path:
-            plt.savefig(save_path, dpi=600, bbox_inches='tight')
+        plt.savefig(save_path_lp, dpi=600, bbox_inches='tight')
+        plt.close(fig_lp)
+    # 对功率取对数显示
+    if save_path_log:
+        fig_log, ax_log = plt.subplots(figsize=(6.5, 1))
+        log_power = np.log10(tf_power + 1e-12)  # 避免log(0)
+        im_log = ax_log.pcolormesh(
+            t, freqs, log_power, shading='gouraud', cmap='plasma',
+            norm=plt.Normalize(vmin=np.percentile(log_power, 5),
+                               vmax=np.percentile(log_power, 95))
+                               )
+        # 在3000ms处添加红色虚线
+        ax_log.axvline(x=3000, color='red', linestyle='--', 
+                       linewidth=1.5, alpha=0.8)
+        ax_log.set_yscale('log')
+        ax_log.set_xlabel('Time (ms)')
+        ax_log.set_ylabel('Frequency (Hz)')
+        ax_log.set_ylim(1, 100)
+        cbar_log = plt.colorbar(im_log, ax=ax_log)
+        cbar_log.set_label('log$_{10}$(Power)')
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        plt.savefig(save_path_log, dpi=600, bbox_inches='tight')
+        plt.close(fig_log)
     
     return t, freqs, tf_power.T

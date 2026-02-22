@@ -2733,7 +2733,13 @@ try:
                                                video=True,save_path_video=video_path,
                                                save_load=True,save_path_data=data_path,
                                                window=window,delta_gk=delta_gk,sig=sig)
-    def compute_data2():
+    
+    def compute_data2(sti=False, sti_type='Uniform', 
+                      adapt = False, top_sti = False, 
+                      adapt_type = 'Uniform', 
+                      window=10, sig=5,
+                      w_12_e=2.4, w_12_i=2.4,
+                      w_21_e=2.4, w_21_i=2.4):
         # 双层参数组合:
         # param_area12 = param_area1 + param_area2
         param_area12 = param_area1 + param_test2
@@ -2742,16 +2748,8 @@ try:
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param_area12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
         # 激励相关
-        sti=False
-        sti_type='Uniform'
-        sig=5
         maxrate=1000
         stim_dura=1000
-        window=5 # 10
-        
-        adapt = False
-        top_sti = False
-        adapt_type = 'Uniform'
 
         if sti:
             input=f'on{maxrate}_{sti_type}_{sig}'
@@ -2767,15 +2765,17 @@ try:
         else:
             topdown = 'silnc'
 
-        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
-        # video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}_{stim_dura}_whole.mp4'
-        video_path=None
+        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}_{stim_dura}.file"
+        video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}_{stim_dura}_whole.mp4'
+        # video_path=None
         result = compute.compute_2_general(comb=param_area12,stim_dura=stim_dura,
                                            sti=sti,maxrate=maxrate,sti_type=sti_type,
                                            adapt=adapt,adapt_type=adapt_type,top_sti=top_sti,
                                            video=True,save_path_video=video_path,
                                            save_load=True,save_path_data=data_path,
-                                           window=window,sig=sig,chg_adapt_range=sig)
+                                           window=window,sig=sig,chg_adapt_range=sig,
+                                           w_12_e=w_12_e, w_12_i=w_12_i,
+                                           w_21_e=w_21_e, w_21_i=w_21_i)
 
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
@@ -3252,22 +3252,19 @@ try:
             save_path = f'{elite_graph_dir}/non_topdown_timefreq_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.png'
             t, freqs, tf_power = mya.analyze_LFP_morlet(LFP, save_path=save_path)
     
-    def time_frequency_topdown():
+    def time_frequency_topdown(sti=False, sti_type='Uniform', 
+                               adapt = False, top_sti = False, 
+                               adapt_type = 'Uniform', 
+                               window=10, sig=5,
+                               w_12_e=2.4, w_12_i=2.4,
+                               w_21_e=2.4, w_21_i=2.4):
         param = param_area1 + param_test2
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
         # 激励相关
-        sti=False
-        sti_type='Uniform'
-        sig=5
         maxrate=1000
         stim_dura=1000
-        window=10
         
-        adapt = False
-        top_sti = False
-        adapt_type = 'Uniform'
-
         if sti:
             input=f'on{maxrate}_{sti_type}_{sig}'
         else:
@@ -3281,15 +3278,17 @@ try:
             topdown = 'stim2'
         else:
             topdown = 'silnc'
-        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
+        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}_{stim_dura}.file"
         with open(data_path, 'rb') as file:
             raw_data = pickle.load(file)
         LFP1 = raw_data['a1']['ge']['LFP']
         LFP2 = raw_data['a2']['ge']['LFP']
-        save_path1 = f'{elite_graph_dir}/topdown_timefreq_{common_path}_{input}_{topdown}_1_win{window}_{stim_dura}.png'
-        save_path2 = f'{elite_graph_dir}/topdown_timefreq_{common_path}_{input}_{topdown}_2_win{window}_{stim_dura}.png'
-        _, _, _ = mya.analyze_LFP_morlet(LFP1, save_path=save_path1)
-        _, _, _ = mya.analyze_LFP_morlet(LFP2, save_path=save_path2)
+        save_path_log1 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}_{stim_dura}.png'
+        save_path_lp1 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}_{stim_dura}.png'
+        save_path_log2 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}_{stim_dura}.png'
+        save_path_lp2 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}_{stim_dura}.png'
+        _, _, _ = mya.analyze_LFP_morlet(LFP1, save_path_lp=save_path_lp1, save_path_log=save_path_log1)
+        _, _, _ = mya.analyze_LFP_morlet(LFP2, save_path_lp=save_path_lp2, save_path_log=save_path_log2)
 
 
     # draw_LFP_FFT_1area_repeat(
@@ -3305,16 +3304,37 @@ try:
     # msd_plot(cmpt=True)
     # compute_data()
     # compute_data2()
-    no_topdown_and_topdown_rf1()
-    draw_rf2()
-    draw_rf2_topdown()
+    # no_topdown_and_topdown_rf1()
+    # draw_rf2()
+    # draw_rf2_topdown()
     # compute_data()
     # time_frequency_non_topdown()
-    # compute_data2()
-    # time_frequency_topdown()
+    sti=False
+    sti_type='Uniform'
+    adapt=True
+    top_sti=False
+    adapt_type='Uniform'
+    window=10
+    sig=10
+    w_12_e=5
+    w_12_i=5
+    w_21_e=10
+    w_21_i=10
+    compute_data2(sti=sti,sti_type=sti_type,
+                  adapt=adapt,top_sti=top_sti,
+                  adapt_type=adapt_type,
+                  window=window,sig=sig,
+                  w_12_e=w_12_e,w_12_i=w_12_i,
+                  w_21_e=w_21_e,w_21_i=w_21_i)
+    time_frequency_topdown(sti=sti,sti_type=sti_type,
+                           adapt=adapt,top_sti=top_sti,
+                           adapt_type=adapt_type,
+                           window=window,sig=sig,
+                           w_12_e=w_12_e,w_12_i=w_12_i,
+                           w_21_e=w_21_e,w_21_i=w_21_i)
 
 
-    send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
+    send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈

@@ -965,7 +965,7 @@ def compute_2(comb, seed=10, index=1,
         'centre2': centre2
     }
 
-start_time_ratio = 1.0
+start_time_ratio = 0.0
 #%% computation with all vital parameters input 允许改变其他值，允许使用第二层adaptation
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 
@@ -1083,11 +1083,10 @@ def compute_1_general(comb, seed=10, index=1,
     if record_LFP:
         from connection import get_LFP
 
-        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
-        # LFP_elec = np.array([[0,0]])
+        # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        LFP_elec = np.array([[0,0]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
-                                            width=ijwd1.width,
-                                            LFP_sigma=6,LFP_effect_range=2.5)
+                                            width=ijwd1.width) # LFP_sigma=6,LFP_effect_range=2.5
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                     model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1572,20 +1571,20 @@ def compute_2_general(comb, seed=10, index=1,
     if record_LFP:
         from connection import get_LFP
         # area 1
-        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        LFP_elec = np.array([[0,0]])
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
-                                            width=ijwd1.width,
-                                            LFP_sigma=6,LFP_effect_range=2.5)
+                                            width=ijwd1.width) # LFP_sigma=6,LFP_effect_range=2.5
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                        model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
         syn_LFP.connect(i=i_LFP,j=j_LFP)
         syn_LFP.w[:] = w_LFP[:]
         # area 2
-        LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        # LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        LFP_elec2 = np.array([[0,0]])
         i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
-                                               width=ijwd2.width,
-                                               LFP_sigma=6,LFP_effect_range=2.5)
+                                               width=ijwd2.width) # LFP_sigma=6,LFP_effect_range=2.5
         group_LFP_record2 = NeuronGroup(len(LFP_elec2),
                                         model=get_LFP.LFP_recordneuron)
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
@@ -1769,9 +1768,6 @@ def compute_2_general(comb, seed=10, index=1,
     group_e_2.I_extnl_crt = 0*nA # 0.25 0.51*nA
     group_i_2.I_extnl_crt = 0*nA # 0.25 0.60*nA
 
-    if adapt:
-        group_e_2.delta_gk[:] = adapt_value*nS
-
     #%%
     spk_e_1 = SpikeMonitor(group_e_1, record = True)
     spk_i_1 = SpikeMonitor(group_i_1, record = True)
@@ -1794,7 +1790,13 @@ def compute_2_general(comb, seed=10, index=1,
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + window)*ms
     # simu_time2 = simu_time_tot - simu_time1
 
-    net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
+    net.run(transient*ms, profile=False)
+    
+    if adapt:
+        group_e_2.delta_gk[:] = adapt_value*nS
+
+    net.run(simu_time1-transient*ms, profile=False)
     # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
@@ -1975,7 +1977,11 @@ def compute_2_general(comb, seed=10, index=1,
     
     if video:
         # Animation
-        title = f'Animation \n {common_title}'
+        weight_title = (rf'$w_{{E1E2}}$: {w_12_e:.2f}, '
+                        rf'$w_{{E1I2}}$: {w_12_i:.2f}, '
+                        rf'$w_{{E2E1}}$: {w_21_e:.2f}, '
+                        rf'$w_{{E2I1}}$: {w_21_i:.2f}')
+        title = f'Animation \n {common_title} \n {weight_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
                                spkrate2=data_load.a2.ge.spk_rate.spk_rate,
                                frames = frames,
