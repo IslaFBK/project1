@@ -445,7 +445,7 @@ def receptive_field(spk_rate0, spk_rate1,
             plt.axvline(x=min_zero, color='r', linestyle='--', linewidth=1, 
                     label=f'Zero crossing at d={min_zero:.2f}')
             # 在零点处添加文本标注
-            plt.text(min_zero, 0, f'd={min_zero:.2f}', 
+            plt.text(min_zero+0.3, 0.3, f'd={min_zero:.2f}', 
                     color='r', ha='left', va='bottom')
         plt.xlabel('Distance (gridpoint)')
         plt.ylabel('Firing rate (Hz)')

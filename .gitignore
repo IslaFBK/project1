@@ -32,3 +32,4 @@ test.py
 ai.md
 send_email.py
 *.bak
+.vscode/settings.json
