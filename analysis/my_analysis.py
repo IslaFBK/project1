@@ -600,7 +600,7 @@ def analyze_LFP_fft(LFP, dt=0.1, plot=True, save_path=None):
     return freqs, power
 
 def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None, 
-                       save_path_log=None):
+                       save_path_log=None, transient=None):
     """
     专门使用Morlet小波进行LFP时频分析（最常用方法）
     参数:
@@ -655,13 +655,15 @@ def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None,
             print(f"频率 {i+1}/{len(freqs)}: {freq:.1f}Hz, 小波长度={len(wavelet)}点")
     
     # 功率线性显示
+    if transient is None:
+        transient=3000
     if save_path_lp:
-        fig_lp, ax_lp = plt.subplots(figsize=(6.5, 1))
+        fig_lp, ax_lp = plt.subplots(figsize=(3, 1)) #(6.5,1) -- 3000+1000 ms
         im_lp = ax_lp.pcolormesh(
             t, freqs, tf_power, shading='gouraud', cmap='plasma'
             )
         # 在3000ms处添加红色虚线
-        ax_lp.axvline(x=3000, color='red', linestyle='--', 
+        ax_lp.axvline(x=transient, color='red', linestyle='--', 
                       linewidth=1.5, alpha=0.8)
         ax_lp.set_yscale('log')
         ax_lp.set_xlabel('Time (ms)')
@@ -674,7 +676,7 @@ def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None,
         plt.close(fig_lp)
     # 对功率取对数显示
     if save_path_log:
-        fig_log, ax_log = plt.subplots(figsize=(6.5, 1))
+        fig_log, ax_log = plt.subplots(figsize=(3, 1)) #(6.5,1) -- 3000+1000 ms
         log_power = np.log10(tf_power + 1e-12)  # 避免log(0)
         im_log = ax_log.pcolormesh(
             t, freqs, log_power, shading='gouraud', cmap='plasma',
@@ -682,7 +684,7 @@ def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None,
                                vmax=np.percentile(log_power, 95))
                                )
         # 在3000ms处添加红色虚线
-        ax_log.axvline(x=3000, color='red', linestyle='--', 
+        ax_log.axvline(x=transient, color='red', linestyle='--', 
                        linewidth=1.5, alpha=0.8)
         ax_log.set_yscale('log')
         ax_log.set_xlabel('Time (ms)')

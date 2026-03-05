@@ -972,7 +972,8 @@ def compute_1_general(comb, seed=10, index=1,
                       sig=2, sti_type='Gaussian', 
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32, stim_dura=1000, 
+                      le=64,li=32, 
+                      transient = 3000, stim_dura=1000, 
                       num_ee_1 = 270, num_ei_1 = 350,
                       num_ie_1 = 130, num_ii_1 = 180,
                       w_ee_1 = 11, w_ii_1 = 50,
@@ -1096,8 +1097,8 @@ def compute_1_general(comb, seed=10, index=1,
     #%%
     # --- 刺激参数设置与时序生成 ---
     stim_dura = stim_dura # 每次刺激持续时间（ms）
-    transient = 3000      # 仿真初始预热期（ms），用于网络稳定
-    inter_time = 2000     # 两次刺激间隔（ms）
+          # 仿真初始预热期（ms），用于网络稳定
+    # inter_time = 2000     # 两次刺激间隔（ms）
 
     stim_scale_cls = get_stim_scale.get_stim_scale()  # 自定义类，统一管理刺激参数和时序
     stim_scale_cls.seed = seed                        # 随机种子，保证可复现
@@ -1348,7 +1349,8 @@ def compute_2_general(comb, seed=10, index=1,
                       sig=2, sti_type='Gaussian', adapt_type= 'Gaussian',
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32, stim_dura=1000, 
+                      le=64,li=32,
+                      transient = 3000, stim_dura=1000, 
                       num_ee_1=270, num_ei_1=350,
                       num_ie_1=130, num_ii_1=180,
                       num_ee_2=270, num_ei_2=350,
@@ -1621,8 +1623,7 @@ def compute_2_general(comb, seed=10, index=1,
     '''stim 1; constant amplitude'''
     '''no attention''' # ?background?
     stim_dura = stim_dura # ms duration of each stimulus presentation
-    transient = 3000 # ms initial transient period; when add stimulus
-    inter_time = 2000 # ms interval between trials without and with attention
+    # inter_time = 2000 # ms interval between trials without and with attention
 
     stim_scale_cls = get_stim_scale.get_stim_scale()
     stim_scale_cls.seed = seed # random seed
