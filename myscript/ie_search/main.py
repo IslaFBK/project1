@@ -2834,7 +2834,7 @@ try:
             else:
                 input='off'
             
-            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.file"
+            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
             video_path=None
             result = compute.compute_1_general(comb=param,sig=sig,
                                                transient=transient,stim_dura=stim_dura,
@@ -3358,7 +3358,7 @@ try:
             else:
                 input='off'
             
-            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.file"
+            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
             with open(data_path, 'rb') as file:
                 raw_data = pickle.load(file)
             LFP = raw_data['a1']['ge']['LFP']
@@ -3373,8 +3373,8 @@ try:
                 i1 = int(end_time / dt)
             seg = LFP[i0:i1]
 
-            save_path_log = f'{elite_graph_dir}/non_topdown_timefreq_log_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.png'
-            save_path_lp = f'{elite_graph_dir}/non_topdown_timefreq_lp_{common_path}_{input}_{delta_gk}_win{window}_{stim_dura}.png'
+            save_path_log = f'{elite_graph_dir}/non_topdown_timefreq_log_{common_path}_{input}_{delta_gk}_win{window}.png'
+            save_path_lp = f'{elite_graph_dir}/non_topdown_timefreq_lp_{common_path}_{input}_{delta_gk}_win{window}.png'
             t, freqs, tf_power = mya.analyze_LFP_morlet(seg, save_path_lp=save_path_lp,save_path_log=save_path_log,transient=transient)
     
     def time_frequency_topdown(sti=False, sti_type='Uniform', 
@@ -3432,10 +3432,10 @@ try:
         #     seg2 = LFP2[:, i0:i1]
         seg1 = LFP1[i0:i1]
         seg2 = LFP2[i0:i1]
-        save_path_log1 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}_{stim_dura}.png'
-        save_path_lp1 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}_{stim_dura}.png'
-        save_path_log2 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}_{stim_dura}.png'
-        save_path_lp2 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}_{stim_dura}.png'
+        save_path_log1 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}.png'
+        save_path_lp1 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}.png'
+        save_path_log2 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}.png'
+        save_path_lp2 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}.png'
         _, _, _ = mya.analyze_LFP_morlet(seg1, save_path_lp=save_path_lp1, 
                                          save_path_log=save_path_log1, transient=transient)
         _, _, _ = mya.analyze_LFP_morlet(seg2, save_path_lp=save_path_lp2, 
