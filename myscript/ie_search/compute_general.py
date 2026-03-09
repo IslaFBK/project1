@@ -1970,6 +1970,7 @@ def compute_2_general(comb, seed=10, index=1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
+    topdown = f"{topdown}_{adapt_type}_{sig}"
 
     if sti:
         input=f'on{maxrate}_{sti_type}_{sig}'
@@ -1978,10 +1979,10 @@ def compute_2_general(comb, seed=10, index=1,
     
     if video:
         # Animation
-        weight_title = (rf'$w_{{E1E2}}$: {w_12_e:.2f}, '
-                        rf'$w_{{E1I2}}$: {w_12_i:.2f}, '
-                        rf'$w_{{E2E1}}$: {w_21_e:.2f}, '
-                        rf'$w_{{E2I1}}$: {w_21_i:.2f}')
+        weight_title = (rf'$w^{{E1E2}}$: {w_12_e:.2f}, '
+                        rf'$w^{{E1I2}}$: {w_12_i:.2f}, '
+                        rf'$w^{{E2E1}}$: {w_21_e:.2f}, '
+                        rf'$w^{{E2I1}}$: {w_21_i:.2f}')
         title = f'Animation \n {common_title} \n {weight_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
                                spkrate2=data_load.a2.ge.spk_rate.spk_rate,
