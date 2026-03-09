@@ -1065,6 +1065,65 @@ def rf_alpha_distribution_plot(maxrate=1000, delta_gk=1, sample_type='Ellipse'):
         )
     plt.close(fig2)
 
+from matplotlib.lines import Line2D
+def generate_fft_legend(save_path=f'{elite_graph_dir}/fft_legend.svg', 
+                        figsize=(1, 1),  
+                        ncol=1,          
+                        sig_labels=None):
+    """
+    生成仅含6个自动配色实线的图例图（匹配matplotlib默认配色）
+    无自定义字体/字号，兼容脚本中的标准化字体设置
+    :param save_path: 图例保存路径（SVG格式）
+    :param figsize: 图例画布尺寸
+    :param ncol: 图例列数（6个项推荐2/3列）
+    :param sig_labels: 自定义标签列表，默认sig=0~5
+    """
+    # 1. 初始化画布，隐藏所有坐标轴
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.axis('off')  # 仅显示图例，隐藏坐标轴
+    
+    # 2. 设置默认标签（若未自定义）
+    if sig_labels is None:
+        sig_labels = [f'sig={i}' for i in [0,5,10,15,20,25]]
+    
+    # 3. 创建6个自动配色的图例元素（匹配matplotlib默认颜色循环）
+    legend_elements = []
+    for idx, label in enumerate(sig_labels):
+        # 获取matplotlib默认第idx个颜色（与主图6条线颜色一致）
+        color = plt.rcParams['axes.prop_cycle'].by_key()['color'][idx]
+        # 创建实线图例项（仅保留颜色和标签，无样式自定义）
+        legend_elements.append(
+            Line2D(
+                [0], [0],          
+                color=color,       
+                linewidth=1.5,     # 仅保留基础线宽（与主图默认一致）
+                linestyle='-',     
+                label=label        
+            )
+        )
+    
+    # 4. 添加图例（仅保留核心布局，无字体/字号设置）
+    ax.legend(
+        handles=legend_elements,
+        loc='center',          
+        ncol=ncol,             
+        frameon=False,         # 移除边框（无样式冲突）
+        columnspacing=1.0,     
+        handlelength=1.5,      
+        handletextpad=0.5      
+    )
+    
+    # 5. 保存图例（仅保留分辨率和格式，无多余设置）
+    plt.tight_layout(pad=0.1)
+    plt.savefig(
+        save_path,
+        dpi=600,                
+        bbox_inches='tight',    
+        format='svg',
+        transparent=True  # 关键：设置背景透明
+    )
+    plt.close()
+
 #%% Execution part ########################################################
 def draw_trajectory(delta_gk=1):
     # 载入数据
@@ -1303,3 +1362,6 @@ def draw_spk_rate_distribution_spon():
 # rf_alpha_distribution_plot(maxrate=2000, delta_gk=2, sample_type='Hull')
 #%% evolution plot
 # evolution_plot(delta_gk=2,remove_outlier=False)
+
+#%% draw fft legend
+# generate_fft_legend()

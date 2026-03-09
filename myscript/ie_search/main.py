@@ -1774,7 +1774,7 @@ def draw_LFP_FFT(freqs, power_mean, power_min, power_max,
 def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama, 
                   plotlog='loglog', std_plot=False):
     '''
-    draw_LFP_FFTs 的 Docstring
+    多组数据compare在一个图里, LFPs代表多组LFP对比图
     
     :param results: LFP的集合
     :param save_path: 全波段集合图保存路径
@@ -3405,7 +3405,10 @@ try:
             topdown = 'stim2'
         else:
             topdown = 'silnc'
-        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}_{stim_dura}.file"
+        if topdown != 'silnc':
+            topdown = f"{topdown}_{adapt_type}_{sig}"
+        
+        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}.file"
         with open(data_path, 'rb') as file:
             raw_data = pickle.load(file)
         LFP1 = raw_data['a1']['ge']['LFP']
@@ -3524,7 +3527,7 @@ try:
                                stim_dura=stim_dura,
                                w_12_e=w_12_e,w_12_i=w_12_i,
                                w_21_e=w_21_e,w_21_i=w_21_i)
-    temp_fun1()
+    # temp_fun1()
     # send_email.send_email('Progress','Coupled time frequency accomplished')
     def temp_fun2():
         """
