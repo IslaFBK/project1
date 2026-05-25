@@ -697,3 +697,8 @@ def analyze_LFP_morlet(LFP, dt=0.1, save_path_lp=None,
         plt.close(fig_log)
     
     return t, freqs, tf_power.T
+
+def get_multi_centre():
+    '''
+    获取多个波包中心点的坐标
+    '''

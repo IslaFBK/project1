@@ -973,7 +973,7 @@ def compute_1_general(comb, seed=10, index=1,
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
                       le=64,li=32, 
-                      transient = 3000, stim_dura=1000, 
+                      transient = 1000, stim_dura=2000, 
                       num_ee_1 = 270, num_ei_1 = 350,
                       num_ie_1 = 130, num_ii_1 = 180,
                       w_ee_1 = 11, w_ii_1 = 50,
@@ -1350,7 +1350,7 @@ def compute_2_general(comb, seed=10, index=1,
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
                       le=64,li=32,
-                      transient = 3000, stim_dura=1000, 
+                      transient = 1000, stim_dura=2000, 
                       num_ee_1=270, num_ei_1=350,
                       num_ie_1=130, num_ii_1=180,
                       num_ee_2=270, num_ei_2=350,
@@ -1701,7 +1701,7 @@ def compute_2_general(comb, seed=10, index=1,
                                 ''', threshold='rand()<rates*dt')
         stim_loca2 = [[0, 0]]
         posi_stim_e2.bkg_rates = 0*Hz
-        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=stim_loca2, 
+        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[chg_adapt_range], position=stim_loca2, 
                                                  sti_type=sti_type, n_side=le, width=le)*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
@@ -1948,13 +1948,13 @@ def compute_2_general(comb, seed=10, index=1,
                     [[sig]*stim_on_off.shape[0]]], 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[sig]*stim_on_off.shape[0]]]]
+                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
     else:
         if top_sti:
             stim = [None, 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[sig]*stim_on_off.shape[0]]]]
+                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
 
     adpt = None
     if adapt:
@@ -1970,7 +1970,7 @@ def compute_2_general(comb, seed=10, index=1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
-    topdown = f"{topdown}_{adapt_type}_{sig}"
+    topdown = f"{topdown}_{adapt_type}_{chg_adapt_range}"
 
     if sti:
         input=f'on{maxrate}_{sti_type}_{sig}'
