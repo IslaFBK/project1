@@ -981,7 +981,10 @@ def compute_1_general(comb, seed=10, index=1,
                       decay_p_ei_1 = 9.5,
                       decay_p_ie_1 = 19,
                       decay_p_ii_1 = 19,
-                      delta_gk = 1): # delta_gk=1表示用第一层的adaptation,=2表示用第二层的adaptation
+                      delta_gk = 1, # delta_gk=1表示用第一层的adaptation,=2表示用第二层的adaptation
+                      lfp_electrodes=None,
+                      lfp_sigma=6,
+                      lfp_effect_range=2.5):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -1085,9 +1088,11 @@ def compute_1_general(comb, seed=10, index=1,
         from connection import get_LFP
 
         # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
-        LFP_elec = np.array([[0,0]])
+        LFP_elec = np.array([[0,0]]) if lfp_electrodes is None else np.asarray(lfp_electrodes)
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
-                                            width=ijwd1.width) # LFP_sigma=6,LFP_effect_range=2.5
+                                            width=ijwd1.width,
+                                            LFP_sigma=lfp_sigma,
+                                            LFP_effect_range=lfp_effect_range)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                     model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1248,6 +1253,7 @@ def compute_1_general(comb, seed=10, index=1,
                 'gi':{'i':spk_i_1.i[:],'t':spk_tstep_i1}}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a1']['ge']['LFP_electrodes'] = LFP_elec
 
     if save_load:
         # save and load
@@ -1378,7 +1384,11 @@ def compute_2_general(comb, seed=10, index=1,
                       d_gk_1=1.9,
                       d_gk_2=6.5,
                       new_delta_gk_2=0.5,
-                      chg_adapt_range=7):
+                      chg_adapt_range=7,
+                      lfp_electrodes=None,
+                      lfp_electrodes2=None,
+                      lfp_sigma=6,
+                      lfp_effect_range=2.5):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -1574,9 +1584,11 @@ def compute_2_general(comb, seed=10, index=1,
         from connection import get_LFP
         # area 1
         # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
-        LFP_elec = np.array([[0,0]])
+        LFP_elec = np.array([[0,0]]) if lfp_electrodes is None else np.asarray(lfp_electrodes)
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
-                                            width=ijwd1.width) # LFP_sigma=6,LFP_effect_range=2.5
+                                            width=ijwd1.width,
+                                            LFP_sigma=lfp_sigma,
+                                            LFP_effect_range=lfp_effect_range)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                        model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1584,9 +1596,14 @@ def compute_2_general(comb, seed=10, index=1,
         syn_LFP.w[:] = w_LFP[:]
         # area 2
         # LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
-        LFP_elec2 = np.array([[0,0]])
+        if lfp_electrodes2 is None:
+            LFP_elec2 = np.array([[0,0]]) if lfp_electrodes is None else LFP_elec.copy()
+        else:
+            LFP_elec2 = np.asarray(lfp_electrodes2)
         i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
-                                               width=ijwd2.width) # LFP_sigma=6,LFP_effect_range=2.5
+                                               width=ijwd2.width,
+                                               LFP_sigma=lfp_sigma,
+                                               LFP_effect_range=lfp_effect_range)
         group_LFP_record2 = NeuronGroup(len(LFP_elec2),
                                         model=get_LFP.LFP_recordneuron)
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
@@ -1843,7 +1860,9 @@ def compute_2_general(comb, seed=10, index=1,
             'inter':{'param':param_inter}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a1']['ge']['LFP_electrodes'] = LFP_elec
         data['a2']['ge']['LFP'] = lfp_moni2.lfp[:]/nA
+        data['a2']['ge']['LFP_electrodes'] = LFP_elec2
 
     if save_load:
         # save and load

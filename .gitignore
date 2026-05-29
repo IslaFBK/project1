@@ -33,3 +33,4 @@ ai.md
 send_email.py
 *.bak
 .vscode/settings.json
+test_spec_field/

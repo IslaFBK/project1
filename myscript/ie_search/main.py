@@ -2944,7 +2944,7 @@ try:
     def compute_data2(sti=True, sti_type='Gaussian',
                       adapt = True, top_sti = False,
                       adapt_type = 'Gaussian', 
-                      sig1=10,sig2=5,maxrate=1000,
+                      sig1=10,sig2=0,maxrate=1000,
                       transient=1000,
                       stim_dura=2000,
                       window=10,
