@@ -24,6 +24,7 @@ from connection import adapt_gaussian
 from analysis import mydata
 from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
+from analysis import wavepacket_gamma_analysis as wpga
 from joblib import Parallel, delayed
 from pathlib import Path
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
@@ -1474,6 +1475,166 @@ fft_l = 1
 fft_r = 100
 
 # 画单组LFP FFT, 可mean可单算例
+def firing_rate_spectrum_time(result, area=1, save_path=None, **kwargs):
+    """Plot local firing rate above the LFP time-frequency spectrum.
+
+    ``result`` is returned by ``compute_1_general`` or ``compute_2_general``.
+    The first recorded electrode (the sheet centre) is used by default.
+    """
+    return wpga.analyze_electrode_passage_from_result(
+        result, area=area, save_path=save_path, **kwargs
+    )
+
+
+def packet_distance_gamma_synchrony(result, save_path=None, **kwargs):
+    """Relate periodic inter-packet distance to two-area gamma synchrony."""
+    return wpga.analyze_packet_alignment_from_result(
+        result, save_path=save_path, **kwargs
+    )
+
+
+def compute_wavepacket_gamma_figures(
+        param, seed=0, stim_dura=10000, window=15,
+        maxrate=1000, sig=0, sti=False, top_sti=False,
+        sti_type='Uniform', adapt=False, adapt_type='Gaussian',
+        new_delta_gk_2=0.5, chg_adapt_range=7,
+        w_12_e=2.4, w_12_i=2.4, w_21_e=2.4, w_21_i=2.4,
+        electrode=0, gamma_band=(30, 80),
+        cmpt=True, video=False,
+        raw_data_path=None, analysis_data_path=None,
+        save_path_root=None):
+    """Compute and save all figures requested for wave-packet/gamma analysis.
+
+    Raw inputs, numerical analysis results and figures follow the existing
+    ``raw_data``, ``state`` and ``graph/LFP`` directory convention.  Set
+    ``cmpt=False`` to redraw/reanalyse an already saved simulation result.
+    """
+    if len(param) != 4:
+        raise ValueError('param must contain (re1, ri1, re2, ri2)')
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = (
+        f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_'
+        f're2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    )
+    run_name = (
+        f'wavepacket_gamma_{common_path}_'
+        f'w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_'
+        f'sti{int(sti)}_top{int(top_sti)}_adapt{int(adapt)}_'
+        f'mr{maxrate}_sig{sig}_win{window}_seed{seed}_{stim_dura}ms'
+    )
+    analysis_name = (
+        f'{run_name}_electrode{electrode}_'
+        f'gamma{gamma_band[0]}-{gamma_band[1]}Hz'
+    )
+
+    if raw_data_path is None:
+        raw_data_path = f'{data_dir}/{run_name}.file'
+    if analysis_data_path is None:
+        analysis_data_path = f'{state_dir}/{analysis_name}_analysis.file'
+    if save_path_root is None:
+        save_path_root = f'{LFP_dir}/wavepacket_gamma'
+
+    Path(raw_data_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(analysis_data_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(save_path_root).mkdir(parents=True, exist_ok=True)
+
+    if cmpt:
+        simulation_result = compute.compute_2_general(
+            comb=param, seed=seed, index=seed,
+            sti=sti, maxrate=maxrate, sig=sig, sti_type=sti_type,
+            adapt=adapt, top_sti=top_sti, adapt_type=adapt_type,
+            new_delta_gk_2=new_delta_gk_2,
+            chg_adapt_range=chg_adapt_range,
+            window=window, stim_dura=stim_dura,
+            video=video, save_load=False,
+            w_12_e=w_12_e, w_12_i=w_12_i,
+            w_21_e=w_21_e, w_21_i=w_21_i
+        )
+        # Only retain the arrays needed by this analysis.  This is much smaller
+        # and safer to reload than pickling the complete Brian2 data object.
+        saved_keys = (
+            'spk_rate1', 'spk_rate2', 'centre1', 'centre2',
+            'LFP1_cut', 'LFP2_cut', 'fr_dt_ms', 'fr_window_ms',
+            'lfp_dt_ms', 'grid_shape'
+        )
+        result = {key: simulation_result[key] for key in saved_keys}
+        with open(raw_data_path, 'wb') as file:
+            pickle.dump(result, file)
+    else:
+        if not os.path.exists(raw_data_path):
+            raise FileNotFoundError(
+                f'Required wave-packet data not found: {raw_data_path}. '
+                'Run once with cmpt=True.'
+            )
+        with open(raw_data_path, 'rb') as file:
+            result = pickle.load(file)
+
+    figure_paths = {
+        'area1_passage': f'{save_path_root}/{analysis_name}_area1_passage.svg',
+        'area2_passage': f'{save_path_root}/{analysis_name}_area2_passage.svg',
+        'alignment': f'{save_path_root}/{analysis_name}_alignment.svg'
+    }
+    passage1 = firing_rate_spectrum_time(
+        result, area=1, electrode=electrode, gamma_band=gamma_band,
+        save_path=figure_paths['area1_passage']
+    )
+    passage2 = firing_rate_spectrum_time(
+        result, area=2, electrode=electrode, gamma_band=gamma_band,
+        save_path=figure_paths['area2_passage']
+    )
+    alignment = packet_distance_gamma_synchrony(
+        result, electrode=electrode, gamma_band=gamma_band,
+        save_path=figure_paths['alignment']
+    )
+
+    numerical_results = {
+        'param': tuple(param),
+        'seed': seed,
+        'stim_dura': stim_dura,
+        'window': window,
+        'gamma_band': tuple(gamma_band),
+        'area1_passage': {k: v for k, v in passage1.items() if k != 'figure'},
+        'area2_passage': {k: v for k, v in passage2.items() if k != 'figure'},
+        'alignment': {k: v for k, v in alignment.items() if k != 'figure'},
+        'raw_data_path': raw_data_path,
+        'figure_paths': figure_paths
+    }
+    with open(analysis_data_path, 'wb') as file:
+        pickle.dump(numerical_results, file)
+
+    print(f'Raw data: {raw_data_path}')
+    print(f'Analysis data: {analysis_data_path}')
+    for name, path in figure_paths.items():
+        print(f'{name}: {path}')
+    print(
+        'Area 1: '
+        f"rho(rate, gamma)={passage1['rho_firing_gamma']:.3f}, "
+        f"rho(distance, gamma)={passage1['rho_distance_gamma']:.3f}, "
+        f"near/far={passage1['near_far_gamma_ratio']:.3f}"
+    )
+    print(
+        'Area 2: '
+        f"rho(rate, gamma)={passage2['rho_firing_gamma']:.3f}, "
+        f"rho(distance, gamma)={passage2['rho_distance_gamma']:.3f}, "
+        f"near/far={passage2['near_far_gamma_ratio']:.3f}"
+    )
+    print(
+        'Alignment: '
+        f"rho(distance, PLV)={alignment['rho_distance_plv']:.3f}, "
+        f"shift p={alignment['circular_shift_p_distance_plv']:.4f}, "
+        f"best lag={alignment['best_plv_lag_ms']:.1f} ms"
+    )
+    return {
+        'simulation_result': result,
+        'passage1': passage1,
+        'passage2': passage2,
+        'alignment': alignment,
+        'raw_data_path': raw_data_path,
+        'analysis_data_path': analysis_data_path,
+        'figure_paths': figure_paths
+    }
+
+
 def draw_LFP_FFT(freqs, power_mean, power_std, 
                  save_path, save_path_beta, save_path_gama, 
                  plotlog='loglog', std_plot=False):
@@ -2916,9 +3077,24 @@ try:
     # draw_LFP_FFT_1area_repeat(
     #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2
     #     )
-    top_down_LFP_compare(stim_dura=10000)
+    # top_down_LFP_compare(stim_dura=10000)
     # msd_plot()
     # compute_data2()
+
+    # %% wave-packet passage, gamma spectrum and inter-area alignment
+    # Run once with cmpt=True.  Change it to False to reuse the saved raw data
+    # and redraw the figures without repeating the Brian2 simulation.
+    teacher_gamma = compute_wavepacket_gamma_figures(
+        param=param_area12,
+        seed=0,
+        stim_dura=10000,
+        window=15,
+        sti=False,
+        w_12_e=2.4, w_12_i=2.4,
+        w_21_e=2.4, w_21_i=2.4,
+        cmpt=True,
+        video=False
+    )
 
     send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
 except Exception:

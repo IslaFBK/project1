@@ -1340,7 +1340,12 @@ def compute_1_general(comb, seed=10, index=1,
         'pdx': pdx,
         'spk_rate': spk_rate,
         'centre': centre,
-        'LFP_cut': lfp_segment
+        'LFP_cut': lfp_segment,
+        # Time-base metadata used by time-resolved firing-rate/LFP analyses.
+        'fr_dt_ms': float(data_load.a1.ge.spk_rate.dt),
+        'fr_window_ms': float(data_load.a1.ge.spk_rate.window),
+        'lfp_dt_ms': float(defaultclock.dt/ms),
+        'grid_shape': spk_rate.shape[:2]
     }
 
 def compute_2_general(comb, seed=10, index=1, 
@@ -2001,5 +2006,10 @@ def compute_2_general(comb, seed=10, index=1,
         'centre1': centre1,
         'centre2': centre2,
         'LFP1_cut': lfp_segment1,
-        'LFP2_cut': lfp_segment2
+        'LFP2_cut': lfp_segment2,
+        # Time-base metadata used by time-resolved firing-rate/LFP analyses.
+        'fr_dt_ms': float(data_load.a1.ge.spk_rate.dt),
+        'fr_window_ms': float(data_load.a1.ge.spk_rate.window),
+        'lfp_dt_ms': float(defaultclock.dt/ms),
+        'grid_shape': spk_rate1.shape[:2]
     }
