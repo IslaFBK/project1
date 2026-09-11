@@ -130,6 +130,8 @@ recfield_dir = f'./{graph_dir}/recfield'
 Path(recfield_dir).mkdir(parents=True, exist_ok=True)
 LFP_dir = f'./{graph_dir}/LFP'
 Path(LFP_dir).mkdir(parents=True, exist_ok=True)
+elite_graph_dir = f'{graph_dir}/elite_graph/'
+Path(elite_graph_dir).mkdir(parents=True, exist_ok=True)
 
 #%% pick parameters and run `n_repeat` times
 def pick_parameters_and_repeat_compute(param=None, n_repeat=128, video=False):
@@ -717,23 +719,23 @@ def receptive_field(param):
     return r_rf
 
 # exam different distance firing rate
-def receptive_field_repeat(param, n_repeat, plot=False, 
+def receptive_field_repeat(param, n_repeat, plot=False, stim_dura=1000,
                            video0=False, video1=False, maxrate=5000,
                            save_load0=False, save_load1=False,
-                           delta_gk=1):
+                           save_path_root = recfield_dir, delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
                                                video=(i==0),save_load=save_load0,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=False, 
                                                video=False,save_load=save_load0,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     if video1:
@@ -741,7 +743,7 @@ def receptive_field_repeat(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
                                                maxrate=maxrate,
                                                video=(i==0),save_load=save_load1,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
@@ -749,7 +751,7 @@ def receptive_field_repeat(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param,seed=i,index=i,sti=True, 
                                                maxrate=maxrate,
                                                video=False,save_load=save_load1,
-                                               delta_gk=delta_gk)
+                                               delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -763,14 +765,89 @@ def receptive_field_repeat(param, n_repeat, plot=False,
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
 
-    save_path = f'{recfield_dir}/{n_repeat}_{maxrate}fr_ext-dist{common_path}_{delta_gk}.svg'
-    data_path = f'{state_dir}/{n_repeat}_{maxrate}fr_ext{common_path}_{delta_gk}.file'
+    save_path = f'{save_path_root}/rf1_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.svg'
+    data_path = f'{state_dir}/rf1_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.file'
     r_rf = mya.receptive_field(spk_rate0=spk_rate0_mean,
                                spk_rate1=spk_rate1_mean,
                                save_path=save_path,
                                data_path=data_path,
                                plot=plot)
     return r_rf
+
+def receptive_field_repeat_topdown(param, n_repeat, plot=False, stim_dura=1000,
+                                   video0=False, video1=False, maxrate=5000,
+                                   sig=2, sti_type='Uniform',
+                                   save_load0=False, save_load1=False,
+                                   save_path_root = recfield_dir):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=(i==0), save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=False, save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=(i==0), save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=False, save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all1 = np.stack([r['spk_rate1'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all1 = np.stack([r['spk_rate1'] for r in result1], axis=0)
+    spk_rate0_all2 = np.stack([r['spk_rate2'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all2 = np.stack([r['spk_rate2'] for r in result1], axis=0)
+
+    # 在第一个维度(realization)取平均
+    spk_rate0_mean1 = np.mean(spk_rate0_all1, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean1 = np.mean(spk_rate1_all1, axis=0)
+    spk_rate0_mean2 = np.mean(spk_rate0_all2, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean2 = np.mean(spk_rate1_all2, axis=0)
+
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+    save_path1 = f'{save_path_root}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}_1.svg'
+    save_path2 = f'{save_path_root}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}_2.svg'
+    data_path = f'{state_dir}/rf1_topdown_{n_repeat}_{maxrate}_{common_path}_{stim_dura}.file'
+
+    # V1
+    r_rf1 = mya.receptive_field(spk_rate0=spk_rate0_mean1,
+                                spk_rate1=spk_rate1_mean1,
+                                save_path=save_path1,
+                                data_path=data_path,
+                                plot=plot)
+    
+    # V2
+    r_rf2 = mya.receptive_field(spk_rate0=spk_rate0_mean2,
+                                spk_rate1=spk_rate1_mean2,
+                                save_path=save_path2,
+                                data_path=data_path,
+                                save_file=False,
+                                plot=plot)
+    return r_rf1, r_rf2
 
 # compute receptive field radius and alpha with repeat realizaiton
 def rf_and_alpha_repeat(param, n_repeat, plot=False,
@@ -1297,22 +1374,22 @@ def check_r_rf_maxrate(param=None,
     plt.savefig(f'{recfield_dir}/r_rf-mr_log{common_path}_{n_repeat}.png')
 
 # exam middle 4 point firing rate (receptive field)
-def receptive_field_repeat2(param, n_repeat, plot=False, 
+def receptive_field_repeat2(param, n_repeat, plot=False, stim_dura=1000, 
                             video0=False, video1=False, maxrate=1000, sig=2, sti_type='Uniform',
-                            save_load0=False, save_load1=False, le=64, li=32,delta_gk=1):
+                            save_load0=False, save_load1=False, le=64, li=32, delta_gk=1):
     
     if video0:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
                                                video=(i==0), save_load=save_load0,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
         result0 = Parallel(n_jobs=-1)(
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=False,
                                                video=False, save_load=save_load0,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     if video1:
@@ -1320,7 +1397,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
                                                maxrate=maxrate, sig=sig, sti_type=sti_type,
                                                video=(i==0), save_load=save_load1,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     else:
@@ -1328,7 +1405,7 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
             delayed(compute.compute_1_general)(comb=param, seed=i, index=i, sti=True,
                                                maxrate=maxrate, sig=sig, sti_type=sti_type,
                                                video=False, save_load=save_load1,
-                                               le=le, li=li,delta_gk=delta_gk)
+                                               le=le, li=li,delta_gk=delta_gk,stim_dura=stim_dura)
             for i in range(n_repeat)
         )
     # 提取所有 spk_rate 并堆叠
@@ -1355,32 +1432,60 @@ def receptive_field_repeat2(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
+from math import ceil, sqrt
+# middle 4 point different sig scane
+def receptive_field2(param, n_repeat, plot=False, 
+                     video0=False, video1=False, 
+                     maxrate=1000, sti_type='Uniform',
+                     save_load0=False, save_load1=False, 
+                     le=64, li=32, delta_gk=1, stim_dura=1000):
+    # max_sig = ceil(31.5*sqrt(2))
+    max_sig = ceil((le-1)/2)
+    sigs = np.arange(0, max_sig + 1, 1)
+    ratios = []
+    diffs = []
+    for sig in sigs:
+        ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, stim_dura=stim_dura, 
+                                              video0=video0, video1=video1, 
+                                              maxrate=maxrate, sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1, 
+                                              le=le, li=li, delta_gk=delta_gk)
+        ratios.append(ratio)
+        diffs.append(diff)
+    return ratios, diffs, sigs
+
 #%% draw receptive field 2 (exam middle 4 point firing rate while scane stimuli size)
-def draw_receptive_field2(param, n_repeat, maxrate=1000, le=64, li=32):
-    ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, 
-                                           video0=False, video1=False, 
-                                           maxrate=maxrate, sti_type='Uniform',
-                                           save_load0=False, save_load1=False, 
-                                           le=le, li=li)
+def draw_receptive_field2(param, n_repeat, maxrate=1000, le=64, li=32, 
+                          delta_gk=1, stim_dura=1000, cmpt=True):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+    data_path = f'{state_dir}/rf2_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.file'
+    if cmpt:
+        ratios, diffs, sigs = receptive_field2(param, n_repeat, plot=False, stim_dura=stim_dura, 
+                                            video0=False, video1=False, 
+                                            maxrate=maxrate, sti_type='Uniform',
+                                            save_load0=False, save_load1=False, 
+                                            le=le, li=li, delta_gk=delta_gk)
+        results = {
+            'sigs': sigs,
+            'diffs': diffs
+        }
+        with open(data_path, 'wb') as file:
+            pickle.dump(results, file)
+    elif os.path.exists(data_path):
+        with open(data_path, 'rb') as file:
+            results = pickle.load(file)
+        sigs = results['sigs']
+        diffs = results['diffs']
 
-    save_pathr = f'{recfield_dir}/middle_zratio{n_repeat}_{maxrate}fr_ext{common_path}.svg'
-    save_pathd = f'{recfield_dir}/middle_zdiff{n_repeat}_{maxrate}fr_ext{common_path}.svg'
-    
-    plt.figure(figsize=(5,5))
-    plt.plot(sigs, ratios, 'o-')
-    plt.xlabel('Stimuli size')
-    plt.ylabel('Centre firing rate ratio')
-    plt.title('Centre firing rate ratio vs. stimuli size')
-    plt.savefig(save_pathr, dpi=600, format='svg')
+    save_path = f'{elite_graph_dir}/rf2_non_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_{delta_gk}.svg'
 
-    plt.figure(figsize=(5,5))
+    plt.figure(figsize=(2,2))
     plt.plot(sigs, diffs, 'o-')
-    plt.xlabel('Stimuli size')
-    plt.ylabel('Centre firing rate difference')
-    plt.title('Centre firing rate ratio vs. stimuli size')
-    plt.savefig(save_pathd, dpi=600, format='svg')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    # plt.title('Centre firing rate ratio vs. stimuli size')
+    plt.savefig(save_path, dpi=600, format='svg')
 
 # exam whole field firing rate (receptive field)
 def receptive_field_repeat3(param, n_repeat, plot=False, 
@@ -1431,27 +1536,130 @@ def receptive_field_repeat3(param, n_repeat, plot=False,
     diff = center_spk_rate1_tmean-center_spk_rate0_tmean
     return ratio, diff
 
-from math import ceil, sqrt
-# middle 4 point different sig scane
-def receptive_field2(param, n_repeat, plot=False, 
-                     video0=False, video1=False, 
-                     maxrate=1000, sti_type='Uniform',
-                     save_load0=False, save_load1=False, 
-                     le=64, li=32):
-    # max_sig = ceil(31.5*sqrt(2))
+# exam middle 4 point firing rate (receptive field)
+def rf_repeat2_topdown(param, n_repeat, video0=False, video1=False, 
+                       maxrate=1000, sig=2, sti_type='Uniform',
+                       save_load0=False, save_load1=False,stim_dura=1000):
+    
+    if video0:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=(i==0), save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result0 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=False,
+                video=False, save_load=save_load0,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    if video1:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=(i==0), save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    else:
+        result1 = Parallel(n_jobs=-1)(
+            delayed(compute.compute_2_general)(
+                comb=param, seed=i, index=i, sti=True,
+                maxrate=maxrate, sig=sig, sti_type=sti_type,
+                video=False, save_load=save_load1,stim_dura=stim_dura
+                )
+            for i in range(n_repeat)
+        )
+    # 提取所有 spk_rate 并堆叠
+    spk_rate0_all1 = np.stack([r['spk_rate1'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all1 = np.stack([r['spk_rate1'] for r in result1], axis=0)
+    spk_rate0_all2 = np.stack([r['spk_rate2'] for r in result0], axis=0)  # shape: (n_repeat, Nx, Ny, T)
+    spk_rate1_all2 = np.stack([r['spk_rate2'] for r in result1], axis=0)
+
+    # 在第一个维度(realization)取平均
+    spk_rate0_mean1 = np.mean(spk_rate0_all1, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean1 = np.mean(spk_rate1_all1, axis=0)
+    spk_rate0_mean2 = np.mean(spk_rate0_all2, axis=0)  # shape: (Nx, Ny, T)
+    spk_rate1_mean2 = np.mean(spk_rate1_all2, axis=0)
+
+
+    # 取中心最近的四个点
+    center_indices = [(31, 31), (31, 32), (32, 31), (32, 32)]
+    center_spk_rate01 = np.array([spk_rate0_mean1[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate11 = np.array([spk_rate1_mean1[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate02 = np.array([spk_rate0_mean2[x, y, :] for x, y in center_indices])  # shape: (4, T)
+    center_spk_rate12 = np.array([spk_rate1_mean2[x, y, :] for x, y in center_indices])  # shape: (4, T)
+
+    # 对这四个点做平均
+    center_spk_rate0_mean1 = np.mean(center_spk_rate01, axis=0)  # shape: (T,)
+    center_spk_rate1_mean1 = np.mean(center_spk_rate11, axis=0)  # shape: (T,)
+    center_spk_rate0_tmean1 = np.mean(center_spk_rate0_mean1, axis=0)
+    center_spk_rate1_tmean1 = np.mean(center_spk_rate1_mean1, axis=0)
+    center_spk_rate0_mean2 = np.mean(center_spk_rate02, axis=0)  # shape: (T,)
+    center_spk_rate1_mean2 = np.mean(center_spk_rate12, axis=0)  # shape: (T,)
+    center_spk_rate0_tmean2 = np.mean(center_spk_rate0_mean2, axis=0)
+    center_spk_rate1_tmean2 = np.mean(center_spk_rate1_mean2, axis=0)
+
+    diff1 = center_spk_rate1_tmean1-center_spk_rate0_tmean1
+    diff2 = center_spk_rate1_tmean2-center_spk_rate0_tmean2
+    return diff1, diff2
+
+def draw_rf_repeat2_topdown(param, n_repeat,video0=False, video1=False, 
+                            maxrate=1000, sti_type='Uniform',cmpt=True,
+                            save_load0=False, save_load1=False,
+                            le=64, li=32, stim_dura=1000):
+    
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+    data_path = f'{state_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}.file'
+    
     max_sig = ceil((le-1)/2)
     sigs = np.arange(0, max_sig + 1, 1)
-    ratios = []
-    diffs = []
-    for sig in sigs:
-        ratio, diff = receptive_field_repeat2(param, n_repeat, plot=plot, 
-                                              video0=video0, video1=video1, 
-                                              maxrate=maxrate, sig=sig, sti_type=sti_type,
-                                              save_load0=save_load0, save_load1=save_load1, 
-                                              le=le, li=li)
-        ratios.append(ratio)
-        diffs.append(diff)
-    return ratios, diffs, sigs
+    diffs1 = []
+    diffs2 = []
+    if cmpt:
+        for sig in sigs:
+            diff1, diff2 = rf_repeat2_topdown(param, n_repeat,video0=video0, video1=video1,
+                                              stim_dura=stim_dura,maxrate=maxrate, 
+                                              sig=sig, sti_type=sti_type,
+                                              save_load0=save_load0, save_load1=save_load1)
+            diffs1.append(diff1)
+            diffs2.append(diff2)
+        results = {
+            'sigs': sigs,
+            'diffs1': diffs1,
+            'diffs2': diffs2
+        }
+        with open(data_path, 'wb') as file:
+            pickle.dump(results, file)
+    elif os.path.exists(data_path):
+        with open(data_path, 'rb') as file:
+            results = pickle.load(file)
+        sigs = results['sigs']
+        diffs1 = results['diffs1']
+        diffs2 = results['diffs2']
+        
+    save_path1 = f'{elite_graph_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_1.svg'
+    save_path2 = f'{elite_graph_dir}/rf2_topdown{n_repeat}_{maxrate}_{common_path}_{stim_dura}_2.svg'
+
+    plt.figure(figsize=(2,2))
+    plt.plot(sigs, diffs1, 'o-')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    plt.savefig(save_path1, dpi=600, format='svg')
+
+    plt.figure(figsize=(2,2))
+    plt.plot(sigs, diffs2, 'o-')
+    plt.xlabel('Stimulus radius (gridpoint)')
+    plt.ylabel('Centre firing rate (Hz)')
+    plt.savefig(save_path2, dpi=600, format='svg')
+
 
 # exam whole field different sig scane
 def receptive_field3(param, n_repeat, plot=False, 
@@ -1476,11 +1684,7 @@ fft_r = 100
 
 # 画单组LFP FFT, 可mean可单算例
 def firing_rate_spectrum_time(result, area=1, save_path=None, **kwargs):
-    """Plot local firing rate above the LFP time-frequency spectrum.
-
-    ``result`` is returned by ``compute_1_general`` or ``compute_2_general``.
-    The first recorded electrode (the sheet centre) is used by default.
-    """
+    """Plot local firing rate above the LFP time-frequency spectrum."""
     return wpga.analyze_electrode_passage_from_result(
         result, area=area, save_path=save_path, **kwargs
     )
@@ -1494,7 +1698,7 @@ def packet_distance_gamma_synchrony(result, save_path=None, **kwargs):
 
 
 def compute_wavepacket_gamma_figures(
-        param, seed=0, stim_dura=10000, window=15,
+        param, seed=0, transient=1000, stim_dura=10000, window=15,
         maxrate=1000, sig=0, sti=False, top_sti=False,
         sti_type='Uniform', adapt=False, adapt_type='Gaussian',
         new_delta_gk_2=0.5, chg_adapt_range=7,
@@ -1505,9 +1709,9 @@ def compute_wavepacket_gamma_figures(
         save_path_root=None):
     """Compute and save all figures requested for wave-packet/gamma analysis.
 
-    Raw inputs, numerical analysis results and figures follow the existing
-    ``raw_data``, ``state`` and ``graph/LFP`` directory convention.  Set
-    ``cmpt=False`` to redraw/reanalyse an already saved simulation result.
+    Raw inputs, numerical results and figures follow the existing ``raw_data``,
+    ``state`` and ``graph/LFP`` directory convention. Set ``cmpt=False`` to
+    redraw an already saved simulation without repeating the Brian2 run.
     """
     if len(param) != 4:
         raise ValueError('param must contain (re1, ri1, re2, ri2)')
@@ -1520,7 +1724,8 @@ def compute_wavepacket_gamma_figures(
         f'wavepacket_gamma_{common_path}_'
         f'w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_'
         f'sti{int(sti)}_top{int(top_sti)}_adapt{int(adapt)}_'
-        f'mr{maxrate}_sig{sig}_win{window}_seed{seed}_{stim_dura}ms'
+        f'mr{maxrate}_sig{sig}_win{window}_seed{seed}_'
+        f'trans{transient}_{stim_dura}ms'
     )
     analysis_name = (
         f'{run_name}_electrode{electrode}_'
@@ -1545,13 +1750,11 @@ def compute_wavepacket_gamma_figures(
             adapt=adapt, top_sti=top_sti, adapt_type=adapt_type,
             new_delta_gk_2=new_delta_gk_2,
             chg_adapt_range=chg_adapt_range,
-            window=window, stim_dura=stim_dura,
+            window=window, transient=transient, stim_dura=stim_dura,
             video=video, save_load=False,
             w_12_e=w_12_e, w_12_i=w_12_i,
             w_21_e=w_21_e, w_21_i=w_21_i
         )
-        # Only retain the arrays needed by this analysis.  This is much smaller
-        # and safer to reload than pickling the complete Brian2 data object.
         saved_keys = (
             'spk_rate1', 'spk_rate2', 'centre1', 'centre2',
             'LFP1_cut', 'LFP2_cut', 'fr_dt_ms', 'fr_window_ms',
@@ -1590,6 +1793,7 @@ def compute_wavepacket_gamma_figures(
     numerical_results = {
         'param': tuple(param),
         'seed': seed,
+        'transient': transient,
         'stim_dura': stim_dura,
         'window': window,
         'gamma_band': tuple(gamma_band),
@@ -1635,7 +1839,7 @@ def compute_wavepacket_gamma_figures(
     }
 
 
-def draw_LFP_FFT(freqs, power_mean, power_std, 
+def draw_LFP_FFT(freqs, power_mean, power_min, power_max, 
                  save_path, save_path_beta, save_path_gama, 
                  plotlog='loglog', std_plot=False):
     '''
@@ -1649,11 +1853,15 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
     :param save_path_gama: gamma波段集合图保存路径
     :param plotlog: 可以取'loglog','semilogx','semilogy','linear'
     '''
-    def _plot_specturm(freqs, power_mean, power_std, plotlog, 
+    def _plot_specturm(freqs, power_mean, power_min, power_max, plotlog, 
                        x_lim, title, save_file, figsize=(2,2), std_plot=False):
         plt.figure(figsize=figsize)
         # plot specturm:
         power_mean=power_mean*1e-9
+        if power_min is not None and power_max is not None:
+            power_min = power_min * 1e-9
+            power_max = power_max * 1e-9
+
         if plotlog=='loglog':
             line = plt.loglog(freqs, power_mean, label='Mean Power')[0]
         elif plotlog=='semilogx':
@@ -1663,15 +1871,10 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         else:
             line = plt.plot(freqs, power_mean, label='Mean Power')[0]
         
-        if power_std is not None and std_plot:
+        if power_min is not None and power_max is not None and std_plot:
             line_color = line.get_color()
             # cut upper lower boundary
-            if plotlog=='loglog' or 'semilogy':
-                y_min = np.maximum(power_mean-power_std, 0)
-            else:
-                y_min = power_mean-power_std
-            y_max = power_mean + power_std
-            plt.fill_between(freqs, y_min, y_max, color=line_color, alpha=0.3)
+            plt.fill_between(freqs, power_min, power_max, color=line_color, alpha=0.3)
 
         # 图表样式
         plt.xlabel('Frequency (Hz)')
@@ -1699,9 +1902,9 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         x_min, x_max = plt.xlim()
         mask = (freqs >= x_min) & (freqs <= x_max)
         if np.any(mask):
-            if std_plot:
-                y_min_data = np.min(power_mean[mask]-power_std[mask])
-                y_max_data = np.max(power_mean[mask]+power_std[mask])
+            if std_plot and power_min is not None and power_max is not None:
+                y_min_data = np.min(power_min[mask])
+                y_max_data = np.max(power_max[mask])
             else:
                 y_min_data = np.min(power_mean[mask])
                 y_max_data = np.max(power_mean[mask])
@@ -1721,14 +1924,14 @@ def draw_LFP_FFT(freqs, power_mean, power_std,
         ((30, 80), 'Mean LFP FFT Spectrum (gamma)', save_path_gama)
     ]
     for x_lim, title, save_file in fft_bands:
-        _plot_specturm(freqs, power_mean, power_std, plotlog, 
+        _plot_specturm(freqs, power_mean, power_min, power_max, plotlog, 
                        x_lim, title, save_file, std_plot=std_plot)
 
 # 多组数据compare在一个图里，LFPs代表多组LFP对比图
 def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama, 
-                  plotlog='loglog', std_plot=True):
+                  plotlog='loglog', std_plot=False):
     '''
-    draw_LFP_FFTs 的 Docstring
+    多组数据compare在一个图里, LFPs代表多组LFP对比图
     
     :param results: LFP的集合
     :param save_path: 全波段集合图保存路径
@@ -1736,12 +1939,16 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
     :param save_path_gama: gamma波段集合图保存路径
     :param plotlog: 可以取'loglog','semilogx','semilogy','linear'
     '''
-    def _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, figsize=(2,2)):
+    def _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, figsize=(2,2),std_plot=False):
         plt.figure(figsize=figsize)
         # figsize原来是(6,4)
         # loop plot multiple spectra
-        for sig, freqs, power_mean, power_std in results:
+        for sig, freqs, power_mean, power_min, power_max in results:
             power_mean=power_mean*1e-9
+            if power_min is not None and power_max is not None:
+                power_min = power_min * 1e-9
+                power_max = power_max * 1e-9
+
             if plotlog == 'loglog':
                 line = plt.loglog(freqs, power_mean, label=f'sig={sig}')[0]
             elif plotlog == 'semilogx':
@@ -1751,15 +1958,10 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
             elif plotlog == 'linear':  # 补充linear分支，与文档字符串对应
                 line = plt.plot(freqs, power_mean, label=f'sig={sig}')[0]
             
-            if power_std is not None and std_plot:
+            if power_min is not None and power_max is not None and std_plot:
                 line_color = line.get_color()
                 # cut upper lower boundary
-                if plotlog=='loglog' or 'semilogy':
-                    y_min = np.maximum(power_mean-power_std, 0)
-                else:
-                    y_min = power_mean-power_std
-                y_max = power_mean + power_std
-                plt.fill_between(freqs, y_min, y_max, color=line_color, alpha=0.3)
+                plt.fill_between(freqs, power_min, power_max, color=line_color, alpha=0.3)
         
         # 图表样式设置
         plt.xlabel('Frequency (Hz)')
@@ -1787,21 +1989,27 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
         # 计算所有数据在x轴范围内的y值，统一设置y轴范围（添加边距）
         x_min, x_max = plt.xlim()
         all_masked_power = []
-        all_masked_std = []
-        for sig, freqs, power, std in results:
-            power=power*1e-9
+        all_masked_min = []
+        all_masked_max = []
+
+        for sig, freqs, power_mean, power_min, power_max in results:
+            power_mean = power_mean*1e-9
             mask = (freqs >= x_min) & (freqs <= x_max)
             if np.any(mask):
-                all_masked_power.append(power[mask])
-                if std is not None and std_plot:
-                    all_masked_std.append(std[mask])
+                all_masked_power.append(power_mean[mask])
+                if power_min is not None and power_max is not None and std_plot:
+                    power_min = power_min * 1e-9
+                    power_max = power_max * 1e-9
+                    all_masked_min.append(power_min[mask])
+                    all_masked_max.append(power_max[mask])
         
         if all_masked_power:
             all_masked_power = np.concatenate(all_masked_power)
-            if all_masked_std is not None and std_plot:
-                all_masked_std = np.concatenate(all_masked_std)
-                y_min_data = np.min(all_masked_power-all_masked_std)
-                y_max_data = np.max(all_masked_power+all_masked_std)
+            if std_plot and all_masked_max and all_masked_min:
+                all_masked_min = np.concatenate(all_masked_min)
+                all_masked_max = np.concatenate(all_masked_max)
+                y_min_data = np.min(all_masked_min)
+                y_max_data = np.max(all_masked_max)
             else:
                 y_min_data = np.min(all_masked_power)
                 y_max_data = np.max(all_masked_power)
@@ -1824,7 +2032,7 @@ def draw_LFP_FFTs(results, save_path, save_path_beta, save_path_gama,
 
     # 循环绘制三个波段的多组对比图（复用辅助函数，消除冗余）
     for x_lim, title, save_file in fft_bands:
-        _plot_multiple_spectra(results, plotlog, x_lim, title, save_file)
+        _plot_multiple_spectra(results, plotlog, x_lim, title, save_file, std_plot=std_plot)
 
 # compute 1 area centre point LFP, and output FFT
 def LFP_1area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
@@ -1852,11 +2060,13 @@ def LFP_2area(param, maxrate=500, sig=5, dt=0.1, plot=True, video=True):
 
 # repeat computing 1 area FFT of LFP, output beta band and gamma band spectrum
 def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1, 
-                     plot=True, video=True,stim_dura=10000,std_plot=False,
+                     plot=True, video=True,
+                     transient=1000,stim_dura=2000,std_plot=False,
                      save_load=False,save_path_video=None,save_lfp=True,
                      save_path_beta=None,save_path_gama=None,save_path=None,
                      save_path_root=LFP_dir,lfp_data_path=None,cmpt=True,
-                     sti=True,sti_type='Uniform',delta_gk=1):
+                     sti=True,sti_type='Uniform',delta_gk=1,
+                     start_time=None, end_time=None):
     ie_r_e1, ie_r_i1 = param
     common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
     if save_path_beta is None:
@@ -1871,7 +2081,7 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 delayed(compute.compute_1_general)(
                     comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
                     sti_type=sti_type,video=(i==0),save_load=save_load,stim_dura=stim_dura,
-                    save_path_video=save_path_video
+                    save_path_video=save_path_video,transient=transient
                     )
                 for i in range(n_repeat)
             )
@@ -1880,25 +2090,35 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 delayed(compute.compute_1_general)(
                     comb=param,seed=i,index=i,sti=sti,maxrate=maxrate,sig=sig,delta_gk=delta_gk,
                     sti_type=sti_type,video=False,save_load=save_load,stim_dura=stim_dura,
-                    save_path_video=save_path_video
+                    save_path_video=save_path_video,transient=transient
                     )
                 for i in range(n_repeat)
             )
-        # 提取所有LFP
-        # LFP_list = [r['data'].a1.ge.LFP for r in results]
-        LFP_list = [r['LFP_cut'] for r in results]
+        # 提取所有LFP (带截取时间段)
+        if start_time is None:
+            start_ind = int(0)
+        else:
+            start_ind = int(start_time/dt)
+        if end_time is None:
+            end_ind = int((transient + stim_dura)/dt)
+        else:
+            end_ind = int(end_time/dt)
+        LFP_list = [r['data'].a1.ge.LFP[:,start_ind:end_ind] for r in results]
+        # LFP_list = [r['LFP_cut'] for r in results]
         # 计算所有频谱
         fft_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP_list]
         freqs = fft_results[0][0]
         powers = np.array([fr[1] for fr in fft_results])
         power_mean = np.mean(powers, axis=0)
-        power_std = np.std(powers, axis=0)
+        power_min = np.min(powers, axis=0)
+        power_max = np.max(powers, axis=0)
         
         LFP_results = {
             'freqs': freqs,
             'powers': powers,
             'power_mean': power_mean,
-            'power_std': power_std
+            'power_min': power_min,
+            'power_max': power_max
         }
         if lfp_data_path is None:
             lfp_data_path = f'{state_dir}/1FFT_{maxrate}_{sti_type}_{sig}_{common_path}_{n_repeat}_{stim_dura}_{delta_gk}.file'
@@ -1915,11 +2135,17 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         freqs = LFP_results['freqs']
         powers = LFP_results['powers']
         power_mean = LFP_results['power_mean']
-        power_std = LFP_results['power_std']
+        power_min = LFP_results.get('power_min', None)
+        power_max = LFP_results.get('power_max', None)
+        
+        # 为了向后兼容，如果没有min/max数据，就计算标准差
+        if power_min is None or power_max is None:
+            power_min = np.min(powers, axis=0)
+            power_max = np.max(powers, axis=0)
         
     # 画平均频谱
     if plot:
-        draw_LFP_FFT(freqs, power_mean, power_std, 
+        draw_LFP_FFT(freqs, power_mean, power_min, power_max, 
                     save_path, save_path_beta, save_path_gama, 
                     plotlog='loglog',std_plot=std_plot)
    
@@ -1927,14 +2153,16 @@ def LFP_1area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
 
 # repeat computing 2 area FFT of LFP, output beta band and gamma band spectrum(已修改，添加第二份LFP)
 def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1, 
-                     plot=True, plot12=False, video=True,stim_dura=10000,
+                     plot=True, plot12=True, video=True,
+                     transient=1000, stim_dura=2000,
                      save_load=False, save_path_video=None,save_lfp=True,
                      w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                      save_path_beta=None,save_path_gama=None,save_path=None,
                      save_path_root=LFP_dir,lfp_data_path=None,cmpt=True,
                      sti=True, top_sti=False, sti_type='Uniform', 
                      adapt=False, adapt_type='Gaussian', std_plot=False,
-                     new_delta_gk_2=0.5, chg_adapt_range=7):
+                     new_delta_gk_2=0.5, chg_adapt_range=7,
+                     start_time=None, end_time=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     if adapt and top_sti:
@@ -1965,7 +2193,8 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 delayed(compute.compute_2_general)(
                     comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
                     sig=sig, sti_type=sti_type, video=(i==0), save_load=save_load,
-                    save_path_video=save_path_video,stim_dura=stim_dura,
+                    save_path_video=save_path_video,
+                    transient=transient,stim_dura=stim_dura,
                     w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                     top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
                     new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
@@ -1977,40 +2206,54 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
                 delayed(compute.compute_2_general)(
                     comb=param, seed=i, index=i, sti=sti, maxrate=maxrate, 
                     sig=sig, sti_type=sti_type, video=False, save_load=save_load,
-                    save_path_video=save_path_video,stim_dura=stim_dura,
+                    save_path_video=save_path_video,
+                    transient=transient,stim_dura=stim_dura,
                     w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                     top_sti=top_sti, adapt=adapt, adapt_type=adapt_type,
                     new_delta_gk_2=new_delta_gk_2, chg_adapt_range=chg_adapt_range
                     )
                 for i in range(n_repeat)
             )
-        # 提取所有LFP
-        # LFP1_list = [r['data'].a1.ge.LFP for r in results]
-        # LFP2_list = [r['data'].a2.ge.LFP for r in results]
-        LFP1_list = [r['LFP1_cut'] for r in results]
-        LFP2_list = [r['LFP2_cut'] for r in results]
+        # 提取所有LFP (带截取时间段)
+        if start_time is None:
+            start_ind = int(0)
+        else:
+            start_ind = int(start_time/dt)
+        if end_time is None:
+            end_ind = int((transient + stim_dura)/dt)
+        else:
+            end_ind = int(end_time/dt)
+        LFP1_list = [r['data'].a1.ge.LFP[:,start_ind:end_ind] for r in results]
+        LFP2_list = [r['data'].a2.ge.LFP[:,start_ind:end_ind] for r in results]
+        # LFP1_list = [r['LFP1_cut'] for r in results]
+        # LFP2_list = [r['LFP2_cut'] for r in results]
         # 计算所有频谱
         fft1_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP1_list]
         freqs1 = fft1_results[0][0]
         powers1 = np.array([fr[1] for fr in fft1_results])
         power_mean1 = np.mean(powers1, axis=0)
-        power_std1 = np.std(powers1, axis=0)
+        power_min1 = np.min(powers1, axis=0)
+        power_max1 = np.max(powers1, axis=0)
 
         fft2_results = [mya.analyze_LFP_fft(LFP, dt=dt, plot=False) for LFP in LFP2_list]
         freqs2 = fft2_results[0][0]
         powers2 = np.array([fr[1] for fr in fft2_results])
         power_mean2 = np.mean(powers2, axis=0)
-        power_std2 = np.std(powers2, axis=0)
+        power_min2 = np.min(powers2, axis=0)
+        power_max2 = np.max(powers2, axis=0)
 
         LFP_results = {
             'freqs1': freqs1,
             'powers1': powers1,
             'power_mean1': power_mean1,
-            'power_std1': power_std1,
+            'power_min1': power_min1,
+            'power_max1': power_max1,
+
             'freqs2': freqs2,
             'powers2': powers2,
             'power_mean2': power_mean2,
-            'power_std2': power_std2,
+            'power_min2': power_min2,
+            'power_max2': power_max2,
         }
         if lfp_data_path is None:
             lfp_data_path = f'{state_dir}/2FFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
@@ -2026,41 +2269,56 @@ def LFP_2area_repeat(param, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         freqs1 = LFP_results['freqs1']
         powers1 = LFP_results['powers1']
         power_mean1 = LFP_results['power_mean1']
-        power_std1 = LFP_results['power_std1']
+        power_min1 = LFP_results.get('power_min1', np.min(powers1, axis=0))
+        power_max1 = LFP_results.get('power_max1', np.max(powers1, axis=0))
+        
+        # 为了向后兼容，如果没有min/max数据，就计算标准差
+        if power_min1 is None or power_max1 is None:
+            power_min1 = np.min(powers1, axis=0)
+            power_max1 = np.max(powers1, axis=0)
+
         freqs2 = LFP_results['freqs2']
         powers2 = LFP_results['powers2']
         power_mean2 = LFP_results['power_mean2']
-        power_std2 = LFP_results['power_std2']
+        power_min2 = LFP_results.get('power_min2', np.min(powers2, axis=0))
+        power_max2 = LFP_results.get('power_max2', np.max(powers2, axis=0))
+        
+        # 为了向后兼容，如果没有min/max数据，就计算标准差
+        if power_min2 is None or power_max2 is None:
+            power_min2 = np.min(powers2, axis=0)
+            power_max2 = np.max(powers2, axis=0)
 
     # 画平均频谱
     if plot:
-        draw_LFP_FFT(freqs1, power_mean1, power_std1, 
-                    save_path=f'{save_path}_1.svg',
-                    save_path_beta=f'{save_path_beta}_1.svg',
-                    save_path_gama=f'{save_path_gama}_1.svg',
-                    plotlog='loglog',std_plot=std_plot)
+        draw_LFP_FFT(freqs1, power_mean1, power_min1, power_max1, 
+                     save_path=f'{save_path}_1.svg',
+                     save_path_beta=f'{save_path_beta}_1.svg',
+                     save_path_gama=f'{save_path_gama}_1.svg',
+                     plotlog='loglog',std_plot=std_plot)
 
     ## 第二层LFP
     # 画平均频谱
     if plot12:
-        draw_LFP_FFT(freqs2, power_mean2, power_std2, 
-                    save_path=f'{save_path}_2.svg',
-                    save_path_beta=f'{save_path_beta}_2.svg',
-                    save_path_gama=f'{save_path_gama}_2.svg',
-                    plotlog='loglog')
+        draw_LFP_FFT(freqs2, power_mean2, power_min2, power_max2, 
+                     save_path=f'{save_path}_2.svg',
+                     save_path_beta=f'{save_path_beta}_2.svg',
+                     save_path_gama=f'{save_path_gama}_2.svg',
+                     plotlog='loglog')
         
     return LFP_results
 
 # exam middle point LFP (FFT) (如果画出diff，强制画出1，2的FFT) 有topdown的 - 没topdown的
 def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
-                    plot=True, video=True,stim_dura=10000,cmpt=True,
+                    plot=True, plot12=True, video=True,
+                    transient=1000,stim_dura=2000,cmpt=True,
                     save_load=False,save_path_video=None,save_lfp=True,
                     w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                     save_path_beta=None,save_path_gama=None,save_path=None,
                     save_path_root=LFP_dir,lfp_data_path=None,
                     sti=True, top_sti=False, sti_type='Uniform',
                     adapt=False, adapt_type='Gaussian', std_plot=False,
-                    new_delta_gk_2=0.5,chg_adapt_range=7,delta_gk=1):
+                    new_delta_gk_2=0.5,chg_adapt_range=7,delta_gk=1,
+                    start_time=None, end_time=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     if adapt and top_sti:
@@ -2079,15 +2337,17 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         save_path =      f'{save_path_root}/full_dFFT_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}.svg'
     fft1 = LFP_1area_repeat(
         param=param1,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-        plot=plot,video=video,stim_dura=stim_dura,cmpt=cmpt,
+        plot=plot,video=video,transient=transient,stim_dura=stim_dura,cmpt=cmpt,
         save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
         save_path_beta=None,save_path_gama=None,save_path=None,
         save_path_root=save_path_root,lfp_data_path=lfp_data_path,
-        sti=sti,sti_type=sti_type,delta_gk=delta_gk,std_plot=std_plot
+        sti=sti,sti_type=sti_type,delta_gk=delta_gk,std_plot=std_plot,
+        start_time=start_time,end_time=end_time
         )
     fft2 = LFP_2area_repeat(
         param=param2,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-        plot=plot,video=video,stim_dura=stim_dura,cmpt=cmpt,
+        plot=plot,plot12=plot12,
+        video=video,transient=transient,stim_dura=stim_dura,cmpt=cmpt,
         save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
         w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
         save_path_beta=None,save_path_gama=None,save_path=None,
@@ -2095,38 +2355,67 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
         sti=sti,top_sti=top_sti,sti_type=sti_type,
         adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
         new_delta_gk_2=new_delta_gk_2,
-        chg_adapt_range=chg_adapt_range
+        chg_adapt_range=chg_adapt_range,
+        start_time=start_time,end_time=end_time
         )
-    freqs1 = fft1['freqs']
-    powers1 = fft1['powers']
-    power_mean1 = fft1['power_mean']
-    power_std1 = fft1['power_std']
-    freqs2 = fft2['freqs1']
-    powers2 = fft2['powers1']
-    power_mean2 = fft2['power_mean1']
-    power_std2 = fft2['power_std1']
-    powers_diff = powers2 - powers1
-    freqs_diff = freqs2
-    power_mean_diff = np.mean(powers_diff, axis=0)
-    power_std_diff = np.std(powers_diff, axis=0)
 
-    if plot:
-        draw_LFP_FFT(freqs_diff, power_mean_diff, power_std_diff, 
+    # Isolated Area 1
+    freqs_iso1 = fft1['freqs']
+    powers_iso1 = fft1['powers']
+    power_mean_iso1 = fft1['power_mean']
+    power_min_iso1 = fft1.get('power_min', np.min(powers_iso1, axis=0))
+    power_max_iso1 = fft1.get('power_max', np.max(powers_iso1, axis=0))
+
+    # Coupled Area 1
+    freqs_cpl1 = fft2['freqs1']
+    powers_cpl1 = fft2['powers1']
+    power_mean_cpl1 = fft2['power_mean1']
+    power_min_cpl1 = fft2.get('power_min1', np.min(powers_cpl1, axis=0))
+    power_max_cpl1 = fft2.get('power_max1', np.max(powers_cpl1, axis=0))
+    
+    # Coupled Area 2
+    freqs_cpl2 = fft2['freqs2']
+    powers_cpl2 = fft2['powers2']
+    power_mean_cpl2 = fft2['power_mean2']
+    power_min_cpl2 = fft2.get('power_min1', np.min(powers_cpl2, axis=0))
+    power_max_cpl2 = fft2.get('power_max1', np.max(powers_cpl2, axis=0))
+
+    # Coupled - Isolated Area 1
+    powers_diff = powers_cpl1 - powers_iso1
+    freqs_diff = freqs_iso1
+    power_mean_diff = np.mean(powers_diff, axis=0)
+    power_min_diff = np.min(powers_diff, axis=0)
+    power_max_diff = np.max(powers_diff, axis=0)
+
+    if plot: # plot diff
+        draw_LFP_FFT(freqs_diff, power_mean_diff, power_min_diff, power_max_diff, 
                      save_path, save_path_beta, save_path_gama,
                      plotlog='semilogx',std_plot=std_plot)
         
     LFP_results = {
-        'freqs1': freqs1,
-        'powers1': powers1,
-        'power_mean1': power_mean1, 
-        'power_std1': power_std1,
-        'freqs2': freqs2,
-        'powers2': powers2,
-        'power_mean2': power_mean2,
-        'power_std2': power_std2,
+        'freqs_iso1': freqs_iso1,
+        'powers_iso1': powers_iso1,
+        'power_mean_iso1': power_mean_iso1, 
+        'power_min_iso1': power_min_iso1,
+        'power_max_iso1': power_max_iso1,
+
+        'freqs_cpl1': freqs_cpl1,
+        'powers_cpl1': powers_cpl1,
+        'power_mean_cpl1': power_mean_cpl1, 
+        'power_min_cpl1': power_min_cpl1,
+        'power_max_cpl1': power_max_cpl1,
+        
+        'freqs_cpl2': freqs_cpl2,
+        'powers_cpl2': powers_cpl2,
+        'power_mean_cpl2': power_mean_cpl2, 
+        'power_min_cpl2': power_min_cpl2,
+        'power_max_cpl2': power_max_cpl2,
+
         'freqs_diff': freqs_diff,
+        'powers_diff': powers_diff,
         'power_mean_diff': power_mean_diff,
-        'power_std_diff': power_std_diff
+        'power_min_diff': power_min_diff,
+        'power_max_diff': power_max_diff
     }
 
     return LFP_results
@@ -2134,99 +2423,137 @@ def LFP_diff_repeat(param1, param2, n_repeat=64, maxrate=500, sig=5, dt=0.1,
 # 1,2area and diff, compare different sig (used for bottom-up)
 def draw_LFP_FFT_compare(param1, param2, n_repeat=64, maxrate=500,cmpt=True,
                          sigs=[0,5,10,15,20,25], dt=0.1,std_plot=False,
-                         plot=True, plot_sub=True,video=False,stim_dura=10000,
+                         plot=True, plot_sub=True,video=False,
+                         transient=1000,stim_dura=2000,
                          save_load=False,save_path_video=None,save_lfp=True,
                          w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
-                         save_path_beta1=None,save_path_gama1=None,save_path1=None,
-                         save_path_beta2=None,save_path_gama2=None,save_path2=None,
-                         save_path_betad=None,save_path_gamad=None,save_pathd=None,
-                         save_path_root=LFP_dir,lfp_data_path=None,
+                         path_beta1iso=None,path_gama1iso=None,path1iso=None,
+                         path_beta1cpl=None,path_gama1cpl=None,path1cpl=None,
+                         path_beta2cpl=None,path_gama2cpl=None,path2cpl=None,
+                         path_betad=None,path_gamad=None,pathd=None,
+                         path_root=LFP_dir,lfp_data_path=None,
                          sti=True, top_sti=False, sti_type='Uniform', 
                          adapt=False, adapt_type='Gaussian',
-                         new_delta_gk_2=0.5):
+                         new_delta_gk_2=0.5,
+                         start_time=None, end_time=None):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param2
     common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
     common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-    if save_path_beta1 is None:
-        save_path_beta1 = f'{save_path_root}/beta_1FFT_{maxrate}_{sti_type}T_{common_path1}_{n_repeat}.svg'
-    if save_path_beta2 is None:
-        save_path_beta2 = f'{save_path_root}/beta_2FFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
-    if save_path_betad is None:
-        save_path_betad = f'{save_path_root}/beta_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
-    if save_path_gama1 is None:
-        save_path_gama1 = f'{save_path_root}/gama_1FFT_{maxrate}_{sti_type}_{common_path1}_{n_repeat}.svg'
-    if save_path_gama2 is None:
-        save_path_gama2 = f'{save_path_root}/gama_2FFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
-    if save_path_gamad is None:
-        save_path_gamad = f'{save_path_root}/gama_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
-    if save_path1 is None:
-        save_path1 = f'{save_path_root}/full_1FFT_{maxrate}_{sti_type}_{common_path1}_{n_repeat}.svg'
-    if save_path2 is None:
-        save_path2 = f'{save_path_root}/full_2FFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
-    if save_pathd is None:
-        save_pathd = f'{save_path_root}/full_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}.svg'
+    if path_beta1iso is None:
+        path_beta1iso = f'{path_root}/beta_1iso_{maxrate}_{sti_type}_{common_path1}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_beta1cpl is None:
+        path_beta1cpl = f'{path_root}/beta_1cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_beta2cpl is None:
+        path_beta2cpl = f'{path_root}/beta_2cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_betad is None:
+        path_betad    = f'{path_root}/beta_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_gama1iso is None:
+        path_gama1iso = f'{path_root}/gama_1iso_{maxrate}_{sti_type}_{common_path1}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_gama1cpl is None:
+        path_gama1cpl = f'{path_root}/gama_1cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_gama2cpl is None:
+        path_gama2cpl = f'{path_root}/gama_2cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path_gamad is None:
+        path_gamad    = f'{path_root}/gama_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path1iso is None:
+        path1iso = f'{path_root}/full_1iso_{maxrate}_{sti_type}_{common_path1}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path1cpl is None:
+        path1cpl = f'{path_root}/full_1cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if path2cpl is None:
+        path2cpl = f'{path_root}/full_2cpl_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
+    if pathd is None:
+        pathd    = f'{path_root}/full_dFFT_{maxrate}_{sti_type}_{common_path2}_{n_repeat}_time{start_time}_{end_time}.svg'
 
-    results_1area = []
-    results_2area = []
+    results_1area_iso = []
+    results_1area_cpl = []
+    results_2area_cpl = []
     results_diff = []
 
     for sig in sigs:
         results = LFP_diff_repeat(
             param1=param1,param2=param2,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt, 
-            plot=plot_sub,video=video,stim_dura=stim_dura,cmpt=cmpt,
+            plot=plot_sub,video=video,transient=transient,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=f'{save_path_root}/sub',lfp_data_path=lfp_data_path,
+            save_path_root=f'{path_root}/sub',lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,
             adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
-            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig
+            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig,
+            start_time=start_time,end_time=end_time
             )
-        freqs1 = results['freqs1']
-        power_mean1 = results['power_mean1']
-        power_std1 = results['power_std1']
-        power_mean2 = results['power_mean2']
-        power_std2 = results['power_std2']
+        freqs_iso1 = results['freqs_iso1']
+        powers_iso1 = results['powers_iso1']
+        power_mean_iso1 = results['power_mean_iso1']
+        power_min_iso1 = results.get('power_min_iso1', None)
+        power_max_iso1 = results.get('power_max_iso1', None)
+
+        freqs_cpl1 = results['freqs_cpl1']
+        powers_cpl1 = results['powers_cpl1']
+        power_mean_cpl1 = results['power_mean_cpl1']
+        power_min_cpl1 = results.get('power_min_cpl1', None)
+        power_max_cpl1 = results.get('power_max_cpl1', None)
+
+        freqs_cpl2 = results['freqs_cpl2']
+        powers_cpl2 = results['powers_cpl2']
+        power_mean_cpl2 = results['power_mean_cpl2']
+        power_min_cpl2 = results.get('power_min_cpl2', None)
+        power_max_cpl2 = results.get('power_max_cpl2', None)
+
+        freqs_diff = results['freqs_diff']
+        powers_diff = results['powers_diff']
         power_mean_diff = results['power_mean_diff']
-        power_std_diff = results['power_std_diff']
-        results_1area.append((sig, freqs1, power_mean1, power_std1))
-        results_2area.append((sig, freqs1, power_mean2, power_std2))
-        results_diff.append((sig, freqs1, power_mean_diff, power_std_diff))
+        power_min_diff = results.get('power_min_diff', None)
+        power_max_diff = results.get('power_max_diff', None)
+
+        results_1area_iso.append((sig, freqs_iso1, power_mean_iso1, power_min_iso1, power_max_iso1))
+        results_1area_cpl.append((sig, freqs_cpl1, power_mean_cpl1, power_min_cpl1, power_max_cpl1))
+        results_2area_cpl.append((sig, freqs_cpl2, power_mean_cpl2, power_min_cpl2, power_max_cpl2))
+        results_diff.append((sig, freqs_diff, power_mean_diff, power_min_diff, power_max_diff))
 
     if plot:
-        # 1 area:
-        draw_LFP_FFTs(results=results_1area,
-                      save_path=save_path1,
-                      save_path_beta=save_path_beta1,
-                      save_path_gama=save_path_gama1,
+        # 1 area isolated:
+        draw_LFP_FFTs(results=results_1area_iso,
+                      save_path=path1iso,
+                      save_path_beta=path_beta1iso,
+                      save_path_gama=path_gama1iso,
                       plotlog='loglog',
                       std_plot=std_plot)
-        # 2 area:
-        draw_LFP_FFTs(results=results_2area,
-                      save_path=save_path2,
-                      save_path_beta=save_path_beta2,
-                      save_path_gama=save_path_gama2,
+        # 1 area coupled:
+        draw_LFP_FFTs(results=results_1area_cpl,
+                      save_path=path1cpl,
+                      save_path_beta=path_beta1cpl,
+                      save_path_gama=path_gama1cpl,
+                      plotlog='loglog',
+                      std_plot=std_plot)
+        # 2 area coupled:
+        draw_LFP_FFTs(results=results_2area_cpl,
+                      save_path=path2cpl,
+                      save_path_beta=path_beta2cpl,
+                      save_path_gama=path_gama2cpl,
                       plotlog='loglog',
                       std_plot=std_plot)
         # difference:
         draw_LFP_FFTs(results=results_diff,
-                      save_path=save_pathd,
-                      save_path_beta=save_path_betad,
-                      save_path_gama=save_path_gamad,
+                      save_path=pathd,
+                      save_path_beta=path_betad,
+                      save_path_gama=path_gamad,
                       plotlog='semilogx',
                       std_plot=std_plot)
 
 # prediction interaction compare with spontaneous LFP
-def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
-                          plot=True,video=True,stim_dura=10000,cmpt=True,
+def LFP_prediction_repeat(param,n_repeat=64,maxrate=1000,sig=5,dt=0.1,
+                          plot=True,video=True,
+                          transient=1000,stim_dura=2000,cmpt=True,
                           save_load=False,save_path_video=None,save_lfp=True,
                           w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
-                          save_path=None,save_path_beta=None,save_path_gama=None,
-                          save_path_root=LFP_dir,lfp_data_path=None,
+                          path=None,path_beta=None,path_gama=None,
+                          path_root=LFP_dir,lfp_data_path=None,
                           sti=True,top_sti=False,sti_type='Uniform',
                           adapt=False,adapt_type='Gaussian',std_plot=False,
-                          new_delta_gk_2=0.5,chg_adapt_range=7):
+                          new_delta_gk_2=0.5,chg_adapt_range=7,
+                          start_time=None, end_time=None):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -2238,26 +2565,28 @@ def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
-    if save_path_beta is None:
-        save_path_beta = f'{save_path_root}/beta_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
-    if save_path_gama is None:
-        save_path_gama = f'{save_path_root}/gama_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
-    if save_path is None:
-        save_path      = f'{save_path_root}/full_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_{stim_dura}'
+    if path_beta is None:
+        path_beta = f'{path_root}/beta_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
+    if path_gama is None:
+        path_gama = f'{path_root}/gama_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
+    if path is None:
+        path      = f'{path_root}/full_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{sig}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
 
     # prediction type depends on function input
     fft = LFP_2area_repeat(param=param,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-                           plot=plot,video=video,stim_dura=stim_dura,save_lfp=save_lfp,
+                           plot=plot,video=video,
+                           transient=transient,stim_dura=stim_dura,save_lfp=save_lfp,
                            save_load=save_load,save_path_video=save_path_video,
                            w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-                           save_path_beta=save_path_beta,
-                           save_path_gama=save_path_gama,
-                           save_path=save_path,cmpt=cmpt,
-                           save_path_root=save_path_root,lfp_data_path=lfp_data_path,
+                           save_path_beta=path_beta,
+                           save_path_gama=path_gama,
+                           save_path=path,cmpt=cmpt,
+                           save_path_root=path_root,lfp_data_path=lfp_data_path,
                            sti=sti,top_sti=top_sti,sti_type=sti_type,
                            adapt=adapt, adapt_type=adapt_type,std_plot=std_plot,
                            new_delta_gk_2=new_delta_gk_2,
-                           chg_adapt_range=chg_adapt_range)
+                           chg_adapt_range=chg_adapt_range,
+                           start_time=start_time,end_time=end_time)
 
     return fft
 
@@ -2266,7 +2595,8 @@ def LFP_prediction_repeat(param,n_repeat=64,maxrate=500,sig=5,dt=0.1,
 # different prediction interaction compare with spontaneous LFP
 # 因为要算spon的而被取代, sig=0时就是spon, 所以用上面那个就好
 def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
-                               plot=True,video=True,stim_dura=10000,cmpt=True,
+                               plot=True,video=True,
+                               transient=1000,stim_dura=2000,cmpt=True,
                                save_load=False,save_path_video=None,save_lfp=True,
                                w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                save_path_betas=None,save_path_gamas=None,save_paths=None,
@@ -2275,7 +2605,8 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                                save_path_root=LFP_dir,lfp_data_path=None,
                                sti=True,top_sti=False,sti_type='Uniform',
                                adapt=False,adapt_type='Gaussian',std_plot=False,
-                               new_delta_gk_2=0.5,chg_adapt_range=7):
+                               new_delta_gk_2=0.5,chg_adapt_range=7,
+                               start_time=None,end_time=None):
     
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -2308,7 +2639,8 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
         
     # spontaneous
     fft1 = LFP_2area_repeat(param=param,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-                            plot=plot,video=video,stim_dura=stim_dura,save_lfp=save_lfp,
+                            plot=plot,video=video,
+                            transient=transient,stim_dura=stim_dura,save_lfp=save_lfp,
                             save_load=save_load,save_path_video=save_path_video,
                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                             save_path_beta=save_path_betas,
@@ -2318,10 +2650,12 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                             sti=False,top_sti=False,sti_type=sti_type,
                             adapt=False,adapt_type=adapt_type,std_plot=std_plot,
                             new_delta_gk_2=new_delta_gk_2,
-                            chg_adapt_range=chg_adapt_range)
+                            chg_adapt_range=chg_adapt_range,
+                            start_time=start_time,end_time=end_time)
     # prediction type depends on function input
     fft2 = LFP_2area_repeat(param=param,n_repeat=n_repeat,maxrate=maxrate,sig=sig,dt=dt,
-                            plot=plot,video=video,stim_dura=stim_dura,save_lfp=save_lfp,
+                            plot=plot,video=video,
+                            transient=transient,stim_dura=stim_dura,save_lfp=save_lfp,
                             save_load=save_load,save_path_video=save_path_video,
                             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                             save_path_beta=save_path_betap,
@@ -2330,24 +2664,31 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
                             sti=sti,top_sti=top_sti,sti_type=sti_type,
                             adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
                             new_delta_gk_2=new_delta_gk_2,
-                            chg_adapt_range=chg_adapt_range)
+                            chg_adapt_range=chg_adapt_range,
+                            start_time=start_time,end_time=end_time)
     freqs1 = fft1['freqs1']
     powers1 = fft1['powers1']
     power_mean1 = fft1['power_mean1']
-    power_std1 = fft1['power_std1']
+    power_min1 = fft1.get('power_min1', None)
+    power_max1 = fft1.get('power_max1', None)
+    
     freqs2 = fft2['freqs1']
     powers2 = fft2['powers1']
     power_mean2 = fft2['power_mean1']
-    power_std2 = fft2['power_std1']
-    freqsd = freqs1
-    powersd = power_mean2-power_mean1
-    power_meand = np.mean(powersd, axis=0)
-    power_stdd = np.std(powersd, axis=0)
+    power_min2 = fft2.get('power_min2', None)
+    power_max2 = fft2.get('power_max2', None)
+
+    freqs_diff = freqs1
+    powers_diff = powers2 - powers1
+    power_mean_diff = np.mean(powers_diff, axis=0)
+    power_min_diff = np.min(powers_diff, axis=0)
+    power_max_diff = np.max(powers_diff, axis=0)
 
     if plot:
         draw_LFP_FFT(freqs=freqs1,
-                     power_mean=power_meand,
-                     power_std=power_stdd,
+                     power_mean=power_mean_diff,
+                     power_min=power_min_diff,
+                     power_max=power_max_diff,
                      save_path=save_pathd,
                      save_path_beta=save_path_betad,
                      save_path_gama=save_path_gamad,
@@ -2356,21 +2697,25 @@ def LFP_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sig=5,
     LFP_results = {
         'freqs1': freqs1,
         'power_mean1': power_mean1,
-        'power_std1': power_std1,
+        'power_min1': power_min1,
+        'power_max1': power_max1,
         'freqs2': freqs2,
         'power_mean2': power_mean2,
-        'power_std2': power_std2,
-        'freqsd': freqsd,
-        'power_meand': power_meand,
-        'power_stdd': power_stdd
+        'power_min2': power_min2,
+        'power_max2': power_max2,
+        'freqs_diff': freqs_diff,
+        'power_mean_diff': power_mean_diff,
+        'power_min_diff': power_min_diff,
+        'power_max_diff': power_max_diff
     }
 
     return LFP_results
 
 # predicted LFPs under different prediction interaction
 # sub_plot控制每个sig的子图，sub_path系列表示每个sig子图的path
-def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,20,25],
-                           plot=True,plot_sub=False,video=True,stim_dura=10000,cmpt=True,
+def LFPs_prediction_repeat(param,n_repeat=64,maxrate=1000,dt=0.1,sigs=[0,5,10,15,20,25],
+                           plot=True,plot_sub=False,video=True,
+                           transient=1000,stim_dura=2000,cmpt=True,
                            save_load=False,save_path_video=None,save_lfp=True,
                            w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                            save_path_beta=None,save_path_gama=None,save_path=None,
@@ -2378,8 +2723,11 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
                            save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
                            sti=True,top_sti=False,sti_type='Uniform',std_plot=False,
                            adapt=False,adapt_type='Gaussian',lfp_data_path=None,
-                           new_delta_gk_2=0.5, save_LFPs=True):
-        
+                           new_delta_gk_2=0.5, save_LFPs=True,
+                           start_time=None, end_time=None):
+    '''
+    bottom-up & top-down 共用一组sig, 要么下层就不刺激
+    '''
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     if adapt and top_sti:
@@ -2391,54 +2739,170 @@ def LFPs_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,
     else:
         topdown = 'silnc'
     if save_path_beta is None:
-        save_path_beta = f'{save_path_root}/beta_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
+        save_path_beta = f'{save_path_root}/beta_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
     if save_path_gama is None:
-        save_path_gama = f'{save_path_root}/gama_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
+        save_path_gama = f'{save_path_root}/gama_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
     if save_path is None:
-        save_path      = f'{save_path_root}/full_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_{stim_dura}.svg'
+        save_path      = f'{save_path_root}/full_pred_Compr_{maxrate}_{sti_type}_{adapt_type}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
 
-    results = []
+    results1 = []
+    results2 = []
 
     for sig in sigs:
         fft=LFP_prediction_repeat(
             param=param, n_repeat=n_repeat,maxrate=maxrate,dt=dt, 
-            plot=plot_sub, video=video,stim_dura=stim_dura,cmpt=cmpt,
+            plot=plot_sub, video=video,
+            transient=transient,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path=sub_path,save_path_beta=sub_path_beta,save_path_gama=sub_path_gamma,
-            save_path_root=sub_path_root,lfp_data_path=lfp_data_path,
+            path=sub_path,path_beta=sub_path_beta,path_gama=sub_path_gamma,
+            path_root=sub_path_root,lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,sig=sig,
             adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
-            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig
+            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig,
+            start_time=start_time,end_time=end_time
             )
-        freqs = fft['freqs1']
-        powers = fft['powers1']
-        power_mean = fft['power_mean1']
-        power_std = fft['power_std1']
-        results.append((sig, freqs, power_mean, power_std))
+        freqs1 = fft['freqs1']
+        powers1 = fft['powers1']
+        power_mean1 = fft['power_mean1']
+        power_min1 = fft.get('power_min1', np.min(powers1, axis=0))
+        power_max1 = fft.get('power_max1', np.max(powers1, axis=0))
+        
+        freqs2 = fft['freqs2']
+        powers2 = fft['powers2']
+        power_mean2 = fft['power_mean2']
+        power_min2 = fft.get('power_min2', np.min(powers2, axis=0))
+        power_max2 = fft.get('power_max2', np.max(powers2, axis=0))
+
+        results1.append((sig, freqs1, power_mean1, power_min1, power_max1))
+        results2.append((sig, freqs2, power_mean2, power_min2, power_max2))
 
     if save_LFPs:
         LFPs_results = {
-            'results': results
+            'results1': results1,
+            'results2': results2
         }
         LFPs_path = (
-            f'{data_dir}/LFPs_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_{stim_dura}.file'
+            f'{data_dir}/LFPs_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_time{start_time}_{end_time}.file'
             )
         with open(LFPs_path, 'wb') as file:
             pickle.dump(LFPs_results, file)
 
     if plot:
         # prediction
-        draw_LFP_FFTs(results=results,save_path=save_path,
-                      save_path_beta=save_path_beta,
-                      save_path_gama=save_path_gama,
-                      plotlog='loglog',std_plot=std_plot,)
+        # Area 1
+        draw_LFP_FFTs(results=results1,save_path=f'{save_path}_1.svg',
+                      save_path_beta=f'{save_path_beta}_1.svg',
+                      save_path_gama=f'{save_path_gama}_1.svg',
+                      plotlog='loglog',std_plot=std_plot)
+        # Area 2
+        draw_LFP_FFTs(results=results2,save_path=f'{save_path}_2.svg',
+                      save_path_beta=f'{save_path_beta}_2.svg',
+                      save_path_gama=f'{save_path_gama}_2.svg',
+                      plotlog='loglog',std_plot=std_plot)
+
+def LFPs_prediction_repeat2(param,n_repeat=64,maxrate=1000,dt=0.1,
+                            sig1=0, sigs=[0,5,10,15,20,25],
+                            plot=True,plot_sub=False,video=True,
+                            transient=1000,stim_dura=2000,cmpt=True,
+                            save_load=False,save_path_video=None,save_lfp=True,
+                            w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
+                            save_path_beta=None,save_path_gama=None,save_path=None,
+                            sub_path_beta=None,sub_path_gamma=None,sub_path=None,
+                            save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
+                            sti=True,top_sti=False,sti_type='Gaussian',std_plot=False,
+                            adapt=False,adapt_type='Gaussian',lfp_data_path=None,
+                            new_delta_gk_2=0.5, save_LFPs=True,
+                            start_time=None, end_time=None):
+    '''
+    允许bottom-up跟top-down同大小
+    '''
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    if sti:
+        input=f'on{maxrate}_{sti_type}_{sig1}'
+    else:
+        input='off'
+
+    if adapt and top_sti:
+        topdown = 'adapt_stim2'
+    elif adapt:
+        topdown = 'adapt'
+    elif top_sti:
+        topdown = 'stim2'
+    else:
+        topdown = 'silnc'
+    # topdown = f"{topdown}_{adapt_type}_{chg_adapt_range}"
+    topdown = f"{topdown}_{adapt_type}" # chg_adapt_range here is a series
+    if save_path_beta is None:
+        save_path_beta = f'{save_path_root}/beta_pred_Compr_{maxrate}_{input}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
+    if save_path_gama is None:
+        save_path_gama = f'{save_path_root}/gama_pred_Compr_{maxrate}_{input}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
+    if save_path is None:
+        save_path      = f'{save_path_root}/full_pred_Compr_{maxrate}_{input}_{topdown}_{common_path}_{n_repeat}_time{start_time}_{end_time}'
+
+    results1 = []
+    results2 = []
+
+    for sig2 in sigs:
+        fft=LFP_prediction_repeat(
+            param=param, n_repeat=n_repeat,maxrate=maxrate,dt=dt, 
+            plot=plot_sub, video=video,
+            transient=transient,stim_dura=stim_dura,cmpt=cmpt,
+            save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
+            w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+            path=sub_path,path_beta=sub_path_beta,path_gama=sub_path_gamma,
+            path_root=sub_path_root,lfp_data_path=lfp_data_path,
+            sti=sti,top_sti=top_sti,sti_type=sti_type,sig=sig1,
+            adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
+            new_delta_gk_2=new_delta_gk_2,chg_adapt_range=sig2,
+            start_time=start_time,end_time=end_time
+            )
+        freqs1 = fft['freqs1']
+        powers1 = fft['powers1']
+        power_mean1 = fft['power_mean1']
+        power_min1 = fft.get('power_min1', np.min(powers1, axis=0))
+        power_max1 = fft.get('power_max1', np.max(powers1, axis=0))
+        
+        freqs2 = fft['freqs2']
+        powers2 = fft['powers2']
+        power_mean2 = fft['power_mean2']
+        power_min2 = fft.get('power_min2', np.min(powers2, axis=0))
+        power_max2 = fft.get('power_max2', np.max(powers2, axis=0))
+
+        results1.append((sig2, freqs1, power_mean1, power_min1, power_max1))
+        results2.append((sig2, freqs2, power_mean2, power_min2, power_max2))
+
+    if save_LFPs:
+        LFPs_results = {
+            'results1': results1,
+            'results2': results2
+        }
+        LFPs_path = (
+            f'{data_dir}/LFPs_pred_{maxrate}_{sti_type}_{adapt_type}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{common_path}_{new_delta_gk_2}_{n_repeat}_time{start_time}_{end_time}.file'
+            )
+        with open(LFPs_path, 'wb') as file:
+            pickle.dump(LFPs_results, file)
+
+    if plot:
+        # prediction
+        # Area 1
+        draw_LFP_FFTs(results=results1,save_path=f'{save_path}_1.svg',
+                      save_path_beta=f'{save_path_beta}_1.svg',
+                      save_path_gama=f'{save_path_gama}_1.svg',
+                      plotlog='loglog',std_plot=std_plot)
+        # Area 2
+        draw_LFP_FFTs(results=results2,save_path=f'{save_path}_2.svg',
+                      save_path_beta=f'{save_path_beta}_2.svg',
+                      save_path_gama=f'{save_path_gama}_2.svg',
+                      plotlog='loglog',std_plot=std_plot)
 
 # spontaneous, predicted, and thier difference LFPs under different prediction interaction
 # sub_plot控制每个sig的子图，sub_path系列表示每个sig子图的path
 # 对比topdown和spontanous需要算spon所以无用, 上面那个是算不同sig的, 可替代(有时间改成所有sig-sig(0)的)
 def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,10,15,20,25],
-                                plot=True,plot_sub=False,video=True,stim_dura=10000,cmpt=True,
+                                plot=True,plot_sub=False,video=True,
+                                transient=1000,stim_dura=2000,cmpt=True,
                                 save_load=False,save_path_video=None,save_lfp=True,
                                 w_12_e=None,w_12_i=None,w_21_e=None,w_21_i=None,
                                 save_path_betas=None,save_path_gamas=None,save_paths=None,
@@ -2450,7 +2914,8 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
                                 save_path_root=LFP_dir,sub_path_root=f'{LFP_dir}/sub',
                                 sti=True,top_sti=False,sti_type='Uniform',std_plot=False,
                                 adapt=False,adapt_type='Gaussian',lfp_data_path=None,
-                                new_delta_gk_2=0.5, save_LFPs=True):
+                                new_delta_gk_2=0.5, save_LFPs=True,
+                                start_time=None,end_time=None):
         
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
@@ -2488,7 +2953,8 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
     for sig in sigs:
         fft = LFP_diff_prediction_repeat(
             param=param,n_repeat=n_repeat,maxrate=maxrate,dt=dt, 
-            plot=plot_sub,video=video,stim_dura=stim_dura,cmpt=cmpt,
+            plot=plot_sub,video=video,
+            transient=transient,stim_dura=stim_dura,cmpt=cmpt,
             save_load=save_load,save_path_video=save_path_video,save_lfp=save_lfp,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
             save_paths=sub_paths,save_path_betas=sub_path_betas,save_path_gamas=sub_path_gammas,
@@ -2497,20 +2963,27 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
             save_path_root=sub_path_root,lfp_data_path=lfp_data_path,
             sti=sti,top_sti=top_sti,sti_type=sti_type,sig=sig,
             adapt=adapt,adapt_type=adapt_type,std_plot=std_plot,
-            new_delta_gk_2=new_delta_gk_2, chg_adapt_range=sig
+            new_delta_gk_2=new_delta_gk_2, chg_adapt_range=sig,
+            start_time=start_time,end_time=end_time
             )
         freqs1 = fft['freqs1']
         power_mean1 = fft['power_mean1']
-        power_std1 = fft['power_std1']
+        power_min1 = fft.get('power_min1', None)
+        power_max1 = fft.get('power_max1', None)
+
         freqs2 = fft['freqs2']
         power_mean2 = fft['power_mean2']
-        power_std2 = fft['power_std2']
-        freqsd = fft['freqsd']
-        power_meand = fft['power_meand']
-        power_stdd = fft['power_stdd']
-        results_spon.append((sig, freqs1, power_mean1, power_std1))
-        results_pred.append((sig, freqs2, power_mean2, power_std2))
-        results_diff.append((sig, freqsd, power_meand, power_stdd))
+        power_min2 = fft.get('power_min2', None)
+        power_max2 = fft.get('power_max2', None)
+
+        freqs_diff = fft['freqs_diff']
+        power_mean_diff = fft['power_mean_diff']
+        power_min_diff = fft['power_min_diff']
+        power_max_diff = fft['power_max_diff']
+
+        results_spon.append((sig, freqs1, power_mean1, power_min1, power_max1))
+        results_pred.append((sig, freqs2, power_mean2, power_min2, power_max2))
+        results_diff.append((sig, freqs_diff, power_mean_diff, power_min_diff, power_max_diff))
     
 
     if save_LFPs:
@@ -2563,7 +3036,7 @@ try:
     # param12 = (2.22, 1.64, 2.425126038006674, 1.927524600435643)
 
     # 第一层临界域内找参数
-    def vary_ie_ratio(dx=0,dy=0):
+    def vary_ie_ratio(dx=0,dy=1):
         # critical zone 右上角的点 - gamma peak 小
         param_ne = (2.67,2.03)
         # critical zone 左下角的点 - gamma peak 正常
@@ -2596,14 +3069,9 @@ try:
     param_area12 = param_area1 + param_area2
     
     #%% 单层挑参数算数据、视频
-    def compute_data():
-        # 第一层参数:
-        param_area1 = vary_ie_ratio(dx=0,dy=1)
-        # 第二层参数:
-        param_area2 = (1.84138, 1.57448)
-        # 双层参数组合:
-        param_area12 = param_area1 + param_area2
-
+    def compute_data(sti=False,sti_type='Uniform',
+                     sig=10,maxrate=1000,window=10,
+                     transient=1000,stim_dura=2000):
         ## 单层算数据,输出视频
         # 哪一层
         for delta_gk in (1, 2):
@@ -2611,16 +3079,11 @@ try:
             if delta_gk == 1:
                 param=param_area1
             elif delta_gk == 2:
-                param=param_area2
+                # param=param_area2
+                param=param_test2
             ie_r_e1, ie_r_i1 = param
             common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
-            # 激励相关
-            sti=False
-            sti_type='Uniform'
-            sig=5
-            maxrate=1000
-            stim_dura=1000
-            window=10
+
             if sti:
                 input=f'on{maxrate}_{sti_type}_{sig}'
             else:
@@ -2628,36 +3091,32 @@ try:
             
             data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
             video_path=None
-            result = compute.compute_1_general(comb=param,stim_dura=stim_dura,
+            result = compute.compute_1_general(comb=param,sig=sig,
+                                               transient=transient,stim_dura=stim_dura,
                                                sti=sti,maxrate=maxrate,sti_type=sti_type,
                                                video=True,save_path_video=video_path,
                                                save_load=True,save_path_data=data_path,
-                                               window=window,delta_gk=delta_gk,sig=sig)
-    def compute_data2():
-        # 第一层参数:
-        param_area1 = vary_ie_ratio(dx=0,dy=1)
-        # 第二层参数:
-        param_area2 = (1.84138, 1.57448)
+                                               window=window,delta_gk=delta_gk)
+    
+    def compute_data2(sti=True, sti_type='Gaussian',
+                      adapt = True, top_sti = False,
+                      adapt_type = 'Gaussian', 
+                      sig1=10,sig2=0,maxrate=1000,
+                      transient=1000,
+                      stim_dura=2000,
+                      window=10,
+                      w_12_e=3.5, w_12_i=2.4,
+                      w_21_e=3.5, w_21_i=7.2):
         # 双层参数组合:
-        param_area12 = param_area1 + param_area2
+        # param_area12 = param_area1 + param_area2
+        param_area12 = param_area1 + param_test2
 
         ## 双层算数据,输出视频
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param_area12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
-        # 激励相关
-        sti=False
-        sti_type='Uniform'
-        sig=5
-        maxrate=1000
-        stim_dura=1000
-        window=10
-        
-        adapt = False
-        top_sti = False
-        adapt_type = 'Uniform'
 
         if sti:
-            input=f'on{maxrate}_{sti_type}_{sig}'
+            input=f'on{maxrate}_{sti_type}_{sig1}'
         else:
             input='off'
 
@@ -2669,15 +3128,22 @@ try:
             topdown = 'stim2'
         else:
             topdown = 'silnc'
+        if topdown != 'silnc':
+            topdown = f"{topdown}_{adapt_type}_{sig2}"
 
-        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_win{window}_{stim_dura}.file"
-        video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_win{window}_{stim_dura}_whole.mp4'
-        result = compute.compute_2_general(comb=param_area12,stim_dura=stim_dura,
-                                           sti=sti,maxrate=maxrate,sti_type=sti_type,
+        data_path=f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}.file"
+        video_path=f'./{video_dir}/2area_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}.mp4'
+        # video_path=None
+        result = compute.compute_2_general(comb=param_area12,sti=sti,
+                                           maxrate=maxrate,sti_type=sti_type,
                                            adapt=adapt,adapt_type=adapt_type,top_sti=top_sti,
                                            video=True,save_path_video=video_path,
                                            save_load=True,save_path_data=data_path,
-                                           window=window,sig=sig,chg_adapt_range=sig)
+                                           window=window,sig=sig1,chg_adapt_range=sig2,
+                                           transient=transient, stim_dura=stim_dura,
+                                           w_12_e=w_12_e, w_12_i=w_12_i,
+                                           w_21_e=w_21_e, w_21_i=w_21_i)
+    # compute_data2()
 
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
@@ -2703,11 +3169,13 @@ try:
     # LFP_1area_repeat(param=param, n_repeat=64)
 
     # change scale
-    le=64
-    li=32
+    le=64*4
+    li=32*4
     # sti_type='Gaussian''Uniform''Annulus'
-    # compute.compute_1(comb=param1, seed=10,sti=False,maxrate=500,sig=5,
-    #                   sti_type='Uniform',video=True,le=int(le),li=int(li))
+    # delta_gk=1
+    # compute.compute_1_general(comb=param_area1, seed=10,sti=False,maxrate=500,sig=5,
+    #                   sti_type='Uniform',video=True,le=int(le),li=int(li),
+    #                   save_path_video=f'./{video_dir}/1area_le{le}_li{li}_{delta_gk}.mp4')
     # compute.compute_2(comb=param12,seed=10,sti=False,maxrate=500,sig=5,
     #                   sti_type='Uniform',video=True,le=int(le),li=int(li))
 
@@ -2923,13 +3391,37 @@ try:
     # draw_LFP_FFT_compare(param1=param1, param2=param12, 
     #                      n_repeat=64, maxrate=500, sti_type='Uniform')
     
-    # print('computing start')
-    # draw_receptive_field2(param=param1, n_repeat=64, le=le,li=li)
-    # print('set 1 executed')
-    # send_email.send_email('set 1 executed', 'set 1 executed')
-    # draw_receptive_field2(param=param2, n_repeat=64, le=le,li=li)
-    # print('set 2 executed')
-    # send_email.send_email('set 2 executed', 'set 2 executed')
+    def draw_rf2():
+        print('computing start')
+        # draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=2000, delta_gk=1)
+        # print('set 1 executed')
+        # send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=1000, delta_gk=1)
+        print('set 1 executed')
+        send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_receptive_field2(param=param_test2, n_repeat=64, maxrate=1000, delta_gk=2)
+        print('set 2 executed')
+        send_email.send_email('set 2 executed', 'set 2 executed')
+        draw_receptive_field2(param=param_area1, n_repeat=64, maxrate=2000, delta_gk=1)
+        print('set 3 executed')
+        send_email.send_email('set 3 executed', 'set 3 executed')
+        draw_receptive_field2(param=param_test2, n_repeat=64, maxrate=2000, delta_gk=2)
+        print('set 4 executed')
+        send_email.send_email('set 4 executed', 'set 4 executed')
+
+    def draw_rf2_topdown():
+        print('computing start')
+        param1 = param_area1
+        param2 = param_test2
+        param = param1 + param2
+        draw_rf_repeat2_topdown(param=param, n_repeat=64, maxrate=1000,sti_type='Uniform',stim_dura=1000)
+        print('set 1 executed')
+        send_email.send_email('set 1 executed', 'set 1 executed')
+        draw_rf_repeat2_topdown(param=param, n_repeat=64, maxrate=2000,sti_type='Uniform',stim_dura=1000)
+        print('set 2 executed')
+        send_email.send_email('set 2 executed', 'set 2 executed')
+
+    #%%
 
     #%% plot trajectory
     # # area 1 parameter
@@ -2946,30 +3438,35 @@ try:
     # mya.plot_trajectory(data=conti,title='Levy package trajectory',save_path=save_path_trajectory)
 
     #%% new comparable lfp fft (vary weight and check fft) (bottom up)
-    def bottom_up_LFP_compare(cmpt=True,n_repeat=64,stim_dura=10000,
-                              w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4):
+    def bottom_up_LFP_compare(n_repeat=64,maxrate=1000,cmpt=True,
+                              sti_type = 'Uniform',std_plot=False,
+                              video=True,
+                              transient=1000,stim_dura=2000,
+                              w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,
+                              start_time=None,end_time=None):
         param1=vary_ie_ratio(dx=0,dy=1)
         # param2=(1.84138, 1.57448)
         param2=param_test2
         param12=param1+param2
-        maxrate=1000
-        sti_type = 'Uniform'
         
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path1 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}'
         common_path2 = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
         # bottom_up表示只有前馈，top_down表示只有反馈
-        temp_dir=f'./{LFP_dir}/new_params/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir=f'./{elite_graph_dir}/new_params/bottomup_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}_time{start_time}_{end_time}'
         Path(temp_dir).mkdir(parents=True, exist_ok=True)
         Path(f'{temp_dir}/sub').mkdir(parents=True, exist_ok=True)
 
         # draw_LFP_FFT_compare这个函数就是默认bottom up的
         draw_LFP_FFT_compare(
-            param1=param1,param2=param12,n_repeat=n_repeat,maxrate=maxrate,
+            param1=param1,param2=param12,n_repeat=n_repeat,
+            maxrate=maxrate,cmpt=cmpt,video=video,
+            transient=transient,stim_dura=stim_dura,
             w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
-            save_path_root=temp_dir,std_plot=False,cmpt=cmpt,
-            sti=True,top_sti=False,sti_type=sti_type,stim_dura=stim_dura
+            path_root=temp_dir,std_plot=std_plot,
+            sti=True,top_sti=False,sti_type=sti_type,
+            start_time=start_time,end_time=end_time
             )
 
     #%% test adaptation and stimulus 2
@@ -2985,31 +3482,26 @@ try:
     #                           chg_adapt_range=5)
 
     #%% LFP FFT under different type and different size top-down interaction
-    def top_down_LFP_compare(stim_dura = 1000):
+    def top_down_LFP_compare(transient=1000, stim_dura=2000,
+                             maxrate=1000, n_repeat=64, cmpt=True,
+                             adapt_type = 'Uniform',
+                             sti_type = 'Uniform',
+                             video=True,
+                             w_12_e=2.4,w_12_i=2.4,
+                             w_21_e=2.4,w_21_i=2.4,
+                             std_plot=False, new_delta_gk_2=0.5,
+                             start_time=None, end_time=None):
         param1=vary_ie_ratio(dx=0,dy=1)
         # param2=(1.84138, 1.57448)
         param2 = param_test2
-        param12=param1+param2
-        maxrate=1000
-        new_delta_gk_2=0.5
-        adapt_type = 'Uniform'
-        sti_type = 'Uniform'
-        n_repeat=64
-        
-        cmpt=True
-        # w=2.8
-        w_12_e=2.4
-        w_12_i=2.4
-        w_21_e=2.4
-        w_21_i=2.4
-        
+        param12=param1 + param2
         
         ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
         common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
 
-        temp_dir_adapt  =  f'./{LFP_dir}/new_params/compr_adapt{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_adapt  =  f'./{elite_graph_dir}/new_params/compr_adapt_{new_delta_gk_2}_{adapt_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}_time{start_time}_{end_time}'
         Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
-        temp_dir_stim2  =  f'./{LFP_dir}/new_params/compr_stim2{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}'
+        temp_dir_stim2  =  f'./{elite_graph_dir}/new_params/compr_stim2_{maxrate}_{sti_type}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}_time{start_time}_{end_time}'
         Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
 
         sub_temp_dir_adapt=f'{temp_dir_adapt}/sub'
@@ -3019,26 +3511,81 @@ try:
 
         # adaptation
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
-                               plot=True,plot_sub=True,video=True,save_load=False,
+                               plot=True,plot_sub=True,video=video,save_load=False,
+                               transient=transient,stim_dura=stim_dura,
                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                                save_path_root=temp_dir_adapt,sub_path_root=sub_temp_dir_adapt,
-                               sti=False,top_sti=False,sti_type=sti_type,cmpt=cmpt,
-                               adapt=True,adapt_type=adapt_type,stim_dura=stim_dura,
-                               new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
+                               sti=False,top_sti=False,sti_type=sti_type,cmpt=cmpt,std_plot=std_plot,
+                               adapt=True,adapt_type=adapt_type,
+                               new_delta_gk_2=new_delta_gk_2,save_LFPs=True,
+                               start_time=start_time,end_time=end_time)
         
         # stimulus
         LFPs_prediction_repeat(param=param12,n_repeat=n_repeat,maxrate=maxrate,
-                               plot=True,plot_sub=True,video=True,save_load=False,
+                               plot=True,plot_sub=True,video=video,save_load=False,
+                               transient=transient,stim_dura=stim_dura,
                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
                                save_path_root=temp_dir_stim2,sub_path_root=sub_temp_dir_stim2,
-                               sti=False,top_sti=True,sti_type=sti_type,cmpt=cmpt,
-                               adapt=False,adapt_type=adapt_type,stim_dura=stim_dura,
-                               new_delta_gk_2=new_delta_gk_2,save_LFPs=True)
+                               sti=False,top_sti=True,sti_type=sti_type,cmpt=cmpt,std_plot=std_plot,
+                               adapt=False,adapt_type=adapt_type,
+                               new_delta_gk_2=new_delta_gk_2,save_LFPs=True,
+                               start_time=start_time,end_time=end_time)
+        
+    def topdown_bottomup_LFP_compare(transient=1000, stim_dura=2000,
+                                     maxrate=1000, n_repeat=64, cmpt=True,
+                                     adapt_type = 'Uniform',
+                                     sti_type = 'Uniform',
+                                     video=False,sig1=0,
+                                     w_12_e=3.5,w_12_i=2.4,
+                                     w_21_e=3.5,w_21_i=2.4,
+                                     std_plot=False, new_delta_gk_2=0.5,
+                                     start_time=None, end_time=None):
+        param1=vary_ie_ratio(dx=0,dy=1)
+        # param2=(1.84138, 1.57448)
+        param2 = param_test2
+        param12=param1 + param2
+        
+        ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param12
+        common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+
+        temp_dir_adapt  =  f'./{elite_graph_dir}/new_params/compr_adapt_{new_delta_gk_2}_{adapt_type}_{sig1}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}_time{start_time}_{end_time}'
+        Path(temp_dir_adapt).mkdir(parents=True, exist_ok=True)
+        temp_dir_stim2  =  f'./{elite_graph_dir}/new_params/compr_stim2_{maxrate}_{sti_type}_{sig1}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_{n_repeat}_{stim_dura}_time{start_time}_{end_time}'
+        Path(temp_dir_stim2).mkdir(parents=True, exist_ok=True)
+
+        sub_temp_dir_adapt=f'{temp_dir_adapt}/sub'
+        Path(sub_temp_dir_adapt).mkdir(parents=True, exist_ok=True)
+        sub_temp_dir_stim2=f'{temp_dir_stim2}/sub'
+        Path(sub_temp_dir_stim2).mkdir(parents=True, exist_ok=True)
+
+        # adaptation
+        LFPs_prediction_repeat2(param=param12,n_repeat=n_repeat,maxrate=maxrate,sig1=sig1,
+                                plot=True,plot_sub=True,video=video,save_load=False,
+                                transient=transient,stim_dura=stim_dura,
+                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                                save_path_root=temp_dir_adapt,sub_path_root=sub_temp_dir_adapt,
+                                sti=False,top_sti=False,sti_type=sti_type,cmpt=cmpt,std_plot=std_plot,
+                                adapt=True,adapt_type=adapt_type,
+                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True,
+                                start_time=start_time,end_time=end_time)
+        
+        # stimulus
+        LFPs_prediction_repeat2(param=param12,n_repeat=n_repeat,maxrate=maxrate,sig1=sig1,
+                                plot=True,plot_sub=True,video=video,save_load=False,
+                                transient=transient,stim_dura=stim_dura,
+                                w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i,
+                                save_path_root=temp_dir_stim2,sub_path_root=sub_temp_dir_stim2,
+                                sti=False,top_sti=True,sti_type=sti_type,cmpt=cmpt,std_plot=std_plot,
+                                adapt=False,adapt_type=adapt_type,
+                                new_delta_gk_2=new_delta_gk_2,save_LFPs=True,
+                                start_time=start_time,end_time=end_time)
+
 
     #%% repeat 2 area computation recetive field
     def msd_plot(cmpt=False):
         param1=vary_ie_ratio(dx=0,dy=1)
-        param2=(1.84138, 1.57448)
+        # param2=(1.84138, 1.57448)
+        param2=param_test2
         param=param1+param2
         n_repeat=128
         stim_dura=1000
@@ -3068,35 +3615,357 @@ try:
                   msd_path=None,pdx_path=None,msd_pdx_path=None,
                   w_12_e=w_12_e,w_12_i=w_12_i,w_21_e=w_21_e,w_21_i=w_21_i)
 
-    # bottom_up_LFP_compare(stim_dura=1000)
-    # draw_LFP_FFT_2area_repeat(
-    #     n_repeat=64,param2=param_test2,stim_dura=10000,
-    #     save_path_root=f'{LFP_dir}/test',
-    #     w_12_e=2.4,w_12_i=2.4,w_21_e=3.0,w_21_i=3.0,cmpt=True
-    #     )
+    def no_topdown_and_topdown_rf1():
+        # maxrate == 1000
+        receptive_field_repeat(param=param_area1, n_repeat=64, maxrate=1000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=1)
+        receptive_field_repeat(param=param_test2, n_repeat=64, maxrate=1000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=2)
+        print('mr=1000, no topdown, 1 & 2 executed')
+        send_email.send_email('mr=1000, no topdown, 1 & 2 executed', 'mr=1000, no topdown, 1 & 2 executed')
+        # maxrate == 2000
+        receptive_field_repeat(param=param_area1, n_repeat=64, maxrate=2000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=1)
+        receptive_field_repeat(param=param_test2, n_repeat=64, maxrate=2000, stim_dura=10000, 
+                            plot=True, video1=True, save_path_root=elite_graph_dir, delta_gk=2)
+        print('mr=2000, no topdown, 1 & 2 executed')
+        send_email.send_email('mr=2000, no topdown, 1 & 2 executed', 'mr=2000, no topdown, 1 & 2 executed')
+        # maxrate == 1000
+        param_comb = param_area1 + param_test2
+        receptive_field_repeat_topdown(
+            param_comb, n_repeat=64, plot=True, stim_dura=10000, 
+            video1=True, maxrate=1000, save_path_root=elite_graph_dir
+        )
+        print('mr=1000, topdown, 1 & 2 executed')
+        send_email.send_email('mr=1000, no topdown, 1 & 2 executed', 'mr=1000, no topdown, 1 & 2 executed')
+        # maxrate == 2000
+        receptive_field_repeat_topdown(
+            param_comb, n_repeat=64, plot=True, stim_dura=10000, 
+            video1=True, maxrate=2000, save_path_root=elite_graph_dir
+        )
+        print('mr=2000, topdown, 1 & 2 executed')
+        send_email.send_email('mr=2000, no topdown, 1 & 2 executed', 'mr=2000, no topdown, 1 & 2 executed')
+
+    def time_frequency_non_topdown(sti=False,sti_type='Uniform',
+                                   sig=10,maxrate=1000,window=10,
+                                   transient=1000,stim_dura=2000,
+                                   start_time=None,end_time=None):
+        # 哪一层
+        for delta_gk in (1, 2):
+            # delta_gk=1
+            if delta_gk == 1:
+                param=param_area1
+            elif delta_gk == 2:
+                param=param_test2
+            ie_r_e1, ie_r_i1 = param
+            common_path = f're{ie_r_e1:.4f}_ri{ie_r_i1:.4f}'
+
+            if sti:
+                input=f'on{maxrate}_{sti_type}_{sig}'
+            else:
+                input='off'
+            
+            data_path=f"{data_dir}/1data_{common_path}_{input}_{delta_gk}_win{window}.file"
+            with open(data_path, 'rb') as file:
+                raw_data = pickle.load(file)
+            LFP = raw_data['a1']['ge']['LFP']
+            dt=0.1
+            if start_time is None:
+                i0 = int(0/dt)
+            else:
+                i0 = int(start_time / dt)
+            if end_time is None:
+                i1 = len(LFP)
+            else:
+                i1 = int(end_time / dt)
+            seg = LFP[i0:i1]
+
+            save_path_log = f'{elite_graph_dir}/non_topdown_timefreq_log_{common_path}_{input}_{delta_gk}_win{window}.png'
+            save_path_lp = f'{elite_graph_dir}/non_topdown_timefreq_lp_{common_path}_{input}_{delta_gk}_win{window}.png'
+            t, freqs, tf_power = mya.analyze_LFP_morlet(seg, save_path_lp=save_path_lp,save_path_log=save_path_log,transient=transient)
+    
+    def time_frequency_topdown(sti=False, sti_type='Uniform', 
+                               adapt = False, top_sti = False, 
+                               adapt_type = 'Uniform', 
+                               window=10, sig1=10, sig2=5,
+                               transient = 1000,
+                               stim_dura = 2000,
+                               w_12_e=2.4, w_12_i=2.4,
+                               w_21_e=2.4, w_21_i=2.4,
+                               start_time=None, end_time=None):
+        param = param_area1 + param_test2
+        ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+        common_path = f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_re2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+        # 激励相关
+        maxrate=1000
+        
+        if sti:
+            input=f'on{maxrate}_{sti_type}_{sig1}'
+        else:
+            input='off'
+
+        if adapt and top_sti:
+            topdown = 'adapt_stim2'
+        elif adapt:
+            topdown = 'adapt'
+        elif top_sti:
+            topdown = 'stim2'
+        else:
+            topdown = 'silnc'
+        if topdown != 'silnc':
+            topdown = f"{topdown}_{adapt_type}_{sig2}"
+        
+        data_path = f"{data_dir}/2data_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_win{window}.file"
+        with open(data_path, 'rb') as file:
+            raw_data = pickle.load(file)
+        LFP1 = raw_data['a1']['ge']['LFP']
+        LFP2 = raw_data['a2']['ge']['LFP']
+        dt=0.1
+        if start_time is None:
+            i0 = int(0/dt)
+        else:
+            i0 = int(start_time / dt)
+        if end_time is None:
+            i1 = len(LFP1)
+        else:
+            i1 = int(end_time / dt)
+        # if LFP1.ndim == 1:
+        #     seg1 = LFP1[i0:i1]
+        # else:
+        #     seg1 = LFP1[:, i0:i1]
+        # if LFP2.ndim == 1:
+        #     seg2 = LFP2[i0:i1]
+        # else:
+        #     seg2 = LFP2[:, i0:i1]
+        seg1 = LFP1[i0:i1]
+        seg2 = LFP2[i0:i1]
+        save_path_log1 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}.png'
+        save_path_lp1 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_1_win{window}.png'
+        save_path_log2 = f'{elite_graph_dir}/topdown_timefreq_log_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}.png'
+        save_path_lp2 = f'{elite_graph_dir}/topdown_timefreq_lp_{common_path}_{input}_{topdown}_w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_2_win{window}.png'
+        _, _, _ = mya.analyze_LFP_morlet(seg1, save_path_lp=save_path_lp1, 
+                                         save_path_log=save_path_log1, transient=transient)
+        _, _, _ = mya.analyze_LFP_morlet(seg2, save_path_lp=save_path_lp2, 
+                                         save_path_log=save_path_log2, transient=transient)
+
+
     # draw_LFP_FFT_1area_repeat(
-    #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2
+    #     param_test2,save_path_root=f'{LFP_dir}/test',delta_gk=2,stim_dura=1000
     #     )
+    # draw_LFP_FFT_2area_repeat(
+    #     n_repeat=64,param2=param_test2,stim_dura=1000,
+    #     save_path_root=f'{LFP_dir}/test',
+    #     w_12_e=2.4,w_12_i=2.4,w_21_e=2.4,w_21_i=2.4,cmpt=True
+    #     )
+    # bottom_up_LFP_compare(stim_dura=1000)
     # top_down_LFP_compare(stim_dura=10000)
-    # msd_plot()
+    # msd_plot(cmpt=True)
+    # compute_data()
     # compute_data2()
+    ## rfs (stimulation on Area 1)
+    # no_topdown_and_topdown_rf1()
+    # draw_rf2()
+    # draw_rf2_topdown()
+    def temp_fun0():
+        """
+        画没inter-areal interaction 时 time_frequency图的
+        """
+        compute_data(sti=False,sti_type='Gaussian',
+                     sig=10,maxrate=1000,window=10,
+                     transient=1000,stim_dura=2000)
+        time_frequency_non_topdown(sti=False,sti_type='Gaussian',
+                                   sig=10,maxrate=1000,window=10,
+                                   transient=1000,stim_dura=2000)
+    # temp_fun0()
+    send_email.send_email('Progress','Isolated time frequency accomplished')
+    def temp_fun1():
+        """
+        画有inter-areal interaction 时 time_frequency图的
+        """
+        sti=True
+        sti_type='Gaussian'
+        adapt=True
+        top_sti=False
+        adapt_type='Gaussian'
+        sig1=25
+        sig2=5
+        maxrate=1000
+        transient=1000
+        stim_dura=2000
+        window=10
+        w_12_e=3.5
+        w_12_i=2.4
+        w_21_e=3.5
+        w_21_i=7.2
+        # adaptation
+        compute_data2(sti=sti,sti_type=sti_type,
+                      adapt=adapt,top_sti=top_sti,
+                      adapt_type=adapt_type,
+                      sig1=sig1,sig2=sig2,
+                      maxrate=maxrate,
+                      transient=transient,
+                      stim_dura=stim_dura,
+                      window=window,
+                      w_12_e=w_12_e,w_12_i=w_12_i,
+                      w_21_e=w_21_e,w_21_i=w_21_i)
+        time_frequency_topdown(sti=sti,sti_type=sti_type,
+                               adapt=adapt,top_sti=top_sti,
+                               adapt_type=adapt_type,
+                               window=window,sig1=sig1,sig2=sig2,
+                               transient=transient,
+                               stim_dura=stim_dura,
+                               w_12_e=w_12_e,w_12_i=w_12_i,
+                               w_21_e=w_21_e,w_21_i=w_21_i)
+        # stimulation
+        adapt=False
+        top_sti=True
+        compute_data2(sti=sti,sti_type=sti_type,
+                      adapt=adapt,top_sti=top_sti,
+                      adapt_type=adapt_type,
+                      sig1=sig1,sig2=sig2,
+                      maxrate=maxrate,
+                      transient=transient,
+                      stim_dura=stim_dura,
+                      window=window,
+                      w_12_e=w_12_e,w_12_i=w_12_i,
+                      w_21_e=w_21_e,w_21_i=w_21_i)
+        time_frequency_topdown(sti=sti,sti_type=sti_type,
+                               adapt=adapt,top_sti=top_sti,
+                               adapt_type=adapt_type,
+                               window=window,sig1=sig1,sig2=sig2,
+                               transient=transient,
+                               stim_dura=stim_dura,
+                               w_12_e=w_12_e,w_12_i=w_12_i,
+                               w_21_e=w_21_e,w_21_i=w_21_i)
+    # temp_fun1()
+    # send_email.send_email('Progress','Coupled time frequency accomplished')
 
-    # %% wave-packet passage, gamma spectrum and inter-area alignment
-    # Run once with cmpt=True.  Change it to False to reuse the saved raw data
-    # and redraw the figures without repeating the Brian2 simulation.
-    teacher_gamma = compute_wavepacket_gamma_figures(
-        param=param_area12,
-        seed=0,
-        stim_dura=10000,
-        window=15,
-        sti=False,
-        w_12_e=2.4, w_12_i=2.4,
-        w_21_e=2.4, w_21_i=2.4,
-        cmpt=True,
-        video=False
-    )
+    def temp_fun2():
+        """
+        画分时段LFP spectrum的
+        """
+        sti_type='Gaussian'
+        adapt_type='Gaussian'
+        maxrate=1000
+        transient=1000
+        stim_dura=2000
+        time_total=transient+stim_dura
+        w_12_e=3.5
+        w_12_i=2.4
+        w_21_e=3.5
+        w_21_i=7.2
+        # # transient
+        # # bottom-up
+        # bottom_up_LFP_compare(maxrate=maxrate,sti_type=sti_type,
+        #                       transient=transient,stim_dura=stim_dura,
+        #                       video=True,
+        #                       start_time=0,end_time=transient,
+        #                       w_12_e=w_12_e,w_12_i=w_12_i,
+        #                       w_21_e=w_21_e,w_21_i=w_21_i)
+        # # top-down
+        # top_down_LFP_compare(maxrate=maxrate,sti_type=sti_type,adapt_type=adapt_type,
+        #                      transient=transient,stim_dura=stim_dura,
+        #                      video=True,
+        #                      start_time=0,end_time=transient,
+        #                      w_12_e=w_12_e,w_12_i=w_12_i,
+        #                      w_21_e=w_21_e,w_21_i=w_21_i)
+        # steady
+        # bottom-up
+        bottom_up_LFP_compare(maxrate=maxrate,sti_type=sti_type,
+                              transient=transient,stim_dura=stim_dura,
+                              video=True,
+                              start_time=stim_dura,end_time=time_total,
+                              w_12_e=w_12_e,w_12_i=w_12_i,
+                              w_21_e=w_21_e,w_21_i=w_21_i)
+        # # top-down
+        # top_down_LFP_compare(maxrate=maxrate,sti_type=sti_type,adapt_type=adapt_type,
+        #                      transient=transient,stim_dura=stim_dura,
+        #                      video=True,
+        #                      start_time=stim_dura,end_time=time_total,
+        #                      w_12_e=w_12_e,w_12_i=w_12_i,
+        #                      w_21_e=w_21_e,w_21_i=w_21_i)
+    # temp_fun2()
+    # send_email.send_email('Progress','LFP accomplished')
 
-    send_email.send_email('code executed - server 1', 'ie_search.main accomplished')
+    def temp_fun3():
+        """
+        画分时段LFP spectrum, 对多个sig1, 取sig2计算
+        """
+        sti_type='Gaussian'
+        adapt_type='Gaussian'
+        maxrate=1000
+        transient=1000
+        stim_dura=2000
+        time_total=transient+stim_dura
+        w_12_e=3.5
+        w_12_i=2.4
+        w_21_e=3.5
+        w_21_i=2.4*3
+        new_delta_gk_2=0.5
+        # steady
+        for sig1 in [0,5,10,15,20,25]:
+            topdown_bottomup_LFP_compare(transient=transient,stim_dura=stim_dura,
+                                         maxrate=maxrate,sti_type=sti_type,adapt_type=adapt_type,
+                                         video=False,sig1=sig1,
+                                         w_12_e=w_12_e,w_12_i=w_12_i,
+                                         w_21_e=w_21_e,w_21_i=w_21_i,
+                                         new_delta_gk_2=new_delta_gk_2,
+                                         start_time=stim_dura,end_time=time_total)
+    # temp_fun3()
+    # send_email.send_email('Progress','LFP updown accomplished')
+    
+    # pick state compute prediction
+    def pick_state_compute_prediction():
+        comb = param_area1 + param_test2
+        compute.compute_2_general(comb, seed=10, index=1, 
+                      sti=True, maxrate=1000, adapt=False, top_sti=True,
+                      sig=10, sti_type='Gaussian', adapt_type= 'Gaussian',
+                      video=True, save_load=False, window=10,
+                      save_path_data=None, save_path_video=None, 
+                      le=64,li=32,
+                      transient = 1000, stim_dura=2000, 
+                      num_ee_1=270, num_ei_1=350,
+                      num_ie_1=130, num_ii_1=180,
+                      num_ee_2=270, num_ei_2=350,
+                      num_ie_2=130, num_ii_2=180,
+                      w_ee_1=11, w_ii_1=50,
+                      w_ee_2=11, w_ii_2=50,
+                      w_12_e=3.5,w_12_i=2.4,
+                      w_21_e=3.5,w_21_i=24,
+                      tau_p_d_e1_e2=8,
+                      tau_p_d_e1_i2=8,
+                      tau_p_d_e2_e1=8,
+                      tau_p_d_e2_i1=6,
+                      peak_p_e1_e2=0.3,
+                      peak_p_e1_i2=0.3,
+                      peak_p_e2_e1=0.2,
+                      peak_p_e2_i1=0.5,
+                      decay_p_ee_1=7.5,
+                      decay_p_ei_1=9.5,
+                      decay_p_ie_1=19,
+                      decay_p_ii_1=19,
+                      decay_p_ee_2=7.5,
+                      decay_p_ei_2=9.5,
+                      decay_p_ie_2=19,
+                      decay_p_ii_2=19,
+                      d_gk_1=1.9,
+                      d_gk_2=6.5,
+                      new_delta_gk_2=0.5,
+                      chg_adapt_range=20)
+    # pick_state_compute_prediction()
+    # send_email.send_email('code executed', 'ie_search.main accomplished')
+
+    # Wave-packet passage, gamma spectrum and inter-area alignment.
+    # Run once with cmpt=True; then use cmpt=False to redraw saved data.
+    # teacher_gamma = compute_wavepacket_gamma_figures(
+    #     param=param_area1 + param_test2,
+    #     seed=0, transient=1000, stim_dura=10000, window=15,
+    #     sti=False,
+    #     w_12_e=2.4, w_12_i=2.4,
+    #     w_21_e=2.4, w_21_i=2.4,
+    #     cmpt=True, video=False
+    # )
+
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈

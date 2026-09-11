@@ -328,7 +328,7 @@ def compute_1(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = 15
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -965,13 +965,15 @@ def compute_2(comb, seed=10, index=1,
         'centre2': centre2
     }
 
+start_time_ratio = 0.0
 #%% computation with all vital parameters input 允许改变其他值，允许使用第二层adaptation
 def compute_1_general(comb, seed=10, index=1, 
                       sti=False, maxrate=2000, 
                       sig=2, sti_type='Gaussian', 
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32, stim_dura=1000, 
+                      le=64,li=32, 
+                      transient = 1000, stim_dura=2000, 
                       num_ee_1 = 270, num_ei_1 = 350,
                       num_ie_1 = 130, num_ii_1 = 180,
                       w_ee_1 = 11, w_ii_1 = 50,
@@ -979,7 +981,10 @@ def compute_1_general(comb, seed=10, index=1,
                       decay_p_ei_1 = 9.5,
                       decay_p_ie_1 = 19,
                       decay_p_ii_1 = 19,
-                      delta_gk = 1): # delta_gk=1表示用第一层的adaptation,=2表示用第二层的adaptation
+                      delta_gk = 1, # delta_gk=1表示用第一层的adaptation,=2表示用第二层的adaptation
+                      lfp_electrodes=None,
+                      lfp_sigma=6,
+                      lfp_effect_range=2.5):
     ie_r_e1, ie_r_i1 = comb
 
     common_title = rf'$\zeta^{{E}}$: {ie_r_e1:.4f}, $\zeta^{{I}}$: {ie_r_i1:.4f}'
@@ -1082,11 +1087,12 @@ def compute_1_general(comb, seed=10, index=1,
     if record_LFP:
         from connection import get_LFP
 
-        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
-        # LFP_elec = np.array([[0,0]])
+        # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        LFP_elec = np.array([[0,0]]) if lfp_electrodes is None else np.asarray(lfp_electrodes)
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
-                                            LFP_sigma=6,LFP_effect_range=2.5)
+                                            LFP_sigma=lfp_sigma,
+                                            LFP_effect_range=lfp_effect_range)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                     model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
@@ -1096,8 +1102,8 @@ def compute_1_general(comb, seed=10, index=1,
     #%%
     # --- 刺激参数设置与时序生成 ---
     stim_dura = stim_dura # 每次刺激持续时间（ms）
-    transient = 3000      # 仿真初始预热期（ms），用于网络稳定
-    inter_time = 2000     # 两次刺激间隔（ms）
+          # 仿真初始预热期（ms），用于网络稳定
+    # inter_time = 2000     # 两次刺激间隔（ms）
 
     stim_scale_cls = get_stim_scale.get_stim_scale()  # 自定义类，统一管理刺激参数和时序
     stim_scale_cls.seed = seed                        # 随机种子，保证可复现
@@ -1247,6 +1253,7 @@ def compute_1_general(comb, seed=10, index=1,
                 'gi':{'i':spk_i_1.i[:],'t':spk_tstep_i1}}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a1']['ge']['LFP_electrodes'] = LFP_elec
 
     if save_load:
         # save and load
@@ -1269,7 +1276,7 @@ def compute_1_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = start_time_ratio*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   # transient + stim_dura + window
     # window = window
     data_load.a1.ge.get_spike_rate(start_time=start_time,
@@ -1353,7 +1360,8 @@ def compute_2_general(comb, seed=10, index=1,
                       sig=2, sti_type='Gaussian', adapt_type= 'Gaussian',
                       video=False, save_load=False, window=15,
                       save_path_data=None, save_path_video=None, 
-                      le=64,li=32, stim_dura=1000, 
+                      le=64,li=32,
+                      transient = 1000, stim_dura=2000, 
                       num_ee_1=270, num_ei_1=350,
                       num_ie_1=130, num_ii_1=180,
                       num_ee_2=270, num_ei_2=350,
@@ -1381,7 +1389,11 @@ def compute_2_general(comb, seed=10, index=1,
                       d_gk_1=1.9,
                       d_gk_2=6.5,
                       new_delta_gk_2=0.5,
-                      chg_adapt_range=7):
+                      chg_adapt_range=7,
+                      lfp_electrodes=None,
+                      lfp_electrodes2=None,
+                      lfp_sigma=6,
+                      lfp_effect_range=2.5):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -1576,20 +1588,27 @@ def compute_2_general(comb, seed=10, index=1,
     if record_LFP:
         from connection import get_LFP
         # area 1
-        LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        # LFP_elec = np.array([[0,0],[-le/2,-le/2]])
+        LFP_elec = np.array([[0,0]]) if lfp_electrodes is None else np.asarray(lfp_electrodes)
         i_LFP,j_LFP,w_LFP = get_LFP.get_LFP(ijwd1.e_lattice,LFP_elec,
                                             width=ijwd1.width,
-                                            LFP_sigma=6,LFP_effect_range=2.5)
+                                            LFP_sigma=lfp_sigma,
+                                            LFP_effect_range=lfp_effect_range)
         group_LFP_record = NeuronGroup(len(LFP_elec),
                                        model=get_LFP.LFP_recordneuron)
         syn_LFP = Synapses(group_e_1,group_LFP_record,model=get_LFP.LFP_syn)
         syn_LFP.connect(i=i_LFP,j=j_LFP)
         syn_LFP.w[:] = w_LFP[:]
         # area 2
-        LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        # LFP_elec2= np.array([[0,0],[-le/2,-le/2]])
+        if lfp_electrodes2 is None:
+            LFP_elec2 = np.array([[0,0]]) if lfp_electrodes is None else LFP_elec.copy()
+        else:
+            LFP_elec2 = np.asarray(lfp_electrodes2)
         i_LFP2,j_LFP2,w_LFP2 = get_LFP.get_LFP(ijwd2.e_lattice,LFP_elec2,
                                                width=ijwd2.width,
-                                               LFP_sigma=6,LFP_effect_range=2.5)
+                                               LFP_sigma=lfp_sigma,
+                                               LFP_effect_range=lfp_effect_range)
         group_LFP_record2 = NeuronGroup(len(LFP_elec2),
                                         model=get_LFP.LFP_recordneuron)
         syn_LFP2 = Synapses(group_e_2,group_LFP_record2,model=get_LFP.LFP_syn)
@@ -1626,8 +1645,7 @@ def compute_2_general(comb, seed=10, index=1,
     '''stim 1; constant amplitude'''
     '''no attention''' # ?background?
     stim_dura = stim_dura # ms duration of each stimulus presentation
-    transient = 3000 # ms initial transient period; when add stimulus
-    inter_time = 2000 # ms interval between trials without and with attention
+    # inter_time = 2000 # ms interval between trials without and with attention
 
     stim_scale_cls = get_stim_scale.get_stim_scale()
     stim_scale_cls.seed = seed # random seed
@@ -1705,7 +1723,7 @@ def compute_2_general(comb, seed=10, index=1,
                                 ''', threshold='rand()<rates*dt')
         stim_loca2 = [[0, 0]]
         posi_stim_e2.bkg_rates = 0*Hz
-        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[sig], position=stim_loca2, 
+        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[chg_adapt_range], position=stim_loca2, 
                                                  sti_type=sti_type, n_side=le, width=le)*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
@@ -1773,9 +1791,6 @@ def compute_2_general(comb, seed=10, index=1,
     group_e_2.I_extnl_crt = 0*nA # 0.25 0.51*nA
     group_i_2.I_extnl_crt = 0*nA # 0.25 0.60*nA
 
-    if adapt:
-        group_e_2.delta_gk[:] = adapt_value*nS
-
     #%%
     spk_e_1 = SpikeMonitor(group_e_1, record = True)
     spk_i_1 = SpikeMonitor(group_i_1, record = True)
@@ -1798,7 +1813,13 @@ def compute_2_general(comb, seed=10, index=1,
     simu_time1 = (stim_scale_cls.stim_on[n_StimAmp*n_perStimAmp-1,1] + window)*ms
     # simu_time2 = simu_time_tot - simu_time1
 
-    net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
+    # net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
+    net.run(transient*ms, profile=False)
+    
+    if adapt:
+        group_e_2.delta_gk[:] = adapt_value*nS
+
+    net.run(simu_time1-transient*ms, profile=False)
     # net.run(simu_time2, profile=False) #,namespace={'tau_k': 80*ms}
 
     #%%
@@ -1844,7 +1865,9 @@ def compute_2_general(comb, seed=10, index=1,
             'inter':{'param':param_inter}}
     if record_LFP:
         data['a1']['ge']['LFP'] = lfp_moni.lfp[:]/nA
+        data['a1']['ge']['LFP_electrodes'] = LFP_elec
         data['a2']['ge']['LFP'] = lfp_moni2.lfp[:]/nA
+        data['a2']['ge']['LFP_electrodes'] = LFP_elec2
 
     if save_load:
         # save and load
@@ -1867,7 +1890,7 @@ def compute_2_general(comb, seed=10, index=1,
         data_load = mydata.mydata(data)
 
     #%% analysis
-    start_time = 1*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
+    start_time = start_time_ratio*transient  #data.a1.param.stim1.stim_on[first_stim,0] - 300
     end_time = int(round(simu_time_tot/ms))   #data.a1.param.stim1.stim_on[last_stim,0] + 1500
     window = window
     # area 1
@@ -1949,13 +1972,13 @@ def compute_2_general(comb, seed=10, index=1,
                     [[sig]*stim_on_off.shape[0]]], 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[sig]*stim_on_off.shape[0]]]]
+                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
     else:
         if top_sti:
             stim = [None, 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[sig]*stim_on_off.shape[0]]]]
+                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
 
     adpt = None
     if adapt:
@@ -1971,6 +1994,7 @@ def compute_2_general(comb, seed=10, index=1,
         topdown = 'stim2'
     else:
         topdown = 'silnc'
+    topdown = f"{topdown}_{adapt_type}_{chg_adapt_range}"
 
     if sti:
         input=f'on{maxrate}_{sti_type}_{sig}'
@@ -1979,7 +2003,11 @@ def compute_2_general(comb, seed=10, index=1,
     
     if video:
         # Animation
-        title = f'Animation \n {common_title}'
+        weight_title = (rf'$w^{{E1E2}}$: {w_12_e:.2f}, '
+                        rf'$w^{{E1I2}}$: {w_12_i:.2f}, '
+                        rf'$w^{{E2E1}}$: {w_21_e:.2f}, '
+                        rf'$w^{{E2I1}}$: {w_21_i:.2f}')
+        title = f'Animation \n {common_title} \n {weight_title}'
         ani = fra.show_pattern(spkrate1=data_load.a1.ge.spk_rate.spk_rate,
                                spkrate2=data_load.a2.ge.spk_rate.spk_rate,
                                frames = frames,
