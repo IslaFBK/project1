@@ -3957,14 +3957,14 @@ try:
 
     # Wave-packet passage, gamma spectrum and inter-area alignment.
     # Run once with cmpt=True; then use cmpt=False to redraw saved data.
-    # teacher_gamma = compute_wavepacket_gamma_figures(
-    #     param=param_area1 + param_test2,
-    #     seed=0, transient=1000, stim_dura=10000, window=15,
-    #     sti=False,
-    #     w_12_e=2.4, w_12_i=2.4,
-    #     w_21_e=2.4, w_21_i=2.4,
-    #     cmpt=True, video=False
-    # )
+    teacher_gamma = compute_wavepacket_gamma_figures(
+        param=param_area1 + param_test2,
+        seed=0, transient=1000, stim_dura=10000, window=15,
+        sti=False,
+        w_12_e=2.4, w_12_i=2.4,
+        w_21_e=2.4, w_21_i=2.4,
+        cmpt=True, video=False
+    )
 
 except Exception:
     # 捕获异常并发送邮件
