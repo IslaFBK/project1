@@ -1699,9 +1699,10 @@ def packet_distance_gamma_synchrony(result, save_path=None, **kwargs):
 
 def compute_wavepacket_gamma_figures(
         param, seed=0, transient=1000, stim_dura=10000, window=15,
-        maxrate=1000, sig=0, sti=False, top_sti=False,
-        sti_type='Uniform', adapt=False, adapt_type='Gaussian',
-        new_delta_gk_2=0.5, chg_adapt_range=7,
+        maxrate=1000,
+        area1_mode='stimulation', area1_shape='Gaussian', area1_size=25,
+        area2_mode='adaptation', area2_shape='Gaussian', area2_size=5,
+        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
         w_12_e=3.5, w_12_i=2.4, w_21_e=3.5, w_21_i=7.2,
         electrode=0, gamma_band=(30, 80),
         cmpt=True, video=False,
@@ -1715,21 +1716,61 @@ def compute_wavepacket_gamma_figures(
     """
     if len(param) != 4:
         raise ValueError('param must contain (re1, ri1, re2, ri2)')
+
+    mode_aliases = {
+        'none': 'none', 'off': 'none',
+        'stimulation': 'stimulation', 'stim': 'stimulation',
+        'adaptation': 'adaptation', 'adapt': 'adaptation'
+    }
+    shape_aliases = {'uniform': 'Uniform', 'gaussian': 'Gaussian'}
+    try:
+        area1_mode = mode_aliases[str(area1_mode).strip().lower()]
+        area2_mode = mode_aliases[str(area2_mode).strip().lower()]
+    except KeyError as error:
+        raise ValueError(
+            "area mode must be 'none', 'stimulation' or 'adaptation'"
+        ) from error
+    try:
+        area1_shape = shape_aliases[str(area1_shape).strip().lower()]
+        area2_shape = shape_aliases[str(area2_shape).strip().lower()]
+    except KeyError as error:
+        raise ValueError("area shape must be 'Uniform' or 'Gaussian'") from error
+    if area1_mode != 'none' and area1_size <= 0:
+        raise ValueError('area1_size must be positive when Area 1 input is enabled')
+    if area2_mode != 'none' and area2_size <= 0:
+        raise ValueError('area2_size must be positive when Area 2 input is enabled')
+
+    sti = area1_mode == 'stimulation'
+    adapt1 = area1_mode == 'adaptation'
+    top_sti = area2_mode == 'stimulation'
+    adapt = area2_mode == 'adaptation'
+
+    def area_tag(area, mode, shape, size, new_delta_gk):
+        if mode == 'none':
+            return f'a{area}off'
+        if mode == 'stimulation':
+            return f'a{area}stim_on{maxrate}_{shape}_{size}'
+        return f'a{area}adapt_{shape}_{size}_dgk{new_delta_gk}'
+
+    area1_tag = area_tag(
+        1, area1_mode, area1_shape, area1_size, area1_new_delta_gk
+    )
+    area2_tag = area_tag(
+        2, area2_mode, area2_shape, area2_size, area2_new_delta_gk
+    )
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
     common_path = (
         f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_'
         f're2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
     )
     run_name = (
-        f'wavepacket_gamma_{common_path}_'
+        f'WPg_{common_path}_'
+        f'{area1_tag}_{area2_tag}_'
         f'w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_'
-        f'sti{int(sti)}_top{int(top_sti)}_adapt{int(adapt)}_'
-        f'mr{maxrate}_sig{sig}_win{window}_seed{seed}_'
-        f'trans{transient}_{stim_dura}ms'
+        f'win{window}_seed{seed}_trans{transient}_{stim_dura}ms'
     )
     analysis_name = (
-        f'{run_name}_electrode{electrode}_'
-        f'gamma{gamma_band[0]}-{gamma_band[1]}Hz'
+        f'{run_name}_e{electrode}_g{gamma_band[0]}-{gamma_band[1]}Hz'
     )
 
     if raw_data_path is None:
@@ -1750,10 +1791,16 @@ def compute_wavepacket_gamma_figures(
     if cmpt:
         simulation_result = compute.compute_2_general(
             comb=param, seed=seed, index=seed,
-            sti=sti, maxrate=maxrate, sig=sig, sti_type=sti_type,
-            adapt=adapt, top_sti=top_sti, adapt_type=adapt_type,
-            new_delta_gk_2=new_delta_gk_2,
-            chg_adapt_range=chg_adapt_range,
+            sti=sti, maxrate=maxrate, sig=area1_size,
+            sti_type=area1_shape,
+            top_sti=top_sti, stim2_type=area2_shape,
+            stim2_sig=area2_size,
+            adapt1=adapt1, adapt_type1=area1_shape,
+            new_delta_gk_1=area1_new_delta_gk,
+            chg_adapt_range1=area1_size,
+            adapt=adapt, adapt_type=area2_shape,
+            new_delta_gk_2=area2_new_delta_gk,
+            chg_adapt_range=area2_size,
             window=window, transient=transient, stim_dura=stim_dura,
             video=video, save_path_video=video_path, save_load=False,
             w_12_e=w_12_e, w_12_i=w_12_i,
@@ -1777,9 +1824,9 @@ def compute_wavepacket_gamma_figures(
             result = pickle.load(file)
 
     figure_paths = {
-        'area1_passage': f'{save_path_root}/{analysis_name}_area1_passage.svg',
-        'area2_passage': f'{save_path_root}/{analysis_name}_area2_passage.svg',
-        'alignment': f'{save_path_root}/{analysis_name}_alignment.svg'
+        'area1_passage': f'{save_path_root}/{analysis_name}_A1pass.svg',
+        'area2_passage': f'{save_path_root}/{analysis_name}_A2pass.svg',
+        'alignment': f'{save_path_root}/{analysis_name}_align.svg'
     }
     passage1 = firing_rate_spectrum_time(
         result, area=1, electrode=electrode, gamma_band=gamma_band,
@@ -1795,12 +1842,25 @@ def compute_wavepacket_gamma_figures(
     )
 
     numerical_results = {
+        'condition_name': run_name,
         'param': tuple(param),
         'seed': seed,
         'transient': transient,
         'stim_dura': stim_dura,
         'window': window,
         'gamma_band': tuple(gamma_band),
+        'area1_condition': {
+            'mode': area1_mode, 'shape': area1_shape, 'size': area1_size,
+            'new_delta_gk': area1_new_delta_gk
+        },
+        'area2_condition': {
+            'mode': area2_mode, 'shape': area2_shape, 'size': area2_size,
+            'new_delta_gk': area2_new_delta_gk
+        },
+        'interarea_weights': {
+            'E1E2': w_12_e, 'E1I2': w_12_i,
+            'E2E1': w_21_e, 'E2I1': w_21_i
+        },
         'area1_passage': {k: v for k, v in passage1.items() if k != 'figure'},
         'area2_passage': {k: v for k, v in passage2.items() if k != 'figure'},
         'alignment': {k: v for k, v in alignment.items() if k != 'figure'},
@@ -1813,6 +1873,7 @@ def compute_wavepacket_gamma_figures(
 
     print(f'Raw data: {raw_data_path}')
     print(f'Analysis data: {analysis_data_path}')
+    print(f'Condition: {run_name}')
     if video:
         print(f'Video: {video_path}')
     for name, path in figure_paths.items():
@@ -3968,9 +4029,13 @@ try:
     teacher_gamma = compute_wavepacket_gamma_figures(
         param=param_area1 + param_test2,
         seed=0, transient=1000, stim_dura=10000, window=15,
-        sti=False,
+        # Each area independently accepts: 'none', 'stimulation', 'adaptation'.
+        # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
+        area1_mode='none', area1_shape='Gaussian', area1_size=25,
+        area2_mode='none', area2_shape='Gaussian', area2_size=5,
+        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
         w_12_e=3.5, w_12_i=2.4,
-        w_21_e=3.5, w_21_i=7.2,
+        w_21_e=3.5, w_21_i=4.8,
         cmpt=True, video=True
     )
 

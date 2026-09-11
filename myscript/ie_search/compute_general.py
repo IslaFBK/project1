@@ -1393,7 +1393,13 @@ def compute_2_general(comb, seed=10, index=1,
                       lfp_electrodes=None,
                       lfp_electrodes2=None,
                       lfp_sigma=6,
-                      lfp_effect_range=2.5):
+                      lfp_effect_range=2.5,
+                      adapt1=False,
+                      adapt_type1='Gaussian',
+                      new_delta_gk_1=0.5,
+                      chg_adapt_range1=7,
+                      stim2_type=None,
+                      stim2_sig=None):
     ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = comb
 
     # common title & path
@@ -1616,6 +1622,26 @@ def compute_2_general(comb, seed=10, index=1,
         syn_LFP2.w[:] = w_LFP2[:]
 
     '''change adaptation'''
+    if adapt1:
+        chg_adapt_loca1 = [0, 0]
+        if adapt_type1 == 'Gaussian':
+            adapt_value1 = adapt_gaussian.get_adaptation(
+                base_amp=delta_gk_1,
+                max_decrease=[delta_gk_1 - new_delta_gk_1],
+                sig=[chg_adapt_range1], position=[chg_adapt_loca1],
+                n_side=int(round((ijwd1.Ne)**0.5)), width=ijwd1.width)
+        elif adapt_type1 == 'Uniform':
+            adapt_value1 = adapt_uniform.get_adaptation(
+                base_amp=delta_gk_1,
+                max_decrease=[delta_gk_1 - new_delta_gk_1],
+                sig=[chg_adapt_range1], position=[chg_adapt_loca1],
+                n_side=int(round((ijwd1.Ne)**0.5)), width=ijwd1.width)
+        else:
+            raise ValueError(
+                f"Unknown adapt_type1 '{adapt_type1}'. "
+                "Supported values: 'Gaussian', 'Uniform'."
+            )
+
     if adapt:
         new_delta_gk_2 = new_delta_gk_2
         chg_adapt_range = chg_adapt_range
@@ -1716,6 +1742,10 @@ def compute_2_general(comb, seed=10, index=1,
         syn_extnl_e1.w = w_extnl_*nS#*tau_s_de_*nS
 
     if top_sti:
+        if stim2_type is None:
+            stim2_type = sti_type
+        if stim2_sig is None:
+            stim2_sig = chg_adapt_range
         posi_stim_e2 = NeuronGroup(ijwd2.Ne, \
                                 '''rates =  bkg_rates + stim_1*scale_1(t) : Hz
                                 bkg_rates : Hz
@@ -1723,8 +1753,8 @@ def compute_2_general(comb, seed=10, index=1,
                                 ''', threshold='rand()<rates*dt')
         stim_loca2 = [[0, 0]]
         posi_stim_e2.bkg_rates = 0*Hz
-        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate = [maxrate], sig=[chg_adapt_range], position=stim_loca2, 
-                                                 sti_type=sti_type, n_side=le, width=le)*Hz
+        posi_stim_e2.stim_1 = psti.input_spkrate(maxrate=[maxrate], sig=[stim2_sig], position=stim_loca2,
+                                                 sti_type=stim2_type, n_side=le, width=le)*Hz
         #posi_stim_e1.stim_2 = psti.input_spkrate(maxrate = [200], sig=[6], position=[[-li, -li]])*Hz
 
         synapse_e_extnl = cn.model_neu_syn_AD.synapse_e_AD
@@ -1816,6 +1846,8 @@ def compute_2_general(comb, seed=10, index=1,
     # net.run(simu_time1, profile=False) #,namespace={'tau_k': 80*ms}
     net.run(transient*ms, profile=False)
     
+    if adapt1:
+        group_e_1.delta_gk[:] = adapt_value1*nS
     if adapt:
         group_e_2.delta_gk[:] = adapt_value*nS
 
@@ -1832,6 +1864,7 @@ def compute_2_general(comb, seed=10, index=1,
 
     param_all = {'delta_gk_1':delta_gk_1,
                  'delta_gk_2':delta_gk_2,
+                 'new_delta_gk_1':new_delta_gk_1,
                  'new_delta_gk_2':new_delta_gk_2,
                  'tau_k': tau_k_,
                  'tau_s_di':tau_s_di_,
@@ -1972,19 +2005,27 @@ def compute_2_general(comb, seed=10, index=1,
                     [[sig]*stim_on_off.shape[0]]], 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
+                    [[stim2_sig]*stim_on_off.shape[0]]]]
     else:
         if top_sti:
             stim = [None, 
                     [[[(le-1)/2,(le-1)/2]], 
                     [stim_on_off], 
-                    [[chg_adapt_range]*stim_on_off.shape[0]]]]
+                    [[stim2_sig]*stim_on_off.shape[0]]]]
 
     adpt = None
-    if adapt:
-        adpt = [None, [[[(le-1)/2,(le-1)/2]], 
-                       [stim_on_off], 
-                       [[chg_adapt_range]]]]
+    if adapt1 or adapt:
+        adpt1 = None
+        adpt2 = None
+        if adapt1:
+            adpt1 = [[[(le-1)/2,(le-1)/2]],
+                      [stim_on_off],
+                      [[chg_adapt_range1]]]
+        if adapt:
+            adpt2 = [[[(le-1)/2,(le-1)/2]],
+                      [stim_on_off],
+                      [[chg_adapt_range]]]
+        adpt = [adpt1, adpt2]
     
     if adapt and top_sti:
         topdown = 'adapt_stim2'
