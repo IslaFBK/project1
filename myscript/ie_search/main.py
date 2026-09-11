@@ -2986,7 +2986,7 @@ try:
                                            transient=transient, stim_dura=stim_dura,
                                            w_12_e=w_12_e, w_12_i=w_12_i,
                                            w_21_e=w_21_e, w_21_i=w_21_i)
-    compute_data2()
+    # compute_data2()
 
     # 故意写反看病态beta
     # param1  = (1.8147028535939709, 2.501407742047704)
@@ -3620,7 +3620,7 @@ try:
                                    sig=10,maxrate=1000,window=10,
                                    transient=1000,stim_dura=2000)
     # temp_fun0()
-    # send_email.send_email('Progress','Isolated time frequency accomplished')
+    send_email.send_email('Progress','Isolated time frequency accomplished')
     def temp_fun1():
         """
         画有inter-areal interaction 时 time_frequency图的
@@ -3696,7 +3696,7 @@ try:
         w_12_e=3.5
         w_12_i=2.4
         w_21_e=3.5
-        w_21_i=2.4
+        w_21_i=7.2
         # # transient
         # # bottom-up
         # bottom_up_LFP_compare(maxrate=maxrate,sti_type=sti_type,
@@ -3720,13 +3720,13 @@ try:
                               start_time=stim_dura,end_time=time_total,
                               w_12_e=w_12_e,w_12_i=w_12_i,
                               w_21_e=w_21_e,w_21_i=w_21_i)
-        # top-down
-        top_down_LFP_compare(maxrate=maxrate,sti_type=sti_type,adapt_type=adapt_type,
-                             transient=transient,stim_dura=stim_dura,
-                             video=True,
-                             start_time=stim_dura,end_time=time_total,
-                             w_12_e=w_12_e,w_12_i=w_12_i,
-                             w_21_e=w_21_e,w_21_i=w_21_i)
+        # # top-down
+        # top_down_LFP_compare(maxrate=maxrate,sti_type=sti_type,adapt_type=adapt_type,
+        #                      transient=transient,stim_dura=stim_dura,
+        #                      video=True,
+        #                      start_time=stim_dura,end_time=time_total,
+        #                      w_12_e=w_12_e,w_12_i=w_12_i,
+        #                      w_21_e=w_21_e,w_21_i=w_21_i)
     # temp_fun2()
     # send_email.send_email('Progress','LFP accomplished')
 
@@ -3796,8 +3796,8 @@ try:
                       new_delta_gk_2=0.5,
                       chg_adapt_range=20)
     # pick_state_compute_prediction()
+    # send_email.send_email('code executed', 'ie_search.main accomplished')
 
-    send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈
