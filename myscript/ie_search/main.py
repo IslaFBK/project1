@@ -1702,10 +1702,10 @@ def compute_wavepacket_gamma_figures(
         maxrate=1000, sig=0, sti=False, top_sti=False,
         sti_type='Uniform', adapt=False, adapt_type='Gaussian',
         new_delta_gk_2=0.5, chg_adapt_range=7,
-        w_12_e=2.4, w_12_i=2.4, w_21_e=2.4, w_21_i=2.4,
+        w_12_e=3.5, w_12_i=2.4, w_21_e=3.5, w_21_i=7.2,
         electrode=0, gamma_band=(30, 80),
         cmpt=True, video=False,
-        raw_data_path=None, analysis_data_path=None,
+        raw_data_path=None, analysis_data_path=None, video_path=None,
         save_path_root=None):
     """Compute and save all figures requested for wave-packet/gamma analysis.
 
@@ -1738,10 +1738,14 @@ def compute_wavepacket_gamma_figures(
         analysis_data_path = f'{state_dir}/{analysis_name}_analysis.file'
     if save_path_root is None:
         save_path_root = f'{LFP_dir}/wavepacket_gamma'
+    if video_path is None:
+        video_path = f'{video_dir}/{run_name}.mp4'
 
     Path(raw_data_path).parent.mkdir(parents=True, exist_ok=True)
     Path(analysis_data_path).parent.mkdir(parents=True, exist_ok=True)
     Path(save_path_root).mkdir(parents=True, exist_ok=True)
+    if video:
+        Path(video_path).parent.mkdir(parents=True, exist_ok=True)
 
     if cmpt:
         simulation_result = compute.compute_2_general(
@@ -1751,7 +1755,7 @@ def compute_wavepacket_gamma_figures(
             new_delta_gk_2=new_delta_gk_2,
             chg_adapt_range=chg_adapt_range,
             window=window, transient=transient, stim_dura=stim_dura,
-            video=video, save_load=False,
+            video=video, save_path_video=video_path, save_load=False,
             w_12_e=w_12_e, w_12_i=w_12_i,
             w_21_e=w_21_e, w_21_i=w_21_i
         )
@@ -1801,6 +1805,7 @@ def compute_wavepacket_gamma_figures(
         'area2_passage': {k: v for k, v in passage2.items() if k != 'figure'},
         'alignment': {k: v for k, v in alignment.items() if k != 'figure'},
         'raw_data_path': raw_data_path,
+        'video_path': video_path if video else None,
         'figure_paths': figure_paths
     }
     with open(analysis_data_path, 'wb') as file:
@@ -1808,6 +1813,8 @@ def compute_wavepacket_gamma_figures(
 
     print(f'Raw data: {raw_data_path}')
     print(f'Analysis data: {analysis_data_path}')
+    if video:
+        print(f'Video: {video_path}')
     for name, path in figure_paths.items():
         print(f'{name}: {path}')
     print(
@@ -1835,6 +1842,7 @@ def compute_wavepacket_gamma_figures(
         'alignment': alignment,
         'raw_data_path': raw_data_path,
         'analysis_data_path': analysis_data_path,
+        'video_path': video_path if video else None,
         'figure_paths': figure_paths
     }
 
@@ -3961,9 +3969,9 @@ try:
         param=param_area1 + param_test2,
         seed=0, transient=1000, stim_dura=10000, window=15,
         sti=False,
-        w_12_e=2.4, w_12_i=2.4,
-        w_21_e=2.4, w_21_i=2.4,
-        cmpt=True, video=False
+        w_12_e=3.5, w_12_i=2.4,
+        w_21_e=3.5, w_21_i=7.2,
+        cmpt=True, video=True
     )
 
 except Exception:
