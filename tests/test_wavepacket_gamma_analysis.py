@@ -45,6 +45,25 @@ class WavepacketGammaAnalysisTests(unittest.TestCase):
         self.assertEqual(output["local_firing_rate_hz"].shape, (frames,))
         self.assertEqual(output["gamma_power"].shape, output["spectrum_times_ms"].shape)
         self.assertTrue(np.isfinite(output["rho_firing_gamma"]))
+        frequency_axis = next(
+            axis for axis in output["figure"].axes
+            if axis.get_ylabel() == "Frequency (Hz)"
+        )
+        self.assertEqual(frequency_axis.get_yscale(), "log")
+        self.assertTrue(frequency_axis.collections[0].get_rasterized())
+        displayed_frequencies = output["frequencies_hz"]
+        displayed_frequencies = displayed_frequencies[
+            (displayed_frequencies >= 1.0) & (displayed_frequencies <= 100.0)
+        ]
+        self.assertAlmostEqual(
+            frequency_axis.get_ylim()[0], displayed_frequencies[0]
+        )
+        self.assertEqual(len(frequency_axis.child_axes), 1)
+        output["figure"].canvas.draw()
+        plot_box = frequency_axis.get_window_extent()
+        colorbar_box = frequency_axis.child_axes[0].get_window_extent()
+        self.assertAlmostEqual(plot_box.x1, colorbar_box.x0)
+        self.assertAlmostEqual(output["figure"].get_figwidth(), 3.0)
         matplotlib.pyplot.close(output["figure"])
 
     def test_alignment_analysis_detects_higher_plv_when_packets_are_close(self):
@@ -70,6 +89,10 @@ class WavepacketGammaAnalysisTests(unittest.TestCase):
         )
         self.assertLess(output["rho_distance_plv"], 0.0)
         self.assertGreater(output["aligned_plv_median"], output["nonaligned_plv_median"])
+        self.assertTrue(
+            all(axis.get_legend() is None for axis in output["figure"].axes)
+        )
+        self.assertAlmostEqual(output["figure"].get_figwidth(), 3.0)
         matplotlib.pyplot.close(output["figure"])
 
 

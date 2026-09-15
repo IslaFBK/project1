@@ -13,6 +13,11 @@ from scipy.signal import butter, hilbert, sosfiltfilt, spectrogram
 from scipy.stats import rankdata, spearmanr
 
 
+_FIGURE_WIDTH_IN = 3.0
+_PANEL_HEIGHT_IN = 1.0
+_FONT_SIZE_PT = 9.0
+
+
 def periodic_point_distance(points, reference, shape):
     """Return shortest Euclidean distances on a rectangular periodic grid.
 
@@ -136,6 +141,26 @@ def _save_figure(fig, save_path):
     fig.savefig(save_path, dpi=600, bbox_inches="tight")
 
 
+def _harmonize_figure_style(fig):
+    '''Match the compact journal style used by analyze_LFP_morlet.'''
+    for axis in fig.axes:
+        axis.tick_params(
+            axis='both', which='major', direction='in',
+            width=1.0, length=3.0, labelsize=_FONT_SIZE_PT,
+        )
+        axis.xaxis.label.set_size(_FONT_SIZE_PT)
+        axis.yaxis.label.set_size(_FONT_SIZE_PT)
+        axis.title.set_size(_FONT_SIZE_PT)
+        axis.xaxis.get_offset_text().set_size(_FONT_SIZE_PT)
+        axis.yaxis.get_offset_text().set_size(_FONT_SIZE_PT)
+        for spine in axis.spines.values():
+            spine.set_linewidth(1.0)
+        legend = axis.get_legend()
+        if legend is not None:
+            for text in legend.get_texts():
+                text.set_fontsize(_FONT_SIZE_PT)
+
+
 def analyze_electrode_passage(
     spk_rate,
     centre,
@@ -152,7 +177,7 @@ def analyze_electrode_passage(
     spectrogram_window_ms=200.0,
     spectrogram_step_ms=10.0,
     near_radius=None,
-    max_plot_frequency=120.0,
+    max_plot_frequency=100.0,
     save_path=None,
 ):
     """Relate local firing and gamma power to a packet passing an electrode.
@@ -220,13 +245,13 @@ def analyze_electrode_passage(
     fig, axes = plt.subplots(
         2,
         1,
-        figsize=(7.0, 5.0),
+        figsize=(_FIGURE_WIDTH_IN, 2.0 * _PANEL_HEIGHT_IN),
         sharex=True,
-        gridspec_kw={"height_ratios": [1.0, 1.35]},
+        gridspec_kw={"height_ratios": [1.0, 1.0]},
         constrained_layout=True,
     )
     axes[0].plot(frame_times_ms, local_rate_hz, color="black", linewidth=1.0)
-    axes[0].set_ylabel("Local firing rate (Hz/neuron)")
+    axes[0].set_ylabel("Local rate\n(Hz/neuron)")
     distance_axis = axes[0].twinx()
     distance_axis.plot(
         frame_times_ms,
@@ -236,24 +261,47 @@ def analyze_electrode_passage(
         alpha=0.7,
     )
     distance_axis.axhline(near_radius, color="#377eb8", linestyle="--", linewidth=0.7)
-    distance_axis.set_ylabel("Packet-electrode distance", color="#377eb8")
+    distance_axis.set_ylabel("Packet distance", color="#377eb8")
 
-    positive_psd = psd[psd > 0]
-    floor = np.finfo(float).tiny if positive_psd.size == 0 else positive_psd.min()
-    psd_db = 10.0 * np.log10(np.maximum(psd, floor))
-    frequency_plot = frequencies_hz <= max_plot_frequency
+    if max_plot_frequency <= 1.0:
+        raise ValueError("max_plot_frequency must be greater than 1 Hz")
+    log_power = np.log10(psd + 1e-12)
+    frequency_plot = (frequencies_hz >= 1.0) & (
+        frequencies_hz <= max_plot_frequency
+    )
+    displayed_frequencies = frequencies_hz[frequency_plot]
+    if displayed_frequencies.size == 0:
+        raise ValueError("no spectrogram frequencies lie in the plotting range")
+    displayed_power = log_power[frequency_plot]
+    color_min, color_max = np.percentile(displayed_power, (5.0, 95.0))
+    if color_max <= color_min:
+        color_max = color_min + np.finfo(float).eps
     mesh = axes[1].pcolormesh(
         spectrum_times_ms,
-        frequencies_hz[frequency_plot],
-        psd_db[frequency_plot],
-        shading="auto",
-        cmap="magma",
+        displayed_frequencies,
+        displayed_power,
+        shading="gouraud",
+        cmap="plasma",
+        vmin=color_min,
+        vmax=color_max,
+        rasterized=True,
     )
     axes[1].axhline(gamma_low, color="white", linestyle="--", linewidth=0.7)
     axes[1].axhline(gamma_high, color="white", linestyle="--", linewidth=0.7)
+    axes[1].set_yscale("log")
+    axes[1].set_ylim(displayed_frequencies[0], displayed_frequencies[-1])
     axes[1].set_ylabel("Frequency (Hz)")
-    axes[1].set_xlabel("Time from analysis start (ms)")
-    fig.colorbar(mesh, ax=axes[1], label="PSD (dB/Hz)")
+    axes[1].set_xlabel("Time (ms)")
+    colorbar_axis = axes[1].inset_axes(
+        [1.0, 0.0, 0.045, 1.0],
+        transform=axes[1].transAxes,
+    )
+    fig.colorbar(
+        mesh,
+        cax=colorbar_axis,
+        label=r"log$_{10}$(Power)",
+    )
+    _harmonize_figure_style(fig)
     _save_figure(fig, save_path)
 
     return {
@@ -511,10 +559,15 @@ def analyze_packet_alignment(
         alternative="less",
     )
 
-    fig, axes = plt.subplots(3, 1, figsize=(7.0, 6.3), constrained_layout=True)
+    fig, axes = plt.subplots(
+        3,
+        1,
+        figsize=(_FIGURE_WIDTH_IN, 3.0 * _PANEL_HEIGHT_IN),
+        constrained_layout=True,
+    )
     axes[0].plot(centre_times_ms, packet_distance, color="black", linewidth=0.9)
     axes[0].axhline(alignment_radius, color="#377eb8", linestyle="--", linewidth=0.8)
-    axes[0].set_ylabel("Inter-packet distance")
+    axes[0].set_ylabel("Distance")
 
     axes[1].plot(synchrony_times_ms, plv, color="#e41a1c", linewidth=0.9, label="Gamma PLV")
     if np.ptp(joint_power) > 0:
@@ -525,15 +578,14 @@ def analyze_packet_alignment(
             color="#4daf4a",
             linewidth=0.8,
             alpha=0.8,
-            label="Joint gamma power (normalized)",
+            label="Joint power (norm.)",
         )
     axes[1].set_ylim(0.0, 1.05)
-    axes[1].set_ylabel("Gamma synchrony / power")
+    axes[1].set_ylabel("PLV / power")
     axes[1].set_title(
-        f"Most negative distance-PLV relation at lag {best_plv_lag_ms:.0f} ms",
-        fontsize=9,
+        f"Distance-PLV minimum at {best_plv_lag_ms:.0f} ms",
+        fontsize=_FONT_SIZE_PT,
     )
-    axes[1].legend(frameon=False, loc="upper right")
 
     axes[2].errorbar(
         bin_centres,
@@ -546,9 +598,10 @@ def analyze_packet_alignment(
         color="#e41a1c",
     )
     axes[2].axvspan(0.0, alignment_radius, color="#377eb8", alpha=0.12)
-    axes[2].set_xlabel("Inter-packet distance (periodic boundary)")
-    axes[2].set_ylabel("Mean gamma PLV")
+    axes[2].set_xlabel("Inter-packet distance")
+    axes[2].set_ylabel("Mean PLV")
     axes[2].set_ylim(0.0, 1.05)
+    _harmonize_figure_style(fig)
     _save_figure(fig, save_path)
 
     return {

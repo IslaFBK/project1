@@ -1778,7 +1778,7 @@ def compute_wavepacket_gamma_figures(
     if analysis_data_path is None:
         analysis_data_path = f'{state_dir}/{analysis_name}_analysis.file'
     if save_path_root is None:
-        save_path_root = f'{LFP_dir}/wavepacket_gamma'
+        save_path_root = f'{LFP_dir}/wavepacket_gamma_log'
     if video_path is None:
         video_path = f'{video_dir}/{run_name}.mp4'
 
@@ -4022,23 +4022,36 @@ try:
                       new_delta_gk_2=0.5,
                       chg_adapt_range=20)
     # pick_state_compute_prediction()
-    # send_email.send_email('code executed', 'ie_search.main accomplished')
 
     # Wave-packet passage, gamma spectrum and inter-area alignment.
     # Run once with cmpt=True; then use cmpt=False to redraw saved data.
-    teacher_gamma = compute_wavepacket_gamma_figures(
-        param=param_area1 + param_test2,
-        seed=0, transient=1000, stim_dura=10000, window=15,
-        # Each area independently accepts: 'none', 'stimulation', 'adaptation'.
-        # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
-        area1_mode='none', area1_shape='Gaussian', area1_size=25,
-        area2_mode='none', area2_shape='Gaussian', area2_size=5,
-        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
-        w_12_e=3.5, w_12_i=2.4,
-        w_21_e=3.5, w_21_i=4.8,
-        cmpt=True, video=True
+    area2_conditions = (
+        ('none', 15),
+        ('adaptation', 5),
+        ('adaptation', 15),
+        ('stimulation', 5),
+        ('stimulation', 15),
     )
+    teacher_gamma = {}
+    for w21i in (4.8, 7.2):
+        for area1_size in (25, 15):
+            for area2_mode, area2_size in area2_conditions:
+                condition = (area1_size, area2_mode, area2_size)
+                teacher_gamma[condition] = compute_wavepacket_gamma_figures(
+                    param=param_area1 + param_test2,
+                    seed=0, transient=1000, stim_dura=2000, window=15,
+                    # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
+                    area1_mode='stimulation', area1_shape='Gaussian',
+                    area1_size=area1_size,
+                    area2_mode=area2_mode, area2_shape='Gaussian',
+                    area2_size=area2_size,
+                    area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
+                    w_12_e=3.5, w_12_i=2.4,
+                    w_21_e=3.5, w_21_i=w21i,
+                    cmpt=False, video=True
+                )
 
+    send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈
