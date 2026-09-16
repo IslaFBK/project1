@@ -25,6 +25,7 @@ from analysis import mydata
 from analysis import firing_rate_analysis as fra
 from analysis import my_analysis as mya
 from analysis import wavepacket_gamma_analysis as wpga
+from analysis import wavepacket_gamma_statistics as wpgs
 from joblib import Parallel, delayed
 from pathlib import Path
 from myscript.ie_search.compute_MSD_pdx import compute_MSD_pdx
@@ -1712,7 +1713,7 @@ def compute_wavepacket_gamma_figures(
 
     Raw inputs, numerical results and figures follow the existing ``raw_data``,
     ``state`` and ``graph/LFP`` directory convention. Set ``cmpt=False`` to
-    redraw an already saved simulation without repeating the Brian2 run.
+    redraw saved data or ``cmpt='auto'`` to compute only missing raw data.
     """
     if len(param) != 4:
         raise ValueError('param must contain (re1, ri1, re2, ri2)')
@@ -1781,6 +1782,11 @@ def compute_wavepacket_gamma_figures(
         save_path_root = f'{LFP_dir}/wavepacket_gamma_log'
     if video_path is None:
         video_path = f'{video_dir}/{run_name}.mp4'
+
+    if cmpt == 'auto':
+        cmpt = not os.path.exists(raw_data_path)
+    elif cmpt is not True and cmpt is not False:
+        raise ValueError("cmpt must be True, False, or 'auto'")
 
     Path(raw_data_path).parent.mkdir(parents=True, exist_ok=True)
     Path(analysis_data_path).parent.mkdir(parents=True, exist_ok=True)
@@ -4026,30 +4032,60 @@ try:
     # Wave-packet passage, gamma spectrum and inter-area alignment.
     # Run once with cmpt=True; then use cmpt=False to redraw saved data.
     area2_conditions = (
-        ('none', 15),
-        ('adaptation', 5),
-        ('adaptation', 15),
-        ('stimulation', 5),
-        ('stimulation', 15),
+        (('none', 15),)
+        + tuple(
+            ('adaptation', size)
+            for size in wpgs.A2_STIMULUS_SIZE_GRID
+        )
+        + tuple(
+            ('stimulation', size)
+            for size in wpgs.A2_STIMULUS_SIZE_GRID
+        )
     )
+    area1_sizes = wpgs.A1_STIMULUS_SIZE_GRID
+    w21i_values = wpgs.e2i1_weight_grid()
+    seeds = range(5)
     teacher_gamma = {}
-    for w21i in (4.8, 7.2):
-        for area1_size in (25, 15):
+    for w21i in w21i_values:
+        for area1_size in area1_sizes:
             for area2_mode, area2_size in area2_conditions:
-                condition = (area1_size, area2_mode, area2_size)
-                teacher_gamma[condition] = compute_wavepacket_gamma_figures(
-                    param=param_area1 + param_test2,
-                    seed=0, transient=1000, stim_dura=2000, window=15,
-                    # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
-                    area1_mode='stimulation', area1_shape='Gaussian',
-                    area1_size=area1_size,
-                    area2_mode=area2_mode, area2_shape='Gaussian',
-                    area2_size=area2_size,
-                    area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
-                    w_12_e=3.5, w_12_i=2.4,
-                    w_21_e=3.5, w_21_i=w21i,
-                    cmpt=False, video=True
-                )
+                for seed in seeds:
+                    condition = (
+                        seed, w21i, area1_size, area2_mode, area2_size
+                    )
+                    run_output = compute_wavepacket_gamma_figures(
+                        param=param_area1 + param_test2,
+                        seed=seed, transient=1000, stim_dura=2000, window=15,
+                        # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
+                        area1_mode='stimulation', area1_shape='Gaussian',
+                        area1_size=area1_size,
+                        area2_mode=area2_mode, area2_shape='Gaussian',
+                        area2_size=area2_size,
+                        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
+                        w_12_e=3.5, w_12_i=2.4,
+                        w_21_e=3.5, w_21_i=w21i,
+                        cmpt='auto', video=False
+                    )
+                    teacher_gamma[condition] = {
+                        'analysis_data_path': run_output['analysis_data_path'],
+                        'figure_paths': run_output['figure_paths'],
+                    }
+                    for result_name in ('passage1', 'passage2', 'alignment'):
+                        plt.close(run_output[result_name]['figure'])
+                    del run_output
+
+    gamma_statistics = wpgs.analyze_saved_wavepacket_gamma_results(
+        analysis_dir=state_dir,
+        output_dir=f'{LFP_dir}/wavepacket_gamma_statistics',
+        n_permutations=5000,
+        n_surrogates=1000,
+        random_state=0,
+        analysis_paths=[
+            output['analysis_data_path']
+            for output in teacher_gamma.values()
+        ],
+    )
+    print(f"Gamma statistics: {gamma_statistics['report_path']}")
 
     send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
