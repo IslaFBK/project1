@@ -1,4 +1,8 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/python.exe",
+  "python.condaPath": "C:\\Users\\work\\anaconda3\\Scripts\\conda.exe",
+  "python-envs.workspaceSearchPaths": [
+    ".venv"
+  ]
 }
