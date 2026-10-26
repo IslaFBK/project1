@@ -14,6 +14,7 @@ import tempfile
 import datetime
 import time
 import traceback
+import multiprocessing as mp
 import connection as cn
 from connection import poisson_stimuli as psti
 from connection import pre_process_sc
@@ -1698,6 +1699,278 @@ def packet_distance_gamma_synchrony(result, save_path=None, **kwargs):
     )
 
 
+def wavepacket_gamma_output_paths(
+        param, seed=0, transient=1000, stim_dura=10000, window=15,
+        maxrate=1000,
+        area1_mode='stimulation', area1_shape='Gaussian', area1_size=25,
+        area2_mode='adaptation', area2_shape='Gaussian', area2_size=5,
+        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
+        w_12_e=3.5, w_12_i=2.4, w_21_e=3.5, w_21_i=7.2,
+        electrode=0, gamma_band=(30, 80), save_path_root=None):
+    """Return the deterministic output paths for one gamma-analysis run."""
+    mode_aliases = {
+        'none': 'none', 'off': 'none',
+        'stimulation': 'stimulation', 'stim': 'stimulation',
+        'adaptation': 'adaptation', 'adapt': 'adaptation'
+    }
+    shape_aliases = {'uniform': 'Uniform', 'gaussian': 'Gaussian'}
+    area1_mode = mode_aliases[str(area1_mode).strip().lower()]
+    area2_mode = mode_aliases[str(area2_mode).strip().lower()]
+    area1_shape = shape_aliases[str(area1_shape).strip().lower()]
+    area2_shape = shape_aliases[str(area2_shape).strip().lower()]
+
+    def area_tag(area, mode, shape, size, new_delta_gk):
+        if mode == 'none':
+            return f'a{area}off'
+        if mode == 'stimulation':
+            return f'a{area}stim_on{maxrate}_{shape}_{size}'
+        return f'a{area}adapt_{shape}_{size}_dgk{new_delta_gk}'
+
+    ie_r_e1, ie_r_i1, ie_r_e2, ie_r_i2 = param
+    common_path = (
+        f're1{ie_r_e1:.4f}_ri1{ie_r_i1:.4f}_'
+        f're2{ie_r_e2:.4f}_ri2{ie_r_i2:.4f}'
+    )
+    run_name = (
+        f'WPg_{common_path}_'
+        f'{area_tag(1, area1_mode, area1_shape, area1_size, area1_new_delta_gk)}_'
+        f'{area_tag(2, area2_mode, area2_shape, area2_size, area2_new_delta_gk)}_'
+        f'w{w_12_e}_{w_12_i}_{w_21_e}_{w_21_i}_'
+        f'win{window}_seed{seed}_trans{transient}_{stim_dura}ms'
+    )
+    analysis_name = (
+        f'{run_name}_e{electrode}_g{gamma_band[0]}-{gamma_band[1]}Hz'
+    )
+    if save_path_root is None:
+        save_path_root = f'{LFP_dir}/wavepacket_gamma_log'
+    figure_paths = {
+        'area1_passage': f'{save_path_root}/{analysis_name}_A1pass.svg',
+        'area2_passage': f'{save_path_root}/{analysis_name}_A2pass.svg',
+        'alignment': f'{save_path_root}/{analysis_name}_align.svg'
+    }
+    return {
+        'run_name': run_name,
+        'analysis_name': analysis_name,
+        'raw_data_path': f'{data_dir}/{run_name}.file',
+        'analysis_data_path': f'{state_dir}/{analysis_name}_analysis.file',
+        'video_path': f'{video_dir}/{run_name}.mp4',
+        'figure_paths': figure_paths,
+    }
+
+
+def _atomic_pickle_dump(value, path):
+    """Write a pickle atomically so an interrupted run cannot look cached."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(
+        f'.{path.name}.{os.getpid()}.{time.time_ns()}.tmp'
+    )
+    try:
+        with open(temporary_path, 'wb') as file:
+            pickle.dump(value, file)
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
+def _wavepacket_gamma_run_complete(paths):
+    """True only when numerical analysis and all three figures exist."""
+    required = [paths['analysis_data_path'], *paths['figure_paths'].values()]
+    return all(Path(path).is_file() and Path(path).stat().st_size > 0
+               for path in required)
+
+
+def _compute_wavepacket_gamma_task(task):
+    """Process-safe worker returning only small metadata, never simulation arrays."""
+    paths = wavepacket_gamma_output_paths(**task)
+    if _wavepacket_gamma_run_complete(paths):
+        return {'status': 'cached', **paths}
+    raw_was_cached = Path(paths['raw_data_path']).is_file()
+    try:
+        output = compute_wavepacket_gamma_figures(
+            **task, cmpt='auto', video=False
+        )
+        for result_name in ('passage1', 'passage2', 'alignment'):
+            plt.close(output[result_name]['figure'])
+        result = {
+            # Analysis-only work must not count as a newly completed simulation.
+            'status': 'analyzed' if raw_was_cached else 'simulated',
+            'run_name': paths['run_name'],
+            'raw_data_path': output['raw_data_path'],
+            'analysis_data_path': output['analysis_data_path'],
+            'figure_paths': output['figure_paths'],
+        }
+        del output
+        plt.close('all')
+        gc.collect()
+        return result
+    except Exception:
+        plt.close('all')
+        gc.collect()
+        return {
+            'status': 'error',
+            'run_name': paths['run_name'],
+            'error': traceback.format_exc(),
+            **paths,
+        }
+
+
+def run_wavepacket_gamma_batch(param, n_jobs=None):
+    """Run the full factorial gamma batch in restart-safe CPU processes."""
+    if n_jobs is None:
+        # Start from every logical CPU reported by the operating system;
+        # WPG_N_JOBS may override it before applying the platform-safe cap.
+        n_jobs = int(os.environ.get('WPG_N_JOBS', str(os.cpu_count() or 1)))
+    if n_jobs < 1:
+        raise ValueError('WPG_N_JOBS must be a positive integer')
+    # A Windows multiprocessing Pool waits on one handle per worker plus two
+    # internal handles. WaitForMultipleObjects accepts at most 63 handles, so
+    # a single Pool cannot contain more than 61 workers on Windows.
+    if os.name == 'nt' and n_jobs > 61:
+        print(
+            f'Windows multiprocessing supports at most 61 workers per Pool; '
+            f'reducing WPG_N_JOBS from {n_jobs} to 61.',
+            flush=True,
+        )
+        n_jobs = 61
+
+    area2_conditions = (
+        (('none', 15),)
+        + tuple(('adaptation', size)
+                for size in wpgs.A2_STIMULUS_SIZE_GRID)
+        + tuple(('stimulation', size)
+                for size in wpgs.A2_STIMULUS_SIZE_GRID)
+    )
+    tasks = []
+    for w21i in wpgs.e2i1_weight_grid():
+        for area1_size in wpgs.A1_STIMULUS_SIZE_GRID:
+            for area2_mode, area2_size in area2_conditions:
+                for seed in range(5):
+                    tasks.append({
+                        'param': param,
+                        'seed': seed,
+                        'transient': 1000,
+                        'stim_dura': 2000,
+                        'window': 15,
+                        'area1_mode': 'stimulation',
+                        'area1_shape': 'Gaussian',
+                        'area1_size': area1_size,
+                        'area2_mode': area2_mode,
+                        'area2_shape': 'Gaussian',
+                        'area2_size': area2_size,
+                        'area1_new_delta_gk': 0.5,
+                        'area2_new_delta_gk': 0.5,
+                        'w_12_e': 3.5,
+                        'w_12_i': 2.4,
+                        'w_21_e': 3.5,
+                        'w_21_i': w21i,
+                    })
+
+    pending_tasks = [
+        task for task in tasks
+        if not _wavepacket_gamma_run_complete(
+            wavepacket_gamma_output_paths(**task)
+        )
+    ]
+    complete_count = len(tasks) - len(pending_tasks)
+    simulation_total = sum(
+        not Path(
+            wavepacket_gamma_output_paths(**task)['raw_data_path']
+        ).is_file()
+        for task in pending_tasks
+    )
+    print(
+        f'Wave-packet gamma batch: {complete_count}/{len(tasks)} complete; '
+        f'{len(pending_tasks)} pending, including {simulation_total} new '
+        f'simulations; {n_jobs} CPU workers.'
+    )
+
+    if pending_tasks:
+        new_results = []
+        simulated_completed = 0
+        next_email_percent = 10
+
+        def record_result(result, completed):
+            nonlocal simulated_completed, next_email_percent
+            new_results.append(result)
+            print(
+                f'Parallel progress: {completed}/{len(pending_tasks)} '
+                f"({result['status']}: {result['run_name']})",
+                flush=True,
+            )
+            if result['status'] != 'simulated' or simulation_total == 0:
+                return
+            simulated_completed += 1
+            while (next_email_percent <= 100
+                   and simulated_completed * 100
+                   >= simulation_total * next_email_percent):
+                subject = (
+                    f'Wave-packet gamma progress: {next_email_percent}%'
+                )
+                body = (
+                    f'New Brian2 simulations completed: '
+                    f'{simulated_completed}/{simulation_total}.\n'
+                    f'Analysis-only and previously completed runs are excluded.\n'
+                    f'Latest run: {result["run_name"]}'
+                )
+                try:
+                    send_email.send_email(subject, body)
+                except Exception:
+                    print(
+                        f'Progress email at {next_email_percent}% failed:\n'
+                        f'{traceback.format_exc()}',
+                        flush=True,
+                    )
+                next_email_percent += 10
+
+        if n_jobs == 1:
+            for completed, task in enumerate(pending_tasks, start=1):
+                record_result(
+                    _compute_wavepacket_gamma_task(task), completed
+                )
+        else:
+            # A fresh process for each run prevents Brian2/matplotlib state and
+            # memory from accumulating across this long batch.
+            worker_count = min(n_jobs, len(pending_tasks))
+            # ``spawn`` gives every Brian2 run clean interpreter state. A
+            # one-task lifetime also guarantees that its large network and
+            # matplotlib allocations are returned to the OS after each run.
+            with mp.get_context('spawn').Pool(
+                    processes=worker_count, maxtasksperchild=1) as pool:
+                for completed, result in enumerate(
+                        pool.imap_unordered(
+                            _compute_wavepacket_gamma_task,
+                            pending_tasks,
+                            chunksize=1,
+                        ), start=1):
+                    record_result(result, completed)
+        errors = [result for result in new_results
+                  if result['status'] == 'error']
+        if errors:
+            for result in errors:
+                print(f"FAILED: {result['run_name']}\n{result['error']}")
+            raise RuntimeError(
+                f'{len(errors)} wave-packet gamma runs failed; '
+                'successful runs remain cached and will be skipped next time.'
+            )
+
+    analysis_paths = [
+        wavepacket_gamma_output_paths(**task)['analysis_data_path']
+        for task in tasks
+    ]
+    gamma_statistics = wpgs.analyze_saved_wavepacket_gamma_results(
+        analysis_dir=state_dir,
+        output_dir=f'{LFP_dir}/wavepacket_gamma_statistics',
+        n_permutations=5000,
+        n_surrogates=1000,
+        random_state=0,
+        analysis_paths=analysis_paths,
+    )
+    print(f"Gamma statistics: {gamma_statistics['report_path']}")
+    return gamma_statistics
+
+
 def compute_wavepacket_gamma_figures(
         param, seed=0, transient=1000, stim_dura=10000, window=15,
         maxrate=1000,
@@ -1818,8 +2091,7 @@ def compute_wavepacket_gamma_figures(
             'lfp_dt_ms', 'grid_shape'
         )
         result = {key: simulation_result[key] for key in saved_keys}
-        with open(raw_data_path, 'wb') as file:
-            pickle.dump(result, file)
+        _atomic_pickle_dump(result, raw_data_path)
     else:
         if not os.path.exists(raw_data_path):
             raise FileNotFoundError(
@@ -1874,8 +2146,7 @@ def compute_wavepacket_gamma_figures(
         'video_path': video_path if video else None,
         'figure_paths': figure_paths
     }
-    with open(analysis_data_path, 'wb') as file:
-        pickle.dump(numerical_results, file)
+    _atomic_pickle_dump(numerical_results, analysis_data_path)
 
     print(f'Raw data: {raw_data_path}')
     print(f'Analysis data: {analysis_data_path}')
@@ -3092,7 +3363,8 @@ def LFPs_diff_prediction_repeat(param,n_repeat=64,maxrate=500,dt=0.1,sigs=[0,5,1
 
 #%% Execution area
 try:
-    send_email.send_email('Begin Running', 'ie_search.main running')
+    if __name__ == '__main__':
+        send_email.send_email('Begin Running', 'ie_search.main running')
     #%% test
     # param = (1.8512390285440765, 2.399131446733395)
     # 1st pair (alpha <= 1.3)
@@ -3852,7 +4124,9 @@ try:
                                    sig=10,maxrate=1000,window=10,
                                    transient=1000,stim_dura=2000)
     # temp_fun0()
-    send_email.send_email('Progress','Isolated time frequency accomplished')
+    # send_email.send_email('Progress','Isolated time frequency accomplished')
+
+    
     def temp_fun1():
         """
         画有inter-areal interaction 时 time_frequency图的
@@ -4029,72 +4303,20 @@ try:
                       chg_adapt_range=20)
     # pick_state_compute_prediction()
 
-    # Wave-packet passage, gamma spectrum and inter-area alignment.
-    # Run once with cmpt=True; then use cmpt=False to redraw saved data.
-    area2_conditions = (
-        (('none', 15),)
-        + tuple(
-            ('adaptation', size)
-            for size in wpgs.A2_STIMULUS_SIZE_GRID
-        )
-        + tuple(
-            ('stimulation', size)
-            for size in wpgs.A2_STIMULUS_SIZE_GRID
-        )
-    )
-    area1_sizes = wpgs.A1_STIMULUS_SIZE_GRID
-    w21i_values = wpgs.e2i1_weight_grid()
-    seeds = range(5)
-    teacher_gamma = {}
-    for w21i in w21i_values:
-        for area1_size in area1_sizes:
-            for area2_mode, area2_size in area2_conditions:
-                for seed in seeds:
-                    condition = (
-                        seed, w21i, area1_size, area2_mode, area2_size
-                    )
-                    run_output = compute_wavepacket_gamma_figures(
-                        param=param_area1 + param_test2,
-                        seed=seed, transient=1000, stim_dura=2000, window=15,
-                        # Shapes accept 'Uniform' or 'Gaussian' (case-insensitive).
-                        area1_mode='stimulation', area1_shape='Gaussian',
-                        area1_size=area1_size,
-                        area2_mode=area2_mode, area2_shape='Gaussian',
-                        area2_size=area2_size,
-                        area1_new_delta_gk=0.5, area2_new_delta_gk=0.5,
-                        w_12_e=3.5, w_12_i=2.4,
-                        w_21_e=3.5, w_21_i=w21i,
-                        cmpt='auto', video=False
-                    )
-                    teacher_gamma[condition] = {
-                        'analysis_data_path': run_output['analysis_data_path'],
-                        'figure_paths': run_output['figure_paths'],
-                    }
-                    for result_name in ('passage1', 'passage2', 'alignment'):
-                        plt.close(run_output[result_name]['figure'])
-                    del run_output
-
-    gamma_statistics = wpgs.analyze_saved_wavepacket_gamma_results(
-        analysis_dir=state_dir,
-        output_dir=f'{LFP_dir}/wavepacket_gamma_statistics',
-        n_permutations=5000,
-        n_surrogates=1000,
-        random_state=0,
-        analysis_paths=[
-            output['analysis_data_path']
-            for output in teacher_gamma.values()
-        ],
-    )
-    print(f"Gamma statistics: {gamma_statistics['report_path']}")
-
-    send_email.send_email('code executed', 'ie_search.main accomplished')
+    # The guard is required by Windows process spawning. Workers import this
+    # module but must never recursively launch the complete batch.
+    if __name__ == '__main__':
+        run_wavepacket_gamma_batch(param_area1 + param_test2)
+        send_email.send_email('code executed', 'ie_search.main accomplished')
 except Exception:
     # 捕获异常并发送邮件
     error_info = traceback.format_exc()  # 获取完整错误堆栈
     print(error_info)
-    send_email.send_error_email(
-        subject="script execution error",
-        body=f"info: \n\n{error_info}"
-    )
-    sys.exit(1)  # 退出程序并返回错误码
+    if __name__ == '__main__':
+        send_email.send_error_email(
+            subject="script execution error",
+            body=f"info: \n\n{error_info}"
+        )
+        sys.exit(1)
+    raise
 # %%
